@@ -91,10 +91,10 @@ RK_HEADER_BEGIN
 /// instead of running `RK_POOL_FAIL()`.
 #define pool_try_put(self, el)          ((RK__poolT(self)*)RK__pool_try_put(self, el))
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define pool_allocator(self) rk_to_rvalue((self)->_pool.alloc)
 #else
-# define pool_allocator(self) rk_allocator_disabled()
+# define pool_allocator(self) ((void)(self), alloc_ctx)
 #endif
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.

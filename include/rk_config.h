@@ -15,32 +15,18 @@
 ///   header. This provides the definitions for `extern inline` functions. All other translation
 ///   units must omit it.
 ///
-/// - **RK_ALLOCMODE** default: `RK_ALLOCMODE_FULL` Controls how allocators are threaded through
-///   library objects. Three modes are available (defined as integer constants below):
-///
-///   - `RK_ALLOCMODE_FULL` *(default)* Every library object stores its own `Allocator` as a struct
-///     member and accepts one as an init argument. Allocations on that object always use its local
-///     allocator. This is the most flexible mode and supports mixing different allocators across
-///     objects simultaneously, at the cost of one extra `Allocator`-sized field per object and
-///     function pointer overload.
-///
-///   - `RK_ALLOCMODE_NO_LOCAL` No per-object allocator field or init argument. All allocations go
-///     through the global (or thread-local) `alloc_ctx` pointer. Saves the per-object overhead of
-///     `FULL`, but requires care when swapping `alloc_ctx` at runtime, since all live objects are
-///     affected.
-///
-///   - `RK_ALLOCMODE_MALLOC_ONLY` All allocations unconditionally use thin wrappers over
-///     `malloc`/`free`. `alloc_ctx` exists but is `static const` and cannot be changed at runtime.
-///     Allocator arguments to init macros are accepted syntactically but ignored. Use this mode
-///     when custom allocators are not needed and you want zero allocator overhead.
+/// - **RK_CUSTOM_ALLOCATORS** default: `1` Set to `1` to enable custom allocators. Every owning
+///   library object stores the `Allocator` selected when it is initialised, and accepts an optional
+///   allocator argument. `alloc_ctx` supplies the default for objects created without an explicit
+///   allocator; changing it affects only subsequently created objects. Set to `0` to remove
+///   allocator members and custom-allocator arguments and use direct `malloc`/`free` wrappers.
 ///
 /// - **RKLIB_DEBUG** default: not defined Define to enable debug logging. `rk_log()` will print
 ///   diagnostics to `stderr` and `rk_assert()` will print the failed expression before calling
 ///   `abort()`. Has no runtime cost when `0`.
 ///
-/// - **RK_ALLOC_MULTITHREADED** default: `0` Set to `1` to give the global `alloc_ctx` pointer
-///   `thread_local` storage duration, enabling a distinct default allocator per thread. Has no
-///   effect when `RK_ALLOCMODE == RK_ALLOCMODE_MALLOC_ONLY`, because that mode has no `alloc_ctx`.
+/// - **RK_ALLOC_MULTITHREADED** default: `0` Set to `1` to give `alloc_ctx` thread-local storage,
+///   enabling a distinct default allocator per thread. Requires `RK_CUSTOM_ALLOCATORS == 1`.
 ///
 /// - **RK_MALLOC_FAIL**(`cond, ctx, old_ptr, align, new_size`) default: `rk_assert(cond)` +
 ///   `abort()` Called inside the malloc-based allocator when an allocation returns `NULL`. `cond`
@@ -83,7 +69,7 @@
 //
 // #define RK_IMPL                                           // one TU only
 // #define RKLIB_DEBUG                                      // enable logging
-// #define RK_ALLOCMODE                  RK_ALLOCMODE_FULL  // FULL / NO_LOCAL / MALLOC_ONLY
+// #define RK_CUSTOM_ALLOCATORS          1                  // enable custom allocators
 // #define RK_ALLOC_MULTITHREADED        1                  // thread_local alloc_ctx
 // #define RK_MALLOC_FAIL(cond, ctx, old_ptr, align, new_size)  ...
 // #define RK_MMAP_FAIL( cond, ctx, old_ptr, align, new_size)   ...
@@ -93,32 +79,24 @@
 // #define RK_DICT_LOAD_DEN              4
 // clang-format on
 
-/// @brief Each library object stores its own `Allocator` member and accepts one as an init
-/// argument. Supports mixing allocators across objects at the cost of one extra `Allocator`-sized
-/// field per object.
-#define RK_ALLOCMODE_FULL        0
-
-/// @brief No per-object allocator field. All allocations go through the global (or thread-local)
-/// `alloc_ctx` pointer. Saves per-object overhead, but swapping `alloc_ctx` at runtime affects all
-/// live objects.
-#define RK_ALLOCMODE_NO_LOCAL    1
-
-/// @brief All allocations unconditionally use thin wrappers over `malloc`/`free`. `alloc_ctx` is
-/// `static const` and cannot be changed at runtime. Allocator arguments to init macros are accepted
-/// syntactically but ignored. Zero allocator overhead.
-#define RK_ALLOCMODE_MALLOC_ONLY 2
-
-#ifndef RK_ALLOCMODE
-# define RK_ALLOCMODE RK_ALLOCMODE_FULL
+/// @brief Enables per-object custom allocators. Set to 0 to remove allocator members and use the
+/// built-in malloc allocator directly.
+#ifndef RK_CUSTOM_ALLOCATORS
+# define RK_CUSTOM_ALLOCATORS 1
+#elif RK_CUSTOM_ALLOCATORS != 0 && RK_CUSTOM_ALLOCATORS != 1
+# error "RK_CUSTOM_ALLOCATORS must be 0 or 1"
 #endif
 
 #ifndef RK_ALLOC_MULTITHREADED
 /// @brief Set to 1 to give `alloc_ctx` `thread_local` storage, enabling a per-thread default
-/// allocator. Has no effect when `RK_ALLOCMODE == RK_ALLOCMODE_MALLOC_ONLY` (no `alloc_ctx`
-/// exists).
+/// allocator. Requires custom allocators to be enabled.
 # define RK_ALLOC_MULTITHREADED 0
+#elif RK_ALLOC_MULTITHREADED != 0 && RK_ALLOC_MULTITHREADED != 1
+# error "RK_ALLOC_MULTITHREADED must be 0 or 1"
 #endif
-#if RK_ALLOC_MULTITHREADED && RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
+#if RK_ALLOC_MULTITHREADED && !RK_CUSTOM_ALLOCATORS
+# error "RK_ALLOC_MULTITHREADED requires RK_CUSTOM_ALLOCATORS"
+#elif RK_ALLOC_MULTITHREADED
 # define RK_alloc_tl thread_local
 #else
 # define RK_alloc_tl /* no thread local storage */

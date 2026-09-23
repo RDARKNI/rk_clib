@@ -7,7 +7,7 @@
 ///
 /// This file provides macros and functions for creating and managing dynamic arrays in C. The
 /// implementation supports an optional custom allocator interface (defined in `rk_alloc.h`, turned
-/// off via setting `RK_ALLOCMODE` to non-default values) for flexible memory management.
+/// off via setting `RK_CUSTOM_ALLOCATORS` to `0`) for flexible memory management.
 ///
 /// Each Vec is represented as a simple dynamically allocated pointer to the element type, which can
 /// be dereferenced like a regular C array. Metadata such as the Vec's length and capacity are
@@ -60,7 +60,7 @@ RK_HEADER_BEGIN
 /// memory with a header (`VecHeader`) that stores metadata about the vec, such as its capacity,
 /// length, and allocator.
 typedef struct VecHeader {
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
   Allocator alloc; ///< Allocator (can be disabled)
 #endif
   size_t                    cap;    ///< Capacity of the Vec (in terms of elements)
@@ -80,11 +80,11 @@ typedef struct VecHeader {
   ((VecHeader*)(void*)((char*)(self)                                                               \
                        - offsetof(VecHeader, data))) // NOLINT(clang-analyzer-security.ArrayBound)
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define vec_ALLOCATOR(V) (vec_HEADER(V)->alloc) // NOLINT(clang-analyzer-security.ArrayBound)
 
 #else
-# define vec_ALLOCATOR(V) alloc_ctx
+# define vec_ALLOCATOR(V) rk_allocator_disabled()
 #endif
 
 /// @brief Unchecked access to the capacity of `self` as an lvalue.
@@ -166,17 +166,15 @@ static_fun rk_const VecHeader* vec_header(const Vec(void) self) {
   return self ? vec_HEADER(self) : rk_null;
 }
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
 /// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`. Produces an error if
 /// local allocators are disabled.
 static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
+#if RK_CUSTOM_ALLOCATORS
   return self ? vec_ALLOCATOR(self) : alloc_ctx;
-}
 #else
-/// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`. Produces an error if
-/// local allocators are disabled.
-# define vec_allocator(self) rk_allocator_disabled()
+  return (void)self, alloc_ctx;
 #endif
+}
 
 /// @brief Returns the current capacity of the Vec, 0 iff `self` is NULL.
 static_fun rk_pure size_t vec_cap(const Vec(void) self) { return self ? vec_CAP(self) : 0; }
@@ -565,7 +563,7 @@ static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size
 
 #define RK__VEC_contrav(T, x) _Generic(x, T: x, Allocator: (T){RK_ZINIT})
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define RK__vec_init_list(T, ...)                                                                 \
    _Generic(VA_FIRST(__VA_ARGS__),                                                                 \
        Allocator: RK__vec_init_list_(T, ((const T[]){VA_REST(__VA_ARGS__)}),                       \

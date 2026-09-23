@@ -112,13 +112,9 @@ static_fun Allocator         arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
 static_fun Allocator arenastack_allocator(const ArenaStack* self) {
   return vec_allocator(self->arenas);
 }
-#else
-# define arenastack_allocator(...) rk_allocator_disabled()
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////

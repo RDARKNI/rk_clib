@@ -6,20 +6,19 @@
 ///
 /// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
 /// context pointer. Three predefined allocators are provided: `alloc_malloc_allocator`,
-/// `alloc_page_allocator`. Custom allocators can be created by filling
+/// `alloc_page_allocator`, and `alloc_nop_allocator`. Custom allocators can be created by filling
 /// an `AllocatorVTable` and constructing an `Allocator`.
 ///
 /// Allocation failures are handled inside the allocator, not at call sites. The provided allocators
 /// invoke the overridable failure macros from `rk_config.h` (`RK_MALLOC_FAIL`, `RK_MMAP_FAIL`,
 /// etc.), which by default assert and abort. Callers never need to NULL-check allocation results.
 ///
-/// The allocator mode (`RK_ALLOCMODE`) controls how allocators are threaded through objects — see
-/// `rk_config.h` for the full description of each mode. When `RK_ALLOCMODE ==
-/// RK_ALLOCMODE_MALLOC_ONLY`, per-object `Allocator` fields and function-pointer dispatch are
-/// compiled out; `alloc_ctx` becomes `static const` and cannot be changed at runtime.
+/// `RK_CUSTOM_ALLOCATORS` controls whether allocators are threaded through objects — see
+/// `rk_config.h`. When disabled, per-object `Allocator` fields, custom-allocator arguments, and
+/// function-pointer dispatch are compiled out.
 ///
-/// When `RK_ALLOC_MULTITHREADED == 1` and the mode is not `MALLOC_ONLY`, `alloc_ctx` has
-/// `thread_local` storage duration, giving each thread its own default allocator.
+/// When `RK_ALLOC_MULTITHREADED == 1`, `alloc_ctx` has thread-local storage duration, giving each
+/// thread its own construction-time default allocator.
 /// @{
 #ifndef RK_ALLOC_H
 #define RK_ALLOC_H
@@ -49,10 +48,9 @@ RK_HEADER_BEGIN
 #define alloc_log_renew                rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
 #define alloc_log_delete               rk_log("[delete] %s:%d ", __FILE__, __LINE__)
 #define rk_allocator_disabled_assert() static_assert_expr(0, "Allocators Disabled")
-#define rk_allocator_disabled()                                                                    \
-  ((Allocator){.ctx = alloc_ctx.ctx + static_assert_expr(0, "Allocators Disabled")})
+#define rk_allocator_disabled()        ((Allocator){.ctx = (void*)rk_allocator_disabled_assert()})
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define rk_disable_if(...) __VA_ARGS__
 #else
 # define rk_disable_if(...) ((void*)rk_allocator_disabled_assert())
@@ -62,9 +60,9 @@ RK_HEADER_BEGIN
 /// @brief General-purpose allocator handle: a vtable pointer plus an optional context pointer. Pass
 /// by value to init functions; pass by pointer to allocator-generic macros.
 ///
-/// rklib macros that accept an optional allocator argument default to `alloc_ctx` when no allocator
-/// is provided (in `FULL` and `NO_LOCAL` modes). `alloc_ctx` defaults to `alloc_malloc_allocator`
-/// and can be changed at runtime in `FULL` and `NO_LOCAL` modes.
+/// When custom allocators are enabled, rklib macros that accept an optional allocator argument
+/// default to `alloc_ctx`. Objects capture that allocator when initialised, so changing `alloc_ctx`
+/// affects only subsequently created objects.
 ///
 /// Three predefined `Allocator` instances are provided:
 ///   - `alloc_malloc_allocator` — thin wrappers over `malloc`/`free` (or `_aligned_malloc` on MSVC
@@ -150,19 +148,17 @@ rk_unused static const AllocatorVTable alloc_page_allocator_vtable
 rk_unused static const Allocator alloc_page_allocator
     = {.vtab = &alloc_page_allocator_vtable, .ctx = rk_null};
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_MALLOC_ONLY
-# define RK__ALLOCCTX_STORAGE   static const
-# define RK__ALLOCCTX_INIT(...) = {__VA_ARGS__}
-#else
+#if RK_CUSTOM_ALLOCATORS
 # define RK__ALLOCCTX_STORAGE   extern_var RK_alloc_tl
 # define RK__ALLOCCTX_INIT(...) extern_def({__VA_ARGS__})
+#else
+# define RK__ALLOCCTX_STORAGE   static const
+# define RK__ALLOCCTX_INIT(...) {__VA_ARGS__}
 #endif
-
 /// @brief Default allocator used by all rklib macros when no explicit allocator argument is
-/// provided. Defaults to `alloc_malloc_allocator`. Can be replaced at runtime in `FULL` and
-/// `NO_LOCAL` modes. When `RK_ALLOCMODE == RK_ALLOCMODE_MALLOC_ONLY`, this is `static const` and
-/// cannot be changed. When `RK_ALLOC_MULTITHREADED == 1`, this is `thread_local`, giving each
-/// thread its own default allocator. Must always point to a valid, fully-initialised `Allocator`.
+/// provided. Defaults to `alloc_malloc_allocator`. Objects capture its value when initialised, so
+/// replacing it affects only subsequently created objects. When `RK_ALLOC_MULTITHREADED == 1`, it
+/// is thread-local. Must always contain a valid, fully initialised `Allocator`.
 RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc_allocator_vtable,
                                                            .ctx  = rk_null);
 
@@ -390,15 +386,13 @@ static_fun void  page_free(void* ptr, size_t size);
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define rk_assert_allocator_valid(_alloc) rk_assert((_alloc).vtab && "Invalid Allocator")
-#elif RK_ALLOCMODE == RK_ALLOCMODE_NO_LOCAL
-# define rk_assert_allocator_valid(_alloc) rk_assert(alloc_ctx.vtab && "Invalid Allocator")
 #else
 # define rk_assert_allocator_valid(_alloc) ((void)0)
 #endif
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define RK_IFALLOC(...) __VA_ARGS__
 # define rk_set_alloc_fallback(_alloc)                                                             \
    ((void)(rk_likely((_alloc).vtab)                                                                \
@@ -621,7 +615,7 @@ static_fun void RK__malloc_deallocate(void* ptr, size_t old_size rk_unused, size
 
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
 
-#if RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
+#if RK_CUSTOM_ALLOCATORS
 static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__call_alloc(size_t nbytes, size_t align,
                                                                         Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
@@ -633,7 +627,6 @@ static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__call_realloc(void* 
                                                                           size_t    align,
                                                                           Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
-
   if (!nbytes) {
     if (ptr) {
       rk_assert(obytes && "Non-NULL allocation has zero size");
@@ -663,22 +656,13 @@ static_fun rk_forceinline void RK__call_dealloc(void* ptr, size_t obytes, size_t
 }
 #endif
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define RK__alloc_ALLOCATE(bytes, align, all) (alloc_log_new, RK__call_alloc(bytes, align, all))
 # define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
    (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align, all))
 # define RK__alloc_DEALLOCATE(ptr, obytes, align, all)                                             \
    (alloc_log_delete, RK__call_dealloc(ptr, obytes, align, all))
-
-#elif RK_ALLOCMODE == RK_ALLOCMODE_NO_LOCAL
-# define RK__alloc_ALLOCATE(bytes, align, all)                                                     \
-   (alloc_log_new, RK__call_alloc(bytes, align, alloc_ctx))
-# define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align, alloc_ctx))
-# define RK__alloc_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, RK__call_dealloc(ptr, obytes, align, alloc_ctx))
-
-#elif RK_ALLOCMODE == RK_ALLOCMODE_MALLOC_ONLY
+#else
 # define RK__alloc_ALLOCATE(bytes, align, all) RK__malloc_ALLOCATE(bytes, align)
 # define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
    RK__malloc_REALLOCATE(ptr, obytes, nbytes, align)

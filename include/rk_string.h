@@ -8,9 +8,9 @@
 /// length of the String. It also provides a simple immutable String view type, `Strv`.
 ///
 /// @section Customisation Points Customisation points are the same as for all other rk_clib
-/// headers, most notably the `RK_ALLOCMODE` macro which, if not set to `RK_ALLOCMODE_FULL`, turns
-/// off custom allocators, removing the respective data members from the structs and parameters from
-/// the functions, while discarding the allocator parameters in the user-facing macros, removing any
+/// headers, most notably the `RK_CUSTOM_ALLOCATORS` macro which, if set to `0`, turns off custom
+/// allocators, removing the respective data members from the structs and parameters from the
+/// functions, while discarding the allocator parameters in the user-facing macros, removing any
 /// overhead.
 ///
 /// @section Data Types This Header Provides two Data Types, each one having a superset of the
@@ -58,7 +58,7 @@ typedef struct Str {
     };
   };
   size_t cap; ///< Capacity of the Str
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
   Allocator alloc; ///< Allocator (can be disabled)
 #endif
 } Str;
@@ -168,11 +168,13 @@ static_fun const char* str_cstr(const Str* self) {
   return str_is_null_terminated(self) ? self->str : "";
 }
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
-# define str_allocator(self) rk_to_rvalue((self)->alloc)
+static_fun rk_pure Allocator str_allocator(const Str* self) {
+#if RK_CUSTOM_ALLOCATORS
+  return self ? self->alloc : alloc_ctx;
 #else
-# define str_allocator(self) rk_allocator_disabled()
+  return (void)self, alloc_ctx;
 #endif
+}
 
 // ----------------------------------------
 // Section: String Capacity
@@ -400,7 +402,7 @@ static_fun Strv strv_from_cstrn(const char* str, size_t len) {
 /// @param delims    The delimiters of the tokenisation, a Stringlike by value
 /// @param out_count size_t* an out-parameter in which the count of tokens will be stored.
 /// @param alloc Optional; The Allocator that allocates the array of Strv objects; defaults to
-/// `alloc_ctx` (or malloc_allocator, if `RK_ALLOCMODE` == `RK_ALLOCMODE_MALLOC_ONLY`)
+/// `alloc_ctx` (or malloc_allocator, if `RK_CUSTOM_ALLOCATORS` == `0`)
 /// @return A Strv* to the array of tokens.
 #define str_split_alloc(strlike, delims, out_count, ...)                                           \
   rk_overload(RK__STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)

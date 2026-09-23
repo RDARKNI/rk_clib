@@ -135,10 +135,10 @@ RK_HEADER_BEGIN
 /// in the Dict.
 #define dict_count(self)          ((size_t)((self)->count))
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define dict_allocator(self) rk_to_rvalue((self)->alloc)
 #else
-# define dict_allocator(self) rk_allocator_disabled()
+# define dict_allocator(self) ((void)(self), alloc_ctx)
 #endif
 
 /// @brief `bool dict_is_empty(Dict(K, V)* self)` - Returns `true` iff the dict contains no
@@ -306,10 +306,10 @@ RK_HEADER_BEGIN
 /// @brief `size_t set_count(Set(K)* self)` - Returns the number of live keys in the Set.
 #define set_count(self)                  ((size_t)((self)->count))
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define set_allocator(self) rk_to_rvalue((self)->alloc)
 #else
-# define set_allocator(self) rk_allocator_disabled()
+# define set_allocator(self) ((void)(self), alloc_ctx)
 #endif
 
 /// @brief `bool set_is_empty(Set(K)* self)` - Returns `true` iff the set contains no elements.

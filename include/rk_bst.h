@@ -128,10 +128,10 @@ RK_HEADER_BEGIN
 /// largest key, or `NULL` if the BST is empty.
 #define bst_max(self)               ((typeof((self)->root->entry)*)RK__bst_max(((self)->_bst.root)))
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
 # define bst_allocator(self) rk_to_rvalue((self)->alloc)
 #else
-# define bst_allocator(self) rk_allocator_disabled()
+# define bst_allocator(self) ((void)(self), alloc_ctx)
 #endif
 
 typedef struct bst_node {
@@ -201,10 +201,10 @@ typedef struct bst_iter {
   } Bst(K, V);                                                                                     \
   static_fun void RK__BST_PUB(K, V, release_)(struct RK__BstNode(K, V)                             \
                                               * node RK_IFALLOC(, Allocator alloc)) {              \
-    typedef struct RK__BstNode(K, V) node_t;                                                      \
-    while (node) {                                                                                \
-      if (node->l) {                                                                              \
-        node_t* l = node->l;                                                                      \
+    typedef struct RK__BstNode(K, V) node_t;                                                       \
+    while (node) {                                                                                 \
+      if (node->l) {                                                                               \
+        node_t* l = node->l;                                                                       \
         node->l   = l->r;                                                                          \
         l->r      = node;                                                                          \
         node      = l;                                                                             \
