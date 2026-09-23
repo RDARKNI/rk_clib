@@ -3,38 +3,32 @@
 /// @defgroup rk_bitset Bitset Utilities
 /// @brief Bitset utilities.
 ///
-/// This header provides a lightweight, bitset representation and
-/// helper functions for bit manipulation. Bit numbering is **0-based**:
-/// bit index 0 refers to the **least-significant bit (LSB)** of `bs[0]`.
+/// This header provides a lightweight, bitset representation and helper functions for bit
+/// manipulation. Bit numbering is **0-based**: bit index 0 refers to the **least-significant bit
+/// (LSB)** of `bs[0]`.
 ///
-/// ## Storage model
-/// A bitset is stored as an array of `bitset_word` (by default `unsigned long
+/// ## Storage model A bitset is stored as an array of `bitset_word` (by default `unsigned long
 /// long`):
 /// - `bs[0]` holds bits `[0 .. W-1]`
 /// - `bs[1]` holds bits `[W .. 2W-1]`
 /// - etc., where `W = bitsof(bitset_word)`
 ///
-/// ## Padding bits (important)
-/// For a logical bitset size `nbits`, the last storage word may contain
-/// *padding bits* with indices `>= nbits`. Many operations in this header
-/// (e.g. `bitset_any`, `bitset_count_ones`, `bitset_equals`) operate on whole
-/// words, so callers, if manipulating the bitset outside of the functions
-/// defined here, must maintain the invariant.
+/// ## Padding bits (important) For a logical bitset size `nbits`, the last storage word may contain
+/// *padding bits* with indices `>= nbits`. Many operations in this header (e.g. `bitset_any`,
+/// `bitset_count_ones`, `bitset_equals`) operate on whole words, so callers, if manipulating the
+/// bitset outside of the functions defined here, must maintain the invariant.
 ///
-/// @par Padding invariant
-/// **All padding bits (indices `>= nbits`) are zero.**
+/// @par Padding invariant **All padding bits (indices `>= nbits`) are zero.**
 ///
-/// Functions that write whole words and are documented to preserve correctness
-/// will clear padding bits on return (e.g. `bitset_set_all`, shifts,
-/// `bitset_not`, `bitset_sub`). If you introduce data by other means (e.g.
-/// uninitialized storage, raw `memcpy`, manual word writes), call
+/// Functions that write whole words and are documented to preserve correctness will clear padding
+/// bits on return (e.g. `bitset_set_all`, shifts, `bitset_not`, `bitset_sub`). If you introduce
+/// data by other means (e.g. uninitialized storage, raw `memcpy`, manual word writes), call
 /// `bitset_clear_padding()`.
 ///
-/// ## Relationship to C23 stdbit.h conventions
-/// Single-bit and range operations use 0-based bit indices.
-/// The query functions `bitset_first_*` follow the C23 `<stdbit.h>` / common
-/// builtin convention of returning a **1-based position**, with **0** as the
-/// sentinel value meaning “not found”.
+/// ## Relationship to C23 stdbit.h conventions Single-bit and range operations use 0-based bit
+/// indices. The query functions `bitset_first_*` follow the C23 `<stdbit.h>` / common builtin
+/// convention of returning a **1-based position**, with **0** as the sentinel value meaning “not
+/// found”.
 ///
 /// @see stdbit.h
 /// @see rk_defs.h
@@ -54,39 +48,33 @@ typedef bitset_word*       bitset;
 /// @brief Const bitset pointer (points to the first word).
 typedef const bitset_word* cbitset;
 
-/// @brief Declares a fixed-size bitset object type with storage sufficient for
-/// `nbits` bits while preserving the size in the type system.
+/// @brief Declares a fixed-size bitset object type with storage sufficient for `nbits` bits while
+/// preserving the size in the type system.
 /// @param nbits Logical size of the bitset in bits. Must be > 0.
 ///
 /// Usage:
 /// ```c
 /// bitset(128) bs = {0}; // 128-bit bitset (array of bitset_word)
 /// ```
-/// @note This macro expects `nbits` to be an integer
-///       constant expression when used for object declarations.
-#define bitset(nbits)                                                          \
-  typeof(bitset_word[(                                                         \
-      static_assert_expr((nbits) > 0, "Bitset must have at least one bit")     \
-      + bitset_words(nbits))])
+/// @note This macro expects `nbits` to be an integer constant expression when used for object
+/// declarations.
+#define bitset(nbits)                                                                              \
+  typeof(bitset_word[(static_assert_expr((nbits) > 0, "Bitset must have at least one bit")         \
+                      + bitset_words(nbits))])
 
-/// @brief Returns the number of storage words required for a `nbits`-bit
-/// bitset.
+/// @brief Returns the number of storage words required for a `nbits`-bit bitset.
 /// @param nbits Logical size in bits
-/// @return Word count, rounded up.
-#define bitset_words(nbits)                                                    \
-  (((nbits) + bitsof(bitset_word) - 1) / bitsof(bitset_word))
+#define bitset_words(nbits)    (((nbits) + bitsof(bitset_word) - 1) / bitsof(bitset_word))
 
 /// @brief Returns the number of bytes required for a `nbits`-bit bitset.
 /// @param nbits Logical size in bits
-/// @return Size in bytes.
 #define bitset_bytes(nbits)    (sizeof(bitset_word) * bitset_words(nbits))
 
-/// @brief Returns the number of bits in each bitset word
+/// @brief Returns the number of bits in each bitset word.
 #define bitset_word_bits       bitsof(bitset_word)
 
-/// @brief Returns the storage word index containing bit `idx`.
+/// @brief Returns the 0-based storage word index containing bit `idx`.
 /// @param idx Bit index (0-based)
-/// @return Word index (0-based).
 #define bitset_word_index(idx) ((idx) / bitsof(bitset_word))
 
 /// @brief Mask for the bit within its storage word.
@@ -99,14 +87,13 @@ typedef const bitset_word* cbitset;
 /// @param nbits Logical size of the bitset
 /// @param src Source bitset storage (at least `bitset_words(nbits)` words)
 /// @return `dst` (for convenience).
-/// @note This copies whole words. If you rely on the padding invariant, ensure
-///       `src` has cleared padding.
-static_fun bitset bitset_copy(bitset restrict dst, size_t nbits,
-                              cbitset restrict src) {
+/// @note This copies whole words. If you rely on the padding invariant, ensure `src` has cleared
+/// padding.
+static_fun bitset bitset_copy(bitset restrict dst, size_t nbits, cbitset restrict src) {
   return rk_copy(dst, src, bitset_words(nbits));
 }
 
-#define rk_assert_bitset_in_bounds(idx, nbits)                                 \
+#define rk_assert_bitset_in_bounds(idx, nbits)                                                     \
   rk_assert((idx) < (nbits) && "Index out of Bitset bounds.")
 
 /// @brief Tests whether bit `idx` is set.
@@ -147,8 +134,7 @@ static_fun bitset bitset_set(bitset bs, size_t nbits, size_t idx) {
 /// @param value New bit value (`false` -> 0, `true` -> 1)
 /// @return `bs` (for chaining).
 /// @pre `idx < nbits`.
-static_fun bitset bitset_write(bitset bs, size_t nbits, size_t idx,
-                               bool value) {
+static_fun bitset bitset_write(bitset bs, size_t nbits, size_t idx, bool value) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   bitset_word mask = bitset_word_mask(idx);
   size_t      w    = bitset_word_index(idx);
@@ -167,9 +153,7 @@ static_fun bitset bitset_flip(bitset bs, size_t nbits, size_t idx) {
   return bs;
 }
 
-static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset, size_t,
-                                                              size_t, size_t,
-                                                              int);
+static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset, size_t, size_t, size_t, int);
 
 /// @brief Clears all bits in the half-open interval `[start, end)`.
 /// @param bs,nbits Bitset and its logical size
@@ -177,8 +161,7 @@ static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset, size_t,
 /// @param end Last bit index (exclusive)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_clear_range(bitset bs, size_t nbits, size_t start,
-                                     size_t end) {
+static_fun bitset bitset_clear_range(bitset bs, size_t nbits, size_t start, size_t end) {
   return RK__internal_bitset_range_op(bs, nbits, start, end, 0);
 }
 
@@ -188,8 +171,7 @@ static_fun bitset bitset_clear_range(bitset bs, size_t nbits, size_t start,
 /// @param end Last bit index (exclusive)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_set_range(bitset bs, size_t nbits, size_t start,
-                                   size_t end) {
+static_fun bitset bitset_set_range(bitset bs, size_t nbits, size_t start, size_t end) {
   return RK__internal_bitset_range_op(bs, nbits, start, end, 1);
 }
 
@@ -200,8 +182,8 @@ static_fun bitset bitset_set_range(bitset bs, size_t nbits, size_t start,
 /// @param value New bit value (`false` -> 0, `true` -> 1)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_write_range(bitset bs, size_t nbits, size_t start,
-                                     size_t end, bool value) {
+static_fun bitset bitset_write_range(bitset bs, size_t nbits, size_t start, size_t end,
+                                     bool value) {
   return value ? bitset_set_range(bs, nbits, start, end)
                : bitset_clear_range(bs, nbits, start, end);
 }
@@ -212,17 +194,15 @@ static_fun bitset bitset_write_range(bitset bs, size_t nbits, size_t start,
 /// @param end Last bit index (exclusive)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_flip_range(bitset bs, size_t nbits, size_t start,
-                                    size_t end) {
+static_fun bitset bitset_flip_range(bitset bs, size_t nbits, size_t start, size_t end) {
   return RK__internal_bitset_range_op(bs, nbits, start, end, -1);
 }
 
-/// @brief Clears any padding bits (indices `>= nbits`) in the last storage
-/// word.
+/// @brief Clears any padding bits (indices `>= nbits`) in the last storage word.
 /// @param bs,nbits Bitset and its logical size
 /// @return `bs` (for chaining).
-/// @note Call this if `bs` may contain nonzero padding bits (e.g. after
-///       uninitialized allocation or raw word operations).
+/// @note Call this if `bs` may contain nonzero padding bits (e.g. after uninitialized allocation or
+/// raw word operations).
 static_fun bitset bitset_clear_padding(bitset bs, size_t nbits) {
   size_t words = bitset_words(nbits), rest = nbits % bitset_word_bits;
   if (rest) { bs[words - 1] &= (((bitset_word)1 << rest) - 1); }
@@ -264,8 +244,8 @@ static_fun bitset bitset_flip_all(bitset bs, size_t nbits) {
 /// @brief Finds the first set bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first leading one, or 0 if none.
-/// @note This matches the “1-based with 0 sentinel” convention used by C23
-///       `<stdbit.h>` query functions and several compiler builtins.
+/// @note This matches the “1-based with 0 sentinel” convention used by C23 `<stdbit.h>` query
+/// functions and several compiler builtins.
 static_fun size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
@@ -288,9 +268,8 @@ static_fun size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
-    pos = stdc_first_leading_zero(
-        (bs[w] << (bitset_word_bits - rest))
-        | (((bitset_word)1 << (bitset_word_bits - rest)) - 1));
+    pos = stdc_first_leading_zero((bs[w] << (bitset_word_bits - rest))
+                                  | (((bitset_word)1 << (bitset_word_bits - rest)) - 1));
     if (pos) { return pos; }
     if (!w--) { return 0; }
   }
@@ -393,9 +372,7 @@ static_fun bool bitset_any(cbitset bs, size_t nbits) {
 /// @brief Returns whether no bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 0, else `false`.
-static_fun bool bitset_none(cbitset bs, size_t nbits) {
-  return !bitset_any(bs, nbits);
-}
+static_fun bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
 
 /// @brief Returns whether all bits are set.
 /// @param bs,nbits Bitset and its logical size
@@ -436,9 +413,7 @@ static_fun bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
 /// @return `dst` (for chaining).
 /// @pre `dst` and `src` are both valid for `nbits` bits.
 static_fun bitset bitset_or(bitset dst, size_t nbits, cbitset src) {
-  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
-    dst[w] |= src[w];
-  }
+  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] |= src[w]; }
   return dst;
 }
 
@@ -448,9 +423,7 @@ static_fun bitset bitset_or(bitset dst, size_t nbits, cbitset src) {
 /// @param src Source bitset
 /// @return `dst` (for chaining).
 static_fun bitset bitset_and(bitset dst, size_t nbits, cbitset src) {
-  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
-    dst[w] &= src[w];
-  }
+  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] &= src[w]; }
   return dst;
 }
 
@@ -461,22 +434,17 @@ static_fun bitset bitset_and(bitset dst, size_t nbits, cbitset src) {
 /// @return `dst` (for chaining).
 /// @note With the padding invariant, padding remains zero because `0 ^ 0 == 0`.
 static_fun bitset bitset_xor(bitset dst, size_t nbits, cbitset src) {
-  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
-    dst[w] ^= src[w];
-  }
+  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] ^= src[w]; }
   return dst;
 }
 
-/// @brief Bitwise subtraction (in-place): clears bits present in `src`
-///        (`dst &= ~src`).
+/// @brief Bitwise subtraction (in-place): clears bits present in `src` (`dst &= ~src`).
 /// @param dst Destination bitset (modified)
 /// @param nbits Logical size of both bitsets
 /// @param src Source bitset
 /// @return `dst` (for chaining).
 static_fun bitset bitset_sub(bitset dst, size_t nbits, cbitset src) {
-  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
-    dst[w] &= ~src[w];
-  }
+  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] &= ~src[w]; }
   return bitset_clear_padding(dst, nbits);
 }
 
@@ -486,9 +454,7 @@ static_fun bitset bitset_sub(bitset dst, size_t nbits, cbitset src) {
 /// @param src Source bitset
 /// @return `dst` (for chaining).
 static_fun bitset bitset_not(bitset dst, size_t nbits, cbitset src) {
-  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
-    dst[w] = ~src[w];
-  }
+  for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] = ~src[w]; }
   return bitset_clear_padding(dst, nbits);
 }
 
@@ -500,8 +466,7 @@ static_fun bitset bitset_not(bitset dst, size_t nbits, cbitset src) {
 /// @return `dst` (for chaining).
 /// @note If `sh >= nbits`, the result is all zeros.
 /// @note `dst` may alias `src`.
-static_fun bitset bitset_shift_left_into(bitset dst, size_t nbits, cbitset src,
-                                         size_t sh) {
+static_fun bitset bitset_shift_left_into(bitset dst, size_t nbits, cbitset src, size_t sh) {
   if (sh >= nbits) { return bitset_clear_all(dst, nbits), dst; }
   if (!sh) { return (cbitset)dst != src ? bitset_copy(dst, nbits, src) : dst; }
   size_t ws = sh / bitsof(*dst), bs = sh % bitsof(*dst);
@@ -534,8 +499,7 @@ static_fun bitset bitset_shift_left(bitset bs, size_t nbits, size_t sh) {
 /// @return `dst` (for chaining).
 /// @note If `sh >= nbits`, the result is all zeros.
 /// @note `dst` may alias `src`.
-static_fun bitset bitset_shift_right_into(bitset dst, size_t nbits, cbitset src,
-                                          size_t sh) {
+static_fun bitset bitset_shift_right_into(bitset dst, size_t nbits, cbitset src, size_t sh) {
   if (sh >= nbits) { return bitset_clear_all(dst, nbits), dst; }
   if (!sh) { return (cbitset)dst != src ? bitset_copy(dst, nbits, src) : dst; }
   size_t ws = sh / bitsof(*dst), bs = sh % bitsof(*dst);
@@ -546,9 +510,7 @@ static_fun bitset bitset_shift_right_into(bitset dst, size_t nbits, cbitset src,
       continue;
     }
     bitset_word v = (bitset_word)src[si] >> bs;
-    if (bs && (si + 1) < words) {
-      v |= (bitset_word)src[si + 1] << (bitsof(*dst) - bs);
-    }
+    if (bs && (si + 1) < words) { v |= (bitset_word)src[si + 1] << (bitsof(*dst) - bs); }
     dst[i] = v;
   }
   bitset_clear_padding(dst, nbits);
@@ -563,28 +525,29 @@ static_fun bitset bitset_shift_right(bitset bs, size_t nbits, size_t sh) {
   return bitset_shift_right_into(bs, nbits, bs, sh);
 }
 
+#define BITSET_NPOS SIZE_MAX
+
 /// @brief Finds the next set bit after `cur` when scanning from LSB to MSB.
-/// @param cur Previously visited bit index, or `(size_t)-1` to start from the
-///            beginning
-/// @return The index (0-based) of the first set bit with index `> cur`,
-///         or `(size_t)-1` if no such bit exists.
-/// @note This is an efficient iteration primitive for walking only the set
-/// bits. It scans by storage word and uses trailing-one queries, so it is
-/// typically much faster than testing every bit individually.
+/// @param cur Previously visited bit index, or `BITSET_NPOS` to start from the beginning
+/// @return The index (0-based) of the first set bit with index `> cur`, or `BITSET_NPOS` if no such
+/// bit exists.
+/// @note This is an efficient iteration primitive for walking only the set bits. It scans by
+/// storage word and uses trailing-one queries, so it is typically much faster than testing every
+/// bit individually.
 ///
 /// Usage:
 /// ```c
 /// bitset(128) bs = {0};
 /// bitset_set(bs, 128, 1), bitset_set(bs, 128, 5), bitset_set(bs, 128, 64);
-/// size_t i = (size_t)-1;
-/// for (;(i = bitset_next_set(bs, 128, i)) != (size_t)-1;) {
+/// size_t i = BITSET_NPOS;
+/// for (;(i = bitset_find_next_set(bs, 128, i)) != BITSET_NPOS;) {
 ///    printf("set bit: %zu\n", i);
 /// }
 /// // prints: 1, 5, 64
 /// ```
-static_fun size_t bitset_next_set(cbitset bs, size_t nbits, size_t cur) {
-  enum { W = bitsof(*bs) };
-  if (++cur >= nbits) { return (size_t)-1; }
+static_fun size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
+  enum { W = bitsof(*bs) }; // NOLINT
+  if (++cur >= nbits) { return BITSET_NPOS; }
   size_t res, w = bitset_word_index(cur);
   if ((res = stdc_first_trailing_one(bs[w] & (~(bitset_word)0 << (cur % W))))) {
     return w * W + res - 1;
@@ -592,145 +555,130 @@ static_fun size_t bitset_next_set(cbitset bs, size_t nbits, size_t cur) {
   for (size_t words = bitset_words(nbits); ++w < words;) {
     if ((res = stdc_first_trailing_one(bs[w]))) { return w * W + res - 1; }
   }
-  return (size_t)-1;
+  return BITSET_NPOS;
 }
 /// @brief Finds the next zero bit after `cur` when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
-/// @param cur Previously visited bit index, or `(size_t)-1` to start from the
-///            beginning.
-/// @return The index (0-based) of the first zero bit with index `> cur`,
-///         or `(size_t)-1` if no such bit exists.
-static_fun size_t bitset_next_clear(cbitset bs, size_t nbits, size_t cur) {
-  enum { W = bitsof(*bs) };
-  if (++cur >= nbits) { return (size_t)-1; }
+/// @param cur Previously visited bit index, or `BITSET_NPOS` to start from the beginning.
+/// @return The index (0-based) of the first zero bit with index `> cur`, or `BITSET_NPOS` if no
+/// such bit exists.
+static_fun size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
+  enum { W = bitsof(*bs) }; // NOLINT
+  if (++cur >= nbits) { return BITSET_NPOS; }
   size_t      res, rest = nbits % W, w = bitset_word_index(cur);
-  bitset_word valid = (rest && w == bitset_words(nbits) - 1)
-                        ? (((bitset_word)1 << rest) - 1)
-                        : ~(bitset_word)0;
-  if ((res = stdc_first_trailing_one(~bs[w] & valid
-                                     & (~(bitset_word)0 << (cur % W))))) {
+  bitset_word valid
+      = (rest && w == bitset_words(nbits) - 1) ? (((bitset_word)1 << rest) - 1) : ~(bitset_word)0;
+  if ((res = stdc_first_trailing_one(~bs[w] & valid & (~(bitset_word)0 << (cur % W))))) {
     return w * W + res - 1;
   }
   for (size_t words = bitset_words(nbits); ++w < words;) {
-    valid = (rest && w == words - 1) ? (((bitset_word)1 << rest) - 1)
-                                     : ~(bitset_word)0;
-    if ((res = stdc_first_trailing_one(~bs[w] & valid))) {
-      return w * W + res - 1;
-    }
+    valid = (rest && w == words - 1) ? (((bitset_word)1 << rest) - 1) : ~(bitset_word)0;
+    if ((res = stdc_first_trailing_one(~bs[w] & valid))) { return w * W + res - 1; }
   }
-  return (size_t)-1;
+  return BITSET_NPOS;
 }
 
-/// @brief Finds the previous set bit before `cur` when scanning from MSB to
-///        LSB.
+/// @brief Finds the previous set bit before `cur` when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @param cur Current bit index, or `nbits` to start from the end.
-/// @return The index (0-based) of the last set bit with index `< cur`,
-///         or `(size_t)-1` if no such bit exists.
-static_fun size_t bitset_prev_set(cbitset bs, size_t nbits rk_unused,
-                                  size_t cur) {
-  enum { W = bitsof(*bs) };
-  if (!cur) { return (size_t)-1; }
+/// @return The index (0-based) of the last set bit with index `< cur`, or `BITSET_NPOS` if no such
+/// bit exists.
+static_fun size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
+  enum { W = bitsof(*bs) }; // NOLINT
+  if (!cur) { return BITSET_NPOS; }
   --cur;
   size_t      res, w = bitset_word_index(cur);
   bitset_word mask = ~(bitset_word)0 >> (W - 1 - (cur % W));
-  if ((res = stdc_first_leading_one(bs[w] & mask))) {
-    return w * W + (W - res);
-  }
+  if ((res = stdc_first_leading_one(bs[w] & mask))) { return w * W + (W - res); }
   for (; w--;) {
     if ((res = stdc_first_leading_one(bs[w]))) { return w * W + (W - res); }
   }
-  return (size_t)-1;
+  return BITSET_NPOS;
 }
 
-/// @brief Finds the previous zero bit before `cur` when scanning from MSB to
-///        LSB.
+/// @brief Finds the previous zero bit before `cur` when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @param cur Current bit index, or `nbits` to start from the end.
-/// @return The index (0-based) of the last zero bit with index `< cur`,
-///         or `(size_t)-1` if no such bit exists.
-static_fun size_t bitset_prev_clear(cbitset bs, size_t nbits, size_t cur) {
-  enum { W = bitsof(*bs) };
-  if (!cur) { return (size_t)-1; }
+/// @return The index (0-based) of the last zero bit with index `< cur`, or `BITSET_NPOS` if no such
+/// bit exists.
+static_fun size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
+  enum { W = bitsof(*bs) }; // NOLINT
+  if (!cur) { return BITSET_NPOS; }
   --cur;
   size_t      res, rest = nbits % W, w = bitset_word_index(cur);
-  bitset_word valid = (rest && w == bitset_words(nbits) - 1)
-                        ? (((bitset_word)1 << rest) - 1)
-                        : ~(bitset_word)0;
-  bitset_word mask  = ~(bitset_word)0 >> (W - 1 - (cur % W));
-  if ((res = stdc_first_leading_one(~bs[w] & valid & mask))) {
-    return w * W + (W - res);
-  }
+  bitset_word valid
+      = (rest && w == bitset_words(nbits) - 1) ? (((bitset_word)1 << rest) - 1) : ~(bitset_word)0;
+  bitset_word mask = ~(bitset_word)0 >> (W - 1 - (cur % W));
+  if ((res = stdc_first_leading_one(~bs[w] & valid & mask))) { return w * W + (W - res); }
   for (; w--;) {
     if ((res = stdc_first_leading_one(~bs[w]))) { return w * W + (W - res); }
   }
-  return (size_t)-1;
+  return BITSET_NPOS;
 }
 
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
-/// @return The index (0-based) of the first set bit, or `(size_t)-1` if none.
-static_fun size_t bitset_first_set(cbitset bs, size_t nbits) {
-  return bitset_next_set(bs, nbits, (size_t)-1);
+/// @return The index (0-based) of the first set bit, or `BITSET_NPOS` if none.
+static_fun size_t bitset_find_first_set(cbitset bs, size_t nbits) {
+  return bitset_find_next_set(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the first zero bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
-/// @return The index (0-based) of the first zero bit, or `(size_t)-1` if none.
-static_fun size_t bitset_first_clear(cbitset bs, size_t nbits) {
-  return bitset_next_clear(bs, nbits, (size_t)-1);
+/// @return The index (0-based) of the first zero bit, or `BITSET_NPOS` if none.
+static_fun size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
+  return bitset_find_next_clear(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the last set bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
-/// @return The index (0-based) of the last set bit, or `(size_t)-1` if none.
-static_fun size_t bitset_last_set(cbitset bs, size_t nbits) {
-  return bitset_prev_set(bs, nbits, nbits);
+/// @return The index (0-based) of the last set bit, or `BITSET_NPOS` if none.
+static_fun size_t bitset_find_last_set(cbitset bs, size_t nbits) {
+  return bitset_find_prev_set(bs, nbits, nbits);
 }
 
 /// @brief Finds the last zero bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
-/// @return The index (0-based) of the last zero bit, or `(size_t)-1` if none.
-static_fun size_t bitset_last_clear(cbitset bs, size_t nbits) {
-  return bitset_prev_clear(bs, nbits, nbits);
+/// @return The index (0-based) of the last zero bit, or `BITSET_NPOS` if none.
+static_fun size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
+  return bitset_find_prev_clear(bs, nbits, nbits);
 }
 
 /// @brief Converts a bitset to a binary string (MSB first).
 /// @param dst Destination char buffer of size at least `nbits + 1`
 /// @param src Source bitset
 /// @param nbits Logical size of the bitset
-/// @return `dst` (for convenience).
-/// The output is `nbits` characters of `'0'`/`'1'`, plus a trailing `'\0'`.
-static_fun char* bitset_tostr(char* restrict dst, cbitset restrict src,
-                              size_t nbits) {
-  for (size_t w = 0; w < nbits; ++w) {
-    dst[w] = '0' + bitset_test(src, nbits, nbits - 1 - w);
-  }
+/// @return `dst` (for convenience). The output is `nbits` characters of `'0'`/`'1'`, plus a
+/// trailing `'\0'`.
+static_fun char* bitset_tostr(char* restrict dst, cbitset restrict src, size_t nbits) {
+  for (size_t w = 0; w < nbits; ++w) { dst[w] = '0' + bitset_test(src, nbits, nbits - 1 - w); }
   dst[nbits] = '\0';
   return dst;
 }
 
 /// @brief Parses a binary string (MSB first) into a `len`-bit bitset.
-/// @param dst Destination bitset storage for a **len-bit** bitset
-///            (at least `bitset_words(len)` words).
-/// @param src Source string of at least `len` characters, consisting only of
-///            `'0'` and `'1'`. The first character corresponds to the MSB.
-/// @param len Number of bits to parse; also the logical size of the resulting
-/// bitset.
+/// @param dst Destination bitset storage for a **len-bit** bitset (at least `bitset_words(len)`
+/// words).
+/// @param src Source string of at least `len` characters, consisting only of `'0'` and `'1'`. The
+/// first character corresponds to the MSB.
+/// @param len Number of bits to parse; also the logical size of the resulting bitset.
 /// @return `dst` (for chaining).
-/// @note This function treats `dst` as a `len`-bit bitset for this call.
-///       It writes all bits `[0, len)` and clears padding bits on return.
-static_fun bitset bitset_fromstr(bitset dst, const char* restrict src,
-                                 size_t len) {
+/// @note This function treats `dst` as a `len`-bit bitset for this call. It writes all bits `[0,
+/// len)` and clears padding bits on return.
+static_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len) {
+  bitset_clear_all(dst, len);
   for (size_t w = 0; w < len; ++w) {
-    rk_assert((src[w] == '0' || src[w] == '1')
-              && "Invalid character in bitset string");
+    rk_assert((src[w] == '0' || src[w] == '1') && "Invalid character in bitset string");
     bitset_write(dst, len, len - 1 - w, src[w] != '0');
   }
   return bitset_clear_padding(dst, len);
 }
 
-/// @internal
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////Implementation Details///////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @cond INTERNAL
+
 /// @brief Internal helper implementing range operations.
 /// @param bs Bitset to modify
 /// @param nbits Logical size of the bitset
@@ -740,43 +688,41 @@ static_fun bitset bitset_fromstr(bitset dst, const char* restrict src,
 /// @return `bs`.
 /// @pre `start <= end && end <= nbits`.
 /// @warning Internal API.
-static_fun rk_forceinline bitset RK__internal_bitset_range_op(
-    bitset bs, size_t nbits, size_t start, size_t end, int op) {
+static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset bs, size_t nbits, size_t start,
+                                                              size_t end, int _op) {
+  enum optype { FLIP = -1, SET = 1, CLEAR = 0 } op = (enum optype)_op;
   rk_assert(start <= end && end <= nbits), (void)nbits;
   if (start == end) { return bs; }
   size_t      sw = start / bitset_word_bits, ew = (end - 1) / bitset_word_bits;
   size_t      sb = start % bitset_word_bits, eb = (end - 1) % bitset_word_bits;
-  bitset_word sm = (~(bitset_word)0 << sb),
-              em = (~(bitset_word)0 >> (bitset_word_bits - (eb + 1)));
+  bitset_word sm = (~(bitset_word)0 << sb), em = (~(bitset_word)0 >> (bitset_word_bits - (eb + 1)));
   if (sw == ew) {
     switch (op) {
-    case -1: bs[sw] ^= (sm & em); break;
-    case 0 : bs[sw] &= ~(sm & em); break;
-    case 1 : bs[sw] |= (sm & em); break;
-    default: unreachable();
+    case FLIP : bs[sw] ^= (sm & em); break;
+    case CLEAR: bs[sw] &= ~(sm & em); break;
+    case SET  : bs[sw] |= (sm & em); break;
     }
     return bs;
   }
   if (sb) {
     switch (op) {
-    case -1: bs[sw] ^= sm; break;
-    case 0 : bs[sw] &= ~sm; break;
-    case 1 : bs[sw] |= sm; break;
-    default: unreachable();
+    case FLIP : bs[sw] ^= sm; break;
+    case CLEAR: bs[sw] &= ~sm; break;
+    case SET  : bs[sw] |= sm; break;
     }
     ++sw;
   }
   switch (op) {
-  case -1:
+  case FLIP:
     for (size_t w = sw; w < ew; ++w) { bs[w] ^= (bitset_word) ~(bitset_word)0; }
     bs[ew] ^= em;
     break;
-  case 0 : memset(&bs[sw], 0, sizeof_n(*bs, (ew - sw))), bs[ew] &= ~em; break;
-  case 1 : memset(&bs[sw], 0xFF, sizeof_n(*bs, (ew - sw))), bs[ew] |= em; break;
-  default: unreachable();
+  case CLEAR: memset(&bs[sw], 0, sizeof_n(*bs, (ew - sw))), bs[ew] &= ~em; break;
+  case SET  : memset(&bs[sw], 0xFF, sizeof_n(*bs, (ew - sw))), bs[ew] |= em; break;
   }
   return bs;
 }
+/// @endcond
 RK_HEADER_END
 /// @}
-#endif /* RK_BITSET_H */
+#endif // RK_BITSET_H

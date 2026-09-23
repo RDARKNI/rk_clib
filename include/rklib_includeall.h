@@ -8,9 +8,9 @@
 #include "rk_alloc.h"
 #include "rk_arena.h"
 #include "rk_vec.h"
-#include "rk_arenalist.h"
+#include "rk_arenastack.h"
 #include "rk_string.h"
 #include "rk_pool.h"
 #include "rk_dict.h"
 // clang-format on
-#endif
+#endif // RK_LIB_H
