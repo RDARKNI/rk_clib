@@ -9,19 +9,17 @@
 // #define TRIAX_MULTI_TU
 #include "../triax/triax.h"
 
-#define RK_ALLOCMODE RK_ALLOCMODE_FULL
-// #define RK_ALLOCMODE RK_ALLOCMODE_NO_LOCAL
-// #define RK_ALLOCMODE RK_ALLOCMODE_MALLOC_ONLY
 #define RK_DEBUG     2
 
-#if RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
-static Allocator alloc_cpy;
-# define RK_IFNMALLOC(...) __VA_ARGS__
-#else
-# define RK_IFNMALLOC(...)
-#endif
-#define SWAP_ALLOC(alloc)                                                                          \
-  do { alloc_cpy = alloc_ctx, alloc_ctx = (alloc); } while (0)
+// Unlike conf.h (the C suite's counterpart), nothing in the C++ suite uses
+// RK_ALLOCMODE, Allocator, SWAP_ALLOC, or RK_IFNMALLOC — this file never
+// actually includes any rk_clib allocator header, so there's nothing here
+// for those to condition on. An RK_ALLOCMODE-gated block was previously
+// copy-pasted in from conf.h anyway; it happened to reference
+// RK_ALLOCMODE_FULL/RK_ALLOCMODE_MALLOC_ONLY before they were ever defined
+// (only triax.h is included above), so its #if was always silently false
+// regardless of the real mode. Removed rather than "fixed", since making it
+// real would require pulling in rk_alloc.h here for no current benefit.
 
 #define DO_SKIP         1
 

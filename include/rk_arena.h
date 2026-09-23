@@ -51,17 +51,17 @@ static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
 
 /// @brief Returns the number of bytes an Arena can allocate in total.
 static_fun rk_pure size_t arena_cap(const Arena* self) {
-  return rk_likely(self) ? (size_t)(self->end - self->beg) : 0;
+  return rk_likely(self && self->beg) ? (size_t)(self->end - self->beg) : 0;
 }
 
 /// @brief Returns the number of bytes an Arena has allocated.
 static_fun rk_pure size_t arena_used(const Arena* self) {
-  return rk_likely(self) ? (size_t)(self->cur - self->beg) : 0;
+  return rk_likely(self && self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
 /// @brief Returns the number of bytes an Arena can allocate.
 static_fun rk_pure size_t arena_remaining(const Arena* self) {
-  return rk_likely(self) ? (size_t)(self->end - self->cur) : 0;
+  return rk_likely(self && self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
 /// @brief Returns whether the arena has not allocated any memory.

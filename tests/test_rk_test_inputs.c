@@ -152,46 +152,50 @@ triax_test(test_invalid_inputs, test_wrong_string_comparison) {
   triax_expect_eq(s, s); // string comparison - dangerous
 }
 triax_test(test_invalid_inputs, test_ptr_str) {
-  void* _ptr = (void*)"hello";
-  triax_expect_eq(_ptr, _ptr);
-  char*       _str  = (char*)_ptr;
-  const char* _cstr = _str;
+  void* _lptr = (void*)"hello";
+  triax_expect_eq(_lptr, _lptr);
+  char*       _lstr  = (char*)_lptr;
+  const char* _lcstr = _lstr;
 
   // expect pointer comparison
-  triax_expect_eq(_ptr, _str);
-  triax_expect_eq(_str, _ptr);
+  triax_expect_eq(_lptr, _lstr);
+  triax_expect_eq(_lstr, _lptr);
 
   // expect string comparison
-  triax_expect_eq(_str, _str);
-  triax_expect_eq(_str, _cstr);
-  triax_expect_eq(_cstr, _str);
-  triax_expect_eq(_cstr, _cstr);
+  triax_expect_eq(_lstr, _lstr);
+  triax_expect_eq(_lstr, _lcstr);
+  triax_expect_eq(_lcstr, _lstr);
+  triax_expect_eq(_lcstr, _lcstr);
 
 #ifdef __cplusplus
   std::string _cppstr = "hello";
   triax_expect_eq(_cppstr, _cppstr);
-  triax_expect_eq(_cppstr, _str);
-  triax_expect_eq(_str, _cppstr);
-  triax_expect_eq(_cppstr, _cstr);
-  triax_expect_eq(_cstr, _cppstr);
+  triax_expect_eq(_cppstr, _lstr);
+  triax_expect_eq(_lstr, _cppstr);
+  triax_expect_eq(_cppstr, _lcstr);
+  triax_expect_eq(_lcstr, _cppstr);
 # if __cplusplus >= 201703L
   std::string_view _cppstrv = "hello";
-  triax_expect_eq(_cppstrv, _str);
-  triax_expect_eq(_str, _cppstrv);
-  triax_expect_eq(_cppstrv, _cstr);
-  triax_expect_eq(_cstr, _cppstrv);
+  triax_expect_eq(_cppstrv, _lstr);
+  triax_expect_eq(_lstr, _cppstrv);
+  triax_expect_eq(_cppstrv, _lcstr);
+  triax_expect_eq(_lcstr, _cppstrv);
   triax_expect_eq(_cppstrv, _cppstrv);
   triax_expect_eq(_cppstr, _cppstrv);
   triax_expect_eq(_cppstrv, _cppstr);
 # endif
 # if TEST_COMPERRORS
 
-  // triax_expect_eq(_cppstr, _ptr);
-  // triax_expect_eq(_ptr, _cppstr);
+  // triax_expect_eq(_cppstr, _lptr);
+  // triax_expect_eq(_lptr, _cppstr);
 # endif
 #endif
 }
 triax_test(test_invalid_inputs, test_signed_unsigned) { triax_expect_gt(10ull, -1); }
 triax_test(test_invalid_inputs, test_float_int) { // triax_expect_gt(4., 5);
 }
+
+// Only the test file that's built as its own standalone executable needs a
+// main() — see CMakeLists.txt's rk_clib-selftest-inputs target.
+TRIAX_MAIN()
 #endif

@@ -340,7 +340,12 @@ triax_test(set, tests0) {
 triax_test(arrdup, t0) {
   const int src[5] = {1, 2, 3, 4, 5};
   int*      dst    = rk_arrdup(src, 5);
-  int*      dst2   = rk_arrdup(dst, 5);
+  triax_expect_memeq(dst, src, sizeof(src));
+  int* dst2 = rk_arrdup(dst, 5);
+  triax_expect_memeq(dst2, src, sizeof(src));
+  triax_expect_neq(dst2, dst); // must be a distinct allocation, not an alias
+  alloc_delete(dst, 5);
+  alloc_delete(dst2, 5);
 }
 RK__IGNWARN_CLANG_END()
 RK_HEADER_END

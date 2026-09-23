@@ -6,7 +6,7 @@
 ///
 /// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
 /// context pointer. Three predefined allocators are provided: `alloc_malloc_allocator`,
-/// `alloc_page_allocator`, and `alloc_nop_allocator`. Custom allocators can be created by filling
+/// `alloc_page_allocator`. Custom allocators can be created by filling
 /// an `AllocatorVTable` and constructing an `Allocator`.
 ///
 /// Allocation failures are handled inside the allocator, not at call sites. The provided allocators
@@ -621,57 +621,62 @@ static_fun void RK__malloc_deallocate(void* ptr, size_t old_size rk_unused, size
 
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
 
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
 static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__call_alloc(size_t nbytes, size_t align,
-                                                                        const AllocatorVTable* vtab,
-                                                                        void* ctx) {
-  rk_assert(vtab && "Invalid Allocator");
-  return vtab->alloc_f(nbytes, align, ctx);
+                                                                        Allocator alloc) {
+  rk_assert(alloc.vtab && "Invalid Allocator");
+  if (!nbytes) { return rk_null; }
+  return alloc.vtab->alloc_f(nbytes, align, alloc.ctx);
 }
-static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__call_realloc(
-    void* ptr, size_t obytes, size_t nbytes, size_t align, const AllocatorVTable* vtab, void* ctx) {
-  rk_assert(vtab && "Invalid Allocator");
-  return vtab->realloc_f(ptr, obytes, nbytes, align, ctx);
+static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__call_realloc(void* ptr, size_t obytes,
+                                                                          size_t    nbytes,
+                                                                          size_t    align,
+                                                                          Allocator alloc) {
+  rk_assert(alloc.vtab && "Invalid Allocator");
+
+  if (!nbytes) {
+    if (ptr) {
+      rk_assert(obytes && "Non-NULL allocation has zero size");
+      alloc.vtab->dealloc_f(ptr, obytes, align, alloc.ctx);
+    } else {
+      rk_assert(!obytes && "NULL allocation has nonzero size");
+    }
+    return rk_null;
+  }
+  if (!ptr) {
+    rk_assert(!obytes && "NULL allocation has nonzero size");
+    return alloc.vtab->alloc_f(nbytes, align, alloc.ctx);
+  }
+  rk_assert(obytes && "Non-NULL allocation has zero size");
+  return alloc.vtab->realloc_f(ptr, obytes, nbytes, align, alloc.ctx);
 }
 
 static_fun rk_forceinline void RK__call_dealloc(void* ptr, size_t obytes, size_t align,
-                                                const AllocatorVTable* vtab, void* ctx) {
-  rk_assert(vtab && "Invalid Allocator");
-  vtab->dealloc_f(ptr, obytes, align, ctx);
-}
-#elif RK_ALLOCMODE == RK_ALLOCMODE_NO_LOCAL
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__call_alloc(size_t nbytes,
-                                                                        size_t align) {
-  Allocator a = alloc_ctx;
-  return a.vtab->alloc_f(nbytes, align, a.ctx);
-}
-static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__call_realloc(void* ptr, size_t obytes,
-                                                                          size_t nbytes,
-                                                                          size_t align) {
-  Allocator a = alloc_ctx;
-  return a.vtab->realloc_f(ptr, obytes, nbytes, align, a.ctx);
-}
-
-static_fun rk_forceinline void RK__call_dealloc(void* ptr, size_t obytes, size_t align) {
-  Allocator a = alloc_ctx;
-  a.vtab->dealloc_f(ptr, obytes, align, a.ctx);
+                                                Allocator alloc) {
+  rk_assert(alloc.vtab && "Invalid Allocator");
+  if (!ptr) {
+    rk_assert(!obytes && "NULL allocation has nonzero size");
+    return;
+  }
+  rk_assert(obytes && "Non-NULL allocation has zero size");
+  alloc.vtab->dealloc_f(ptr, obytes, align, alloc.ctx);
 }
 #endif
 
 #if RK_ALLOCMODE == RK_ALLOCMODE_FULL
-# define RK__alloc_ALLOCATE(bytes, align, all)                                                     \
-   (alloc_log_new, RK__call_alloc(bytes, align, (all).vtab, (all).ctx))
+# define RK__alloc_ALLOCATE(bytes, align, all) (alloc_log_new, RK__call_alloc(bytes, align, all))
 # define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align, (all).vtab, (all).ctx))
+   (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align, all))
 # define RK__alloc_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, RK__call_dealloc(ptr, obytes, align, (all).vtab, (all).ctx))
+   (alloc_log_delete, RK__call_dealloc(ptr, obytes, align, all))
 
 #elif RK_ALLOCMODE == RK_ALLOCMODE_NO_LOCAL
-# define RK__alloc_ALLOCATE(bytes, align, all) (alloc_log_new, RK__call_alloc(bytes, align))
+# define RK__alloc_ALLOCATE(bytes, align, all)                                                     \
+   (alloc_log_new, RK__call_alloc(bytes, align, alloc_ctx))
 # define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align))
+   (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align, alloc_ctx))
 # define RK__alloc_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, RK__call_dealloc(ptr, obytes, align))
+   (alloc_log_delete, RK__call_dealloc(ptr, obytes, align, alloc_ctx))
 
 #elif RK_ALLOCMODE == RK_ALLOCMODE_MALLOC_ONLY
 # define RK__alloc_ALLOCATE(bytes, align, all) RK__malloc_ALLOCATE(bytes, align)

@@ -947,7 +947,7 @@ static_fun Strv*(str_split_alloc)(Strv str, Strv dels,
   rk_disable_if(RK__STR_SPLIT_ALLOC(str, delims, count, alloc))
 #define RK__STR_SPLIT_ALLOC3(str, delims, count) RK__STR_SPLIT_ALLOC(str, delims, count, alloc_ctx)
 
-rk_attr_printf(2, 3) static_fun Str* str_cat_fmt(Str* self, const char* fmt, ...) {
+static_fun rk_attr_printf(2, 3) Str* str_cat_fmt(Str* self, const char* fmt, ...) {
   size_t  len = self->len, rem = self->cap - len;
   va_list ap, ap_probe;
   va_start(ap, fmt), va_copy(ap_probe, ap);

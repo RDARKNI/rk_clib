@@ -353,19 +353,19 @@ triax_suite(test_fixtures_suite, .init = fixture_suite_level_init,
             .fini = fixture_suite_level_fini);
 triax_test(test_fixtures_suite, test_suite_fixture_1) {
   triax_assert_eq(suite_level_len, 1000);
-  for (size_t i = 0; i < suite_level_len; ++i) { triax_assert_eq((size_t)suite_level_mem[i], i); }
+  for (size_t i = 0; i < suite_level_len; ++i) { triax_assert_eq((size_t)suite_level_mem[i], (size_t)i); }
 }
 triax_test(test_fixtures_suite, test_suite_fixture_independence1) {
   triax_assert_eq(suite_level_len, 1000);
   for (size_t i = 0; i < suite_level_len; ++i) {
-    triax_assert_eq((size_t)suite_level_mem[i], i);
+    triax_assert_eq((size_t)suite_level_mem[i], (size_t)i);
     suite_level_mem[i] = 3; // mutate for next test
   }
 }
 triax_test(test_fixtures_suite, test_suite_fixture_independence2,
            .init = fixture_suite_level_reset) {
   triax_assert_eq(suite_level_len, 1000);
-  for (size_t i = 0; i < suite_level_len; ++i) { triax_assert_eq((size_t)suite_level_mem[i], i); }
+  for (size_t i = 0; i < suite_level_len; ++i) { triax_assert_eq((size_t)suite_level_mem[i], (size_t)i); }
 }
 triax_test(test_fixtures_suite_after, test_suite_fixture_after_fini) {
   triax_assert_eq(suite_level_len, 0);

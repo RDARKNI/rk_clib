@@ -32,7 +32,7 @@ triax_test(test_custom_msg, test0) {
                n);
 }
 triax_test(test_unparameterised, t1, .isolation = TRIAX_ISOLATION_ON) {
-  const int* x = triax_param(int);
+  (void)triax_param(int); // exercises the "accessed with no parameter" user-error path
 }
 triax_test(print_quick, eg) {
   triax_expect_eq(0, 1);

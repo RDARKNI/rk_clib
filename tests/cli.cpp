@@ -87,11 +87,8 @@ triax_test(stdstr, test0) {
   triax_assert_eq(a, b);
 }
 triax_test(test_invalid_inputs, test_ptr_int) {
-  int         _int  = 10;
-  void*       _ptr  = (void*)10;
-  void*       _cptr = (void*)10;
-  char*       _str  = (char*)"hello";
-  const char* _cstr = "hello";
+  void* _ptr  = (void*)10;
+  void* _cptr = (void*)10;
   triax_assert_eq(_ptr, _ptr);
   triax_assert_eq(_ptr, _cptr);
   triax_assert_eq(_cptr, _ptr);

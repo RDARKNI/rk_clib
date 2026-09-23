@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ubuntu-24.04-arm adds ARM64 Linux coverage on top of the three OS
+  # families, using only GitHub-hosted runners. macOS is Apple Silicon only
+  # (macos-latest); Intel macOS was not added given Triax's (this author's
+  # other project) experience of its GitHub-hosted runner pool being short
+  # enough on capacity to leave jobs queued for 5+ hours.
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DBUILD_TESTING=ON
+      - name: Build
+        # RelWithDebInfo only actually changes anything on windows-latest
+        # (MSVC's multi-config generator): single-config Makefiles builds on
+        # ubuntu/macos ignore --config entirely since no CMAKE_BUILD_TYPE was
+        # set at configure time.
+        run: cmake --build build --config RelWithDebInfo
+      - name: Test
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+
+  # Compiler-policy testing (does our source satisfy our warning policy?)
+  # lives here, separate from native above: native answers "does rk_clib
+  # work on each platform", this answers "is it clean under -Werror/-WX for
+  # each compiler family RK_CLIB_STRICT_WARNINGS_GNU_*/CLANG_EXTRA/MSVC in
+  # CMakeLists.txt is written for". GCC and Clang share a build/test shape on
+  # the same OS, so they're one matrix; MSVC needs Windows-specific
+  # config/build syntax, so it gets the separate strict-warnings-msvc job
+  # below instead of being forced into this matrix.
+  strict-warnings:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { cc: gcc, cxx: g++ }
+          - { cc: clang, cxx: clang++ }
+    env:
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Clang
+        if: matrix.compiler.cc == 'clang'
+        run: sudo apt-get update && sudo apt-get install -y clang
+      - name: Configure (warnings-as-errors)
+        run: cmake -S . -B build -DRK_CLIB_WARNINGS_AS_ERRORS=ON -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  strict-warnings-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (MSVC, warnings-as-errors)
+        run: cmake -S . -B build -DRK_CLIB_WARNINGS_AS_ERRORS=ON -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo
+      - name: Test
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+
+  clang-sanitizers:
+    runs-on: ubuntu-latest
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+      - name: Configure (Clang, ASan+UBSan)
+        run: cmake -S . -B build -DRK_CLIB_ENABLE_SANITIZERS=ON -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        # Leak detection is left on here (unlike Triax's own CI, which sets
+        # ASAN_OPTIONS=detect_leaks=0): rk_clib's test suite has no known
+        # source of intentional/expected leaks, so there's nothing yet to
+        # justify suppressing it. Revisit if this turns up false positives.
+        run: ctest --test-dir build --output-on-failure
+
+  # MSVC only implements AddressSanitizer (no UBSan), matching
+  # RK_CLIB_ENABLE_SANITIZERS's MSVC branch in CMakeLists.txt.
+  msvc-sanitizers:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        # MSVC's /fsanitize=address binaries dynamically link against
+        # clang_rt.asan_dynamic-x86_64.dll, which lives in the VC toolset's
+        # own bin directory - not on PATH for the plain shell running the
+        # Test step otherwise, so the built test binaries would fail to
+        # start.
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure (MSVC, ASan)
+        # RelWithDebInfo, not Debug: CMake's default Debug flags for MSVC
+        # include /RTC1 (runtime checks), which is rejected in combination
+        # with /fsanitize=address.
+        run: cmake -S . -B build -DRK_CLIB_ENABLE_SANITIZERS=ON -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo
+      - name: Test
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure

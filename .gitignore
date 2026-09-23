@@ -7,6 +7,10 @@
 .cache/
 compile_commands.json
 
+# CMake build directories
+build/
+build-*/
+
 # Generated documentation (doxygen Doxyfile, run from include/)
 docs/
 
