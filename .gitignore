@@ -7,6 +7,9 @@
 .cache/
 compile_commands.json
 
+# Generated documentation (doxygen Doxyfile, run from include/)
+docs/
+
 # Test build artifacts
 tests/a.out
 tests/a.out.dSYM/
