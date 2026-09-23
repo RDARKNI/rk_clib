@@ -32,15 +32,6 @@ target_compile_features(
         cxx_std_11
 )
 
-if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-    option(RK_CLIB_BUILD_BENCHMARKS "Build rk_clib benchmarks" ON)
-else()
-    option(RK_CLIB_BUILD_BENCHMARKS "Build rk_clib benchmarks" OFF)
-endif()
-if(RK_CLIB_BUILD_BENCHMARKS)
-    add_executable(rk_clib-bench-dict tests/bench_rk_dict.c)
-    target_link_libraries(rk_clib-bench-dict PRIVATE rk_clib::rk_clib)
-endif()
 
 include(CTest)
 if(BUILD_TESTING)
