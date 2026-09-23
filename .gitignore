@@ -1,0 +1,18 @@
+# OS / editor
+.DS_Store
+.vscode/
+.claude/
+
+# Tooling
+.cache/
+compile_commands.json
+
+# Test build artifacts
+tests/a.out
+tests/a.out.dSYM/
+tests/*.o
+tests/seq.tap
+tests/seq2.tap
+tests/sleeper
+tests/outputs/
+tests/outputs_isolation/
