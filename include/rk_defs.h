@@ -142,9 +142,11 @@
 /// them with different (MSVC-pragma) bodies.
 # define RK__SILENCE_WARNINGS_BEG                                                                  \
    __pragma(warning(push)) __pragma(warning(disable : 4200 4116 4141))
-# define RK__SILENCE_WARNINGS_END __pragma(warning(pop))
-# define RK__IGNWARN_MSC(warn, ...)                                                                \
-   __pragma(warning(push)) __pragma(warning(disable : warn)) __VA_ARGS__ __pragma(warning(pop))
+# define RK__SILENCE_WARNINGS_END   __pragma(warning(pop))
+# define RK__IGNWARN_MSC_BEG(warn)  __pragma(warning(push)) __pragma(warning(disable : warn))
+# define RK__IGNWARN_MSC_END()      __pragma(warning(pop))
+
+# define RK__IGNWARN_MSC(warn, ...) RK__IGNWARN_MSC_BEG(warn) __VA_ARGS__ __pragma(warning(pop))
 #else
 # define RK__IGNWARN_MSC(warn, ...) __VA_ARGS__
 # ifndef RK__SILENCE_WARNINGS_BEG
