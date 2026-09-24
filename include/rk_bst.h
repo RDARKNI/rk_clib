@@ -185,8 +185,8 @@ typedef struct bst_iter {
   struct RK__BstNode(K, V) {                                                                       \
     struct RK__BstNode(K, V) * l, *r;                                                              \
     union {                                                                                        \
-      alignas_max RK__BstEntryPriv(K, V) entry_mod;                                                \
-      alignas_max BstEntry(K, V) entry;                                                            \
+      RK__BstEntryPriv(K, V) entry_mod;                                                            \
+      BstEntry(K, V) entry;                                                                        \
     };                                                                                             \
   };                                                                                               \
   typedef struct Bst(K, V) {                                                                       \
