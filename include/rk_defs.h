@@ -822,7 +822,7 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 #define rk_ensure_type_is_num(T) ((T)((T)0 * 0))
 
 #define rk_ensure_numclass_compatible(x, y)                                                        \
-  static_assert_expr((RK_numclassof(x) & RK_numclassof(y)), "Incompatible numeric types")
+  static_assert_expr(RK_numclassof(x) & RK_numclassof(y), "Incompatible numeric types")
 
 #define rk_ensure_malloc_align(T)                                                                  \
   static_assert_expr(alignof(T) <= RK_malloc_align, "Type alignment too "                          \
@@ -898,7 +898,7 @@ T:                                                                              
 #define RK_numclassof(x)                                                                           \
   _Generic(rk_ensure_type_is_num(typeof(x)),                                                       \
       RK_F_TYPES(RK__numclassof_, RK_numclass_f) bool: RK_numclass_b,                              \
-      RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: 1 + !(((typeof(x))-1) > 0))
+      RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: (1 + !(((typeof(x))-1) > 0)))
 
 #define RK_TOSIGNED(x)                                                                             \
   _Generic((x),                                                                                    \
