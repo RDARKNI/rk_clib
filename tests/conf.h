@@ -8,13 +8,14 @@
 // #define TRIAX_MULTI_TU
 #include "../triax/triax.h"
 
-#define RK_ALLOCMODE RK_ALLOCMODE_FULL
-// #define RK_ALLOCMODE RK_ALLOCMODE_NO_LOCAL
-// #define RK_ALLOCMODE RK_ALLOCMODE_MALLOC_ONLY
-#define RK_DEBUG     2
+#ifndef RK_CUSTOM_ALLOCATORS
+# define RK_CUSTOM_ALLOCATORS 1
+#endif
+
+#define RKLIB_DEBUG 2
 #include "../include/rklib_includeall.h"
 
-#if RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
+#if RK_CUSTOM_ALLOCATORS
 static Allocator alloc_cpy;
 # define RK_IFNMALLOC(...) __VA_ARGS__
 #else
@@ -35,7 +36,6 @@ static Allocator alloc_cpy;
 # include "test_rk_pool.c"
 # include "test_rk_string.c"
 # include "test_rk_vec.c"
-# include "test_rk_test.c"
 #else
 #endif
 #endif

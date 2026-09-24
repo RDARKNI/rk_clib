@@ -286,7 +286,7 @@ static_fun void vec_clear(Vec(void) self) {
 #define vec_insert_at_unordered(self, idx, obj) ((void)RK__vec_insert_at_unordered(self, idx, obj))
 
 /// @brief `void vec_insert_arr_at(Vec(T)& self, size_t idx, T* obj, size_t count)` - Batched
-/// `vec_insert()`, faster when adding multiple elements at once.
+/// `vec_insert()`, faster when adding multiple elements at once. TODO SELF INSERTION
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @param self  The Vec (must be an lvalue)
 /// @param idx   The Index of the Vec to store in
@@ -423,7 +423,8 @@ static_fun rk_forceinline size_t RK__vec_assert_insertbounds(void* self, size_t 
 }
 
 static_fun rk_forceinline size_t RK__vec_assert_erasebounds_n(void* self, size_t i, size_t n) {
-  rk_assert(i + n <= vec_count(self) && "Attempting to erase from Vec at out of bounds index");
+  rk_assert((i <= vec_count(self) && n <= vec_count(self) - i)
+            && "Attempting to erase from Vec at out of bounds index");
   return i;
 }
 

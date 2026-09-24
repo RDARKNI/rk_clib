@@ -14,7 +14,7 @@
 #include "conf.hpp"
 /*
 gcc cli.c test_rk_arena.c test_rk_arenastack.c test_rk_bitset.c test_rk_bst.c test_rk_dict.c
-test_rk_pool.c test_rk_string.c test_rk_test.c test_rk_vec.c -O3 -g3 && ./a.out
+test_rk_pool.c test_rk_string.c test_rk_vec.c -O3 -g3 && ./a.out
 */
 triax_test(noisolation_recovery, recover_abort_testerr) { abort(); }
 triax_test(noisolation_recovery, recover_segfault_testerr) { raise(SIGSEGV); }

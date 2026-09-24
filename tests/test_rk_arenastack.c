@@ -347,7 +347,7 @@ triax_test(arenastack, release_after_growth) {
 
 // ---- allocator interface ----
 
-#if RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
+#if RK_CUSTOM_ALLOCATORS
 triax_test(arenastack, to_alloc_basic) {
   ArenaStack al = arenastack_init(128);
   SWAP_ALLOC(arenastack_to_alloc(&al));

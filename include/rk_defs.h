@@ -467,7 +467,7 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 
 /// @brief todo docs, attribute
 static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
-  return rk_likely(x == 0 || y <= SIZE_MAX / x) ? x * y : (abort(), 0);
+  return rk_likely(x == 0 || y <= SIZE_MAX / x) ? x * y : (abort(), (size_t)0);
 }
 
 /// @brief Returns the byte size of n objects of type T.

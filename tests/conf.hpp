@@ -59,9 +59,4 @@
 # define RK__IGNWARN_CLANG(warn, ...)
 #endif
 
-#ifndef TRIAX_MULTI_TU
-// clang-format off
-//# include "test_rk_test.c"
-#else
-#endif
 #endif

@@ -295,7 +295,7 @@ triax_test(arena, extend_not_top_asserts, .isolation = TRIAX_ISOLATION_ON) {
   arena_new(int, 10, &glob_a); // displace top
   // non-top pointer is a programming error — asserts
 #ifdef RKLIB_DEBUG
-  triax_assert_fault(TRIAX_FAULT_ANY, arena_extend(arr, 5, 10, &a););
+  triax_assert_fault(TRIAX_FAULT_ANY, (void)arena_extend(arr, 5, 10, &glob_a););
 #endif
   arena_clear(&glob_a);
 }
@@ -439,7 +439,7 @@ triax_test(arena, null_arena) {
 }
 
 // ---- allocator interface ----
-#if RK_ALLOCMODE != RK_ALLOCMODE_MALLOC_ONLY
+#if RK_CUSTOM_ALLOCATORS
 
 triax_test(arena, deallocate_top_only_via_allocator) {
   arena_clear(&glob_a);

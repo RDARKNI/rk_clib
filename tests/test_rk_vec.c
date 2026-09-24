@@ -27,7 +27,7 @@ triax_test(vec, vec_init) {
     triax_expect_null(v);
   }
   {
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
     used_alloc = glob_arena_alloc;
 #endif
     v = vec_init(int, 4 RK_IFALLOC(, used_alloc));
@@ -62,7 +62,7 @@ triax_test(vec, init_list) {
     vec_release(v);
   }
   {
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
     used_alloc = glob_arena_alloc;
 #endif
     v = vec_init_list(int, RK_IFALLOC(used_alloc, ) 0, 1, 2, 3, 4, 5);
@@ -81,7 +81,7 @@ triax_test(vec, vec_copy) {
   Allocator used_alloc = alloc_ctx;
   Vec(int)  v;
   {
-#if RK_ALLOCMODE == RK_ALLOCMODE_FULL
+#if RK_CUSTOM_ALLOCATORS
     used_alloc = glob_arena_alloc;
 #endif
     v           = vec_init_list(int, RK_IFALLOC(used_alloc, ) 0, 1, 2, 3, 4, 5);

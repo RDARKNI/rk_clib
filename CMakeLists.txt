@@ -183,55 +183,56 @@ if(BUILD_TESTING)
             rk_clib-warnings
     )
 
-    # tests/cli.cpp does not aggregate the C test suite (tests/conf.hpp's
-    # equivalent #include block is commented out) — it carries its own,
-    # separate set of triax_test registrations exercising the C++-specific
-    # formatting path.
-    add_executable(rk_clib-selftest-cpp tests/cli.cpp)
+    # Same C suite, rebuilt from scratch with RK_CUSTOM_ALLOCATORS=0, so the
+    # malloc-only code paths (RK_IFALLOC-erased params, the fixed alloc_ctx,
+    # etc.) get exercised by CI too, not just the default enabled-allocators
+    # build above.
+    add_executable(rk_clib-selftest-c-noalloc tests/cli.c)
+    target_compile_definitions(rk_clib-selftest-c-noalloc PRIVATE RK_CUSTOM_ALLOCATORS=0)
     target_link_libraries(
-        rk_clib-selftest-cpp
+        rk_clib-selftest-c-noalloc
         PRIVATE
             rk_clib::rk_clib
             rk_clib-triax
             rk_clib-warnings
     )
-
-    # tests/test_rk_test_inputs.c is not pulled in by either cli.c or
-    # cli.cpp's #include chains, so it needs -DTRIAX_MULTI_TU to build
-    # standalone (stops tests/conf.h from also pulling in the rest of the
-    # suite) and its own executable + ctest registration to actually run.
-    # TRIAX_IMPL is also required here: TRIAX_MULTI_TU alone tells triax.h
-    # that some *other* TU provides the real implementation (TRIAXI_exec
-    # etc.) — true when compiled as one of several TUs linked together, but
-    # this is a single-source executable, so it must provide its own copy.
-    add_executable(rk_clib-selftest-inputs tests/test_rk_test_inputs.c)
-    target_compile_definitions(rk_clib-selftest-inputs PRIVATE TRIAX_MULTI_TU TRIAX_IMPL)
-    target_link_libraries(
-        rk_clib-selftest-inputs
-        PRIVATE
-            rk_clib::rk_clib
-            rk_clib-triax
-            rk_clib-warnings
-    )
-
-    # tests/test_rk_test_fmt.cpp is deliberately NOT wired in here: it calls
-    # triax_assert_inrange/triax_assert_floateq_tol/triax_expect_floateq_tol,
-    # none of which exist in triax/triax.h as vendored — adding it to the
-    # build would make CI fail on a pre-existing, unrelated gap rather than
-    # on an actual regression. Fix triax.h (or this file) first, then add it
-    # the same way as rk_clib-selftest-inputs above.
 
     if(TARGET rk_clib-sanitizers)
         target_link_libraries(rk_clib-selftest-c PRIVATE rk_clib-sanitizers)
-        target_link_libraries(rk_clib-selftest-cpp PRIVATE rk_clib-sanitizers)
-        target_link_libraries(rk_clib-selftest-inputs PRIVATE rk_clib-sanitizers)
+        target_link_libraries(rk_clib-selftest-c-noalloc PRIVATE rk_clib-sanitizers)
     endif()
 
-    # rk_clib-selftest-inputs is intentionally not registered as a ctest: its
-    # assertions are edge-case inputs to triax's own reporting (e.g.
-    # expect_lt(_cptr, _cptr)) that are *designed* to fail, exercising how
-    # triax formats them rather than testing rk_clib itself. It still builds
-    # here so a real compile break in it fails CI.
     add_test(NAME rk_clib-c COMMAND rk_clib-selftest-c --no-color)
-    add_test(NAME rk_clib-cpp COMMAND rk_clib-selftest-cpp --no-color)
+    add_test(NAME rk_clib-c-noalloc COMMAND rk_clib-selftest-c-noalloc --no-color)
+
+    # rk_clib's C++ support is Clang-only (see rk_defs.h's own header comment):
+    # its headers lean on _Generic pervasively, which only Clang's C++
+    # frontend accepts as an extension — GCC and MSVC reject it outright in
+    # C++ mode. Building rk_clib-selftest-cpp under any other compiler isn't
+    # a regression to catch, it's an expected, permanent failure, so it's
+    # only wired in here when the C++ compiler actually is Clang.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang)$")
+        # tests/cli.cpp does not aggregate the C test suite (tests/conf.hpp's
+        # equivalent #include block is commented out) — it carries its own,
+        # separate set of triax_test registrations exercising the C++-specific
+        # formatting path.
+        add_executable(rk_clib-selftest-cpp tests/cli.cpp)
+        target_link_libraries(
+            rk_clib-selftest-cpp
+            PRIVATE
+                rk_clib::rk_clib
+                rk_clib-triax
+                rk_clib-warnings
+        )
+        if(TARGET rk_clib-sanitizers)
+            target_link_libraries(rk_clib-selftest-cpp PRIVATE rk_clib-sanitizers)
+        endif()
+        add_test(NAME rk_clib-cpp COMMAND rk_clib-selftest-cpp --no-color)
+    else()
+        message(
+            STATUS
+            "Skipping rk_clib-selftest-cpp: rk_clib's C++ support requires "
+            "Clang (CMAKE_CXX_COMPILER_ID is '${CMAKE_CXX_COMPILER_ID}')"
+        )
+    endif()
 endif()

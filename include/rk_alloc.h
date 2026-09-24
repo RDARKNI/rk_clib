@@ -744,19 +744,6 @@ static_fun rk_alloc_alignsize(3, 2) void* RK__arrdup_f(const void* src, size_t s
 
 RK_HEADER_END
 
-/*
-todo:
-either ban scope-based lookup for alloc-ctx
-OR
-have all allocating functions implicitly take allocators
-What about reallocating ones like vec_push?
-Always take vec's allocator in local mode, otherwise take alloc_ctx as param
-
-Implementation will get very messy
-
-
-*/
-
 /// @}
 #endif // RK_ALLOC_H
 
