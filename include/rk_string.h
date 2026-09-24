@@ -795,21 +795,25 @@ static_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv
   rk_assert(idx <= self->len && "Attempted to insert out of Str bounds");
   if (!sv.len) { return self; }
   if (idx == self->len) { return str_cat_strv_mayalias(self, sv); }
-  uptr  sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
-  bool  alias = cbeg >= sbeg && cbeg < send;
-  char* from;
+  uptr   sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
+  bool   alias = cbeg >= sbeg && cbeg < send;
+  size_t new_len;
   if (alias) {
     rk_set_alloc_fallback(self->alloc);
-    from = alloc_new(char, sv.len RK_IFALLOC(, self->alloc));
+    char* from = alloc_new(char, sv.len RK_IFALLOC(, self->alloc));
     memcpy(from, sv.str, sv.len);
+    new_len = sv.len + self->len;
+    RK__str_ensure_cap(self, new_len + 1);
+    memmove(self->str + idx + sv.len, self->str + idx, self->len + 1 - idx);
+    memcpy(self->str + idx, from, sv.len);
+    alloc_delete(from, sv.len RK_IFALLOC(, self->alloc));
   } else {
-    from = (char*)sv.str;
+    const char* from = (char*)sv.str;
+    new_len          = sv.len + self->len;
+    RK__str_ensure_cap(self, new_len + 1);
+    memmove(self->str + idx + sv.len, self->str + idx, self->len + 1 - idx);
+    memcpy(self->str + idx, from, sv.len);
   }
-  size_t new_len = sv.len + self->len;
-  RK__str_ensure_cap(self, new_len + 1);
-  memmove(self->str + idx + sv.len, self->str + idx, self->len + 1 - idx);
-  memcpy(self->str + idx, from, sv.len);
-  if (alias) { alloc_delete(from, sv.len RK_IFALLOC(, self->alloc)); }
   self->len = new_len;
   return self;
 }

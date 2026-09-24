@@ -155,7 +155,7 @@ static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark
     }
     arena_clear(arena);
   }
-  rk_assert(!"Pointer was not allocated by this stack"), unreachable();
+  rk_assert(0 && "Pointer was not allocated by this stack"), unreachable();
 }
 
 static_fun ArenaStack RK__arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
