@@ -570,8 +570,8 @@ typedef int64_t   s64;
 #ifdef __SIZEOF_INT128__
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wpedantic" /* guarded-against already */
-typedef unsigned __int128 u128;
-typedef __int128          s128;
+__extension__ typedef unsigned __int128 u128;
+__extension__ typedef __int128          s128;
 # pragma GCC diagnostic pop
 # define RK__IFHAS_INT128(...) __VA_ARGS__
 #else
@@ -906,7 +906,7 @@ T:                                                                              
        unsigned short: (short)(x),                                                                 \
        unsigned: (int)(x),                                                                         \
        unsigned long: (long)(x),                                                                   \
-       unsigned long long: (long long)(x)RK__IFHAS_INT128(, unsigned __int128 : (__int128)(x))))
+       unsigned long long: (long long)(x)RK__IFHAS_INT128(, u128 : (s128)(x))))
 
 #define RK_U_TYPES(X, ...)                                                                         \
   X(unsigned char, uc, ##__VA_ARGS__)                                                              \
@@ -914,7 +914,7 @@ T:                                                                              
   X(unsigned, ui, ##__VA_ARGS__)                                                                   \
   X(unsigned long, ul, ##__VA_ARGS__)                                                              \
   X(unsigned long long, ull, ##__VA_ARGS__)                                                        \
-  RK__IFHAS_INT128(X(unsigned __int128, ullx, ##__VA_ARGS__))
+  RK__IFHAS_INT128(X(u128, ullx, ##__VA_ARGS__))
 
 #define RK_S_TYPES(X, ...)                                                                         \
   X(signed char, sc, ##__VA_ARGS__)                                                                \
@@ -922,7 +922,7 @@ T:                                                                              
   X(int, si, ##__VA_ARGS__)                                                                        \
   X(long, sl, ##__VA_ARGS__)                                                                       \
   X(long long, sll, ##__VA_ARGS__)                                                                 \
-  RK__IFHAS_INT128(X(__int128, sllx, ##__VA_ARGS__))
+  RK__IFHAS_INT128(X(s128, sllx, ##__VA_ARGS__))
 
 #define RK_SU_TYPES(X, ...)                                                                        \
   RK_U_TYPES(X, ##__VA_ARGS__)                                                                     \
@@ -970,7 +970,7 @@ RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
       float: fabsf((float)(x)),                                                                    \
       double: fabs((double)(x)),                                                                   \
       long double: fabsl((long double)(x)),                                                        \
-      RK__IFHAS_INT128(__int128 : abs_llx(x), ) default: (x))
+      RK__IFHAS_INT128(s128 : abs_llx(x), ) default: (x))
 
 #define RK__minof_impl(T)                                                                          \
   ((T) _Generic(rk_ensure_type_is_num(T),                                                          \
@@ -979,8 +979,8 @@ RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
        int: INT_MIN,                                                                               \
        long: LONG_MIN,                                                                             \
        long long: LLONG_MIN,                                                                       \
-       RK__IFNMSVC_CHARBUG(char : CHAR_MIN, ) RK__IFHAS_INT128(                                    \
-                    __int128 : -((__int128)(((unsigned __int128)-1) >> 1)) - 1, ) default: 0))
+       RK__IFNMSVC_CHARBUG(char : CHAR_MIN, )                                                      \
+           RK__IFHAS_INT128(s128 : -((s128)(((u128) - 1) >> 1)) - 1, ) default: 0))
 
 #define RK__maxof_impl(T)                                                                          \
   ((T) _Generic(rk_ensure_type_is_num(T),                                                          \
@@ -990,8 +990,7 @@ RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
        long: LONG_MAX,                                                                             \
        long long: LLONG_MAX,                                                                       \
        RK__IFNMSVC_CHARBUG(char : CHAR_MAX, )                                                      \
-           RK__IFHAS_INT128(__int128 : ((unsigned __int128)(~(unsigned __int128)0))                \
-                                >> 1, ) default: ((T)(~(T)0))))
+           RK__IFHAS_INT128(s128 : ((u128)(~(u128)0)) >> 1, ) default: ((T)(~(T)0))))
 
 #define RK__CHELPER         static_fun rk_const rk_forceinline
 #define RK__UNSEQUENCED_NOW rk_unsequenced
