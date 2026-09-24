@@ -775,21 +775,40 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 # define rk_to_rvalue(obj) ((typeof(obj))(obj))
 #endif
 
-#define rk_is_array(v)                                                                             \
-  _Generic(rk_dummyofp(v),                                                                         \
-      typeof_decayed(v)*: 0,                                                                       \
-      const typeof_decayed(v)*: 0,                                                                 \
-      volatile typeof_decayed(v)*: 0,                                                              \
-      const volatile typeof_decayed(v)*: 0,                                                        \
-      _Atomic typeof_decayed(v)*: 0,                                                               \
-      _Atomic const typeof_decayed(v)*: 0,                                                         \
-      _Atomic volatile typeof_decayed(v)*: 0,                                                      \
-      _Atomic const volatile typeof_decayed(v)*: 0,                                                \
-      default: 1)
+// Real MSVC (not clang-cl) never implemented `_Atomic` as a core-language
+// type qualifier -- it only partially supports the separate <stdatomic.h>
+// library -- so `_Atomic`-qualified types are simply inexpressible there.
+// Since nothing can ever reach those _Generic associations on that
+// compiler, omitting them is exact, not an approximation.
+#if defined(_MSC_VER) && !defined(__clang__)
+# define rk_is_array(v)                                                                            \
+   _Generic(rk_dummyofp(v),                                                                        \
+       typeof_decayed(v)*: 0,                                                                      \
+       const typeof_decayed(v)*: 0,                                                                \
+       volatile typeof_decayed(v)*: 0,                                                             \
+       const volatile typeof_decayed(v)*: 0,                                                       \
+       default: 1)
+#else
+# define rk_is_array(v)                                                                            \
+   _Generic(rk_dummyofp(v),                                                                        \
+       typeof_decayed(v)*: 0,                                                                      \
+       const typeof_decayed(v)*: 0,                                                                \
+       volatile typeof_decayed(v)*: 0,                                                             \
+       const volatile typeof_decayed(v)*: 0,                                                       \
+       _Atomic typeof_decayed(v)*: 0,                                                              \
+       _Atomic const typeof_decayed(v)*: 0,                                                        \
+       _Atomic volatile typeof_decayed(v)*: 0,                                                     \
+       _Atomic const volatile typeof_decayed(v)*: 0,                                               \
+       default: 1)
+#endif
 
-#define rk_is_const(v)        _Generic(rk_dummyofp(v), const typeof(v)*: 1, default: 0)
-#define rk_is_volatile(v)     _Generic(rk_dummyofp(v), volatile typeof(v)*: 1, default: 0)
-#define rk_is_atomic(v)       _Generic(rk_dummyofp(v), _Atomic typeof(v)*: 1, default: 0)
+#define rk_is_const(v)    _Generic(rk_dummyofp(v), const typeof(v)*: 1, default: 0)
+#define rk_is_volatile(v) _Generic(rk_dummyofp(v), volatile typeof(v)*: 1, default: 0)
+#if defined(_MSC_VER) && !defined(__clang__)
+# define rk_is_atomic(v) ((void)rk_dummyofp(v), 0)
+#else
+# define rk_is_atomic(v) _Generic(rk_dummyofp(v), _Atomic typeof(v)*: 1, default: 0)
+#endif
 
 #define rk_is_same_type(T, U) _Generic(rk_dummyofp(T), typeof(U)*: 1, default: 0)
 
