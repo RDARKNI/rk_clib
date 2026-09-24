@@ -131,6 +131,19 @@
 # define RK__IGNWARN_CLANG_BEG(warn)
 # define RK__IGNWARN_CLANG_END()
 # define RK__IGNWARN_CLANG(warn, ...) (__VA_ARGS__)
+# ifdef __GNUC__
+#  define RK__IGNWARN_GCC_BEG(warn)                                                                \
+    RK_DO_PRAGMA(GCC diagnostic push)                                                              \
+    RK_DO_PRAGMA(GCC diagnostic ignored warn)
+#  define RK__IGNWARN_GCC_END()      RK_DO_PRAGMA(GCC diagnostic pop)
+#  define RK__IGNWARN_GCC(warn, ...) RK__IGNWARN_GCC_BEG(warn)(__VA_ARGS__) RK__IGNWARN_GCC_END()
+# endif
+#endif
+
+#ifndef RK__IGNWARN_GCC_BEG
+# define RK__IGNWARN_GCC_BEG(warn)
+# define RK__IGNWARN_GCC_END()
+# define RK__IGNWARN_GCC(warn, ...) (__VA_ARGS__)
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -898,7 +911,8 @@ T:                                                                              
 #define RK_numclassof(x)                                                                           \
   (_Generic(rk_ensure_type_is_num(typeof(x)),                                                      \
        RK_F_TYPES(RK__numclassof_, RK_numclass_f) bool: RK_numclass_b,                             \
-       RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: 1 + (((typeof(x))-1) < 0)))
+       RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: RK__IGNWARN_GCC(                       \
+                "-Werror=type-limits", 1 + (((typeof(x))-1) < 0))))
 
 #define RK_TOSIGNED(x)                                                                             \
   (_Generic((x),                                                                                   \
