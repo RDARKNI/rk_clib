@@ -5,7 +5,7 @@
 /// @brief Customizable memory allocator abstraction for C.
 ///
 /// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
-/// context pointer. Three predefined allocators are provided: `alloc_malloc_allocator` and
+/// context pointer. Two predefined allocators are provided: `alloc_malloc_allocator` and
 /// `alloc_page_allocator`. Custom allocators can be created by filling
 /// an `AllocatorVTable` and constructing an `Allocator`.
 ///
@@ -64,13 +64,11 @@ RK_HEADER_BEGIN
 /// default to `alloc_ctx`. Objects capture that allocator when initialised, so changing `alloc_ctx`
 /// affects only subsequently created objects.
 ///
-/// Three predefined `Allocator` instances are provided:
+/// Two predefined `Allocator` instances are provided:
 ///   - `alloc_malloc_allocator` — thin wrappers over `malloc`/`free` (or `_aligned_malloc` on MSVC
 ///     for over-aligned types). This is the default `alloc_ctx`.
 ///   - `alloc_page_allocator` — OS page allocation (`mmap` / `VirtualAlloc`). All allocations are
 ///     page-aligned; alignments larger than the page size are not supported.
-///   - `alloc_nop_allocator` — a sentinel allocator that asserts and aborts on any allocation
-///     attempt. Used to mark objects that must not allocate.
 ///
 /// @note Custom allocators must handle failures locally (via the failure macros in `rk_config.h`).
 /// Returning `NULL` from an allocator leads to immediate undefined behaviour at the call site.

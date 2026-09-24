@@ -8,13 +8,16 @@
 /// manipulation. Bit numbering is **0-based**: bit index 0 refers to the **least-significant bit
 /// (LSB)** of `bs[0]`.
 ///
-/// ## Storage model A bitset is stored as an array of `bitset_word` (by default `unsigned long
-/// long`):
+/// ## Storage model
+///
+/// A bitset is stored as an array of `bitset_word` (by default `unsigned long long`):
 /// - `bs[0]` holds bits `[0 .. W-1]`
 /// - `bs[1]` holds bits `[W .. 2W-1]`
 /// - etc., where `W = bitsof(bitset_word)`
 ///
-/// ## Padding bits (important) For a logical bitset size `nbits`, the last storage word may contain
+/// ## Padding bits (important)
+///
+/// For a logical bitset size `nbits`, the last storage word may contain
 /// *padding bits* with indices `>= nbits`. Many operations in this header (e.g. `bitset_any`,
 /// `bitset_count_ones`, `bitset_equals`) operate on whole words, so callers, if manipulating the
 /// bitset outside of the functions defined here, must maintain the invariant.
@@ -26,7 +29,9 @@
 /// data by other means (e.g. uninitialized storage, raw `memcpy`, manual word writes), call
 /// `bitset_clear_padding()`.
 ///
-/// ## Relationship to C23 stdbit.h conventions Single-bit and range operations use 0-based bit
+/// ## Relationship to C23 stdbit.h conventions
+///
+/// Single-bit and range operations use 0-based bit
 /// indices. The query functions `bitset_first_*` follow the C23 `<stdbit.h>` / common builtin
 /// convention of returning a **1-based position**, with **0** as the sentinel value meaning “not
 /// found”.

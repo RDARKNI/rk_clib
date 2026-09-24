@@ -482,9 +482,13 @@ typedef size_t RK__hashprobe_t;
     *self = new_self;                                                                              \
   }                                                                                                \
   static_fun void PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                    \
-    if (!self->cap) { *self = PUBF(K, V, init)(16u RK_IFALLOC(, alloc_ctx)); };                    \
+    if (!self->cap) {                                                                              \
+      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                              \
+      *self = PUBF(K, V, init)(16u RK_IFALLOC(, self->alloc));                                     \
+    };                                                                                             \
     if (RK__ds_needs_rehash(&self->hdr)) {                                                         \
-      PRIF(K, V, grow)(self, (self->count * 2 > self->cap) ? self->cap * 2 : self->cap);           \
+      PRIF(K, V, grow)(self,                                                                       \
+                       (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap); \
     }                                                                                              \
   }                                                                                                \
   static_fun RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,         \

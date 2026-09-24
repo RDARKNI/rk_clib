@@ -49,6 +49,13 @@
 /// - **RK_DICT_LOAD_NUM** / **RK_DICT_LOAD_DEN** default: `3` / `4` Integer fraction in `(0, 1)`
 ///   controlling when `rk_dict` rehashes. Lower values reduce collisions at the cost of more
 ///   memory; higher values do the opposite. Applies globally to all `Dict` instances.
+///
+/// - **rk_mult**(`x, y`) default: `((x) * (y))` Multiplication used internally for `size_t`
+///   size/count computations (`sizeof_n`, `Vec`/`Pool` capacity sizing, etc.). The default is a raw,
+///   unchecked multiply: an overflowing `count * sizeof(T)` silently wraps to a small value, so a
+///   too-large `count` can lead to a successful but undersized allocation. Define as `rk_mult_safe`
+///   (declared in `rk_defs.h`) to `abort()` on overflow instead, at the cost of a runtime check
+///   (a branch and, on the overflowing path, a division) on every multiplication.
 /// @{
 
 #ifndef RK_CONFIG_H
@@ -77,6 +84,7 @@
 // #define RK_POOL_FAIL( cond, ctx, old_ptr, align, new_size)   ...
 // #define RK_DICT_LOAD_NUM              3
 // #define RK_DICT_LOAD_DEN              4
+// #define rk_mult(x, y)                 ((x) * (y))  // or rk_mult_safe(x, y) to abort on overflow
 // clang-format on
 
 /// @brief Enables per-object custom allocators. Set to 0 to remove allocator members and use the
@@ -112,8 +120,9 @@
 # define RK_MALLOC_FAIL(cond, ctx, old_ptr, align, new_size)                                       \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     rk_assert((cond) && "malloc allocation failure");                                             \
-     (cond) ? (void)0 : abort();                                                                   \
+     bool RK___failcond = !!(cond);                                                                \
+     rk_assert(RK___failcond && "malloc allocation failure");                                      \
+     RK___failcond ? (void)0 : abort();                                                            \
    } while (0)
 #endif
 
@@ -122,8 +131,9 @@
 # define RK_MMAP_FAIL(cond, ctx, old_ptr, align, new_size)                                         \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     rk_assert((cond) && "map allocation failure");                                                \
-     (cond) ? (void)0 : abort();                                                                   \
+     bool RK___failcond = !!(cond);                                                                \
+     rk_assert(RK___failcond && "map allocation failure");                                         \
+     RK___failcond ? (void)0 : abort();                                                            \
    } while (0)
 #endif
 
@@ -132,8 +142,9 @@
 # define RK_ARENA_FAIL(cond, ctx, old_ptr, align, new_size)                                        \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     rk_assert((cond) && "arena allocation failed");                                               \
-     (cond) ? (void)0 : abort();                                                                   \
+     bool RK___failcond = !!(cond);                                                                \
+     rk_assert(RK___failcond && "arena allocation failed");                                        \
+     RK___failcond ? (void)0 : abort();                                                            \
    } while (0)
 #endif
 
@@ -142,8 +153,9 @@
 # define RK_POOL_FAIL(cond, ctx, old_ptr, align, new_size)                                         \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     rk_assert((cond) && "pool allocation failed");                                                \
-     (cond) ? (void)0 : abort();                                                                   \
+     bool RK___failcond = !!(cond);                                                                \
+     rk_assert(RK___failcond && "pool allocation failed");                                         \
+     RK___failcond ? (void)0 : abort();                                                            \
    } while (0)
 #endif
 /// @}
@@ -157,6 +169,15 @@
 #endif
 #ifndef RK_DICT_LOAD_DEN
 # define RK_DICT_LOAD_DEN 4
+#endif
+
+/// @brief `size_t` multiplication used for size/count computations throughout the library
+/// (`sizeof_n`, `Vec`/`Pool` capacity sizing, etc.). Unchecked by default — an overflowing
+/// `count * sizeof(T)` silently wraps, which can turn a too-large `count` into a small, successful
+/// allocation. Define this as `rk_mult_safe` (declared in `rk_defs.h`) before including any rklib
+/// header to `abort()` on overflow instead, at the cost of a runtime check on every multiplication.
+#ifndef rk_mult
+# define rk_mult(x, y) ((x) * (y))
 #endif
 
 /// @}

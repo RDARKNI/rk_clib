@@ -54,23 +54,25 @@ typedef struct ArenaStack {
 /// @return A new ArenaStack
 #define arenastack_init(arena_size, ...) rk_overload(RK__ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
-/// @brief Releases all arenas within the ArenaStack
+/// @brief Releases all arenas within the ArenaStack.
+/// @note No-op if `self` is `NULL`.
 static_fun void        arenastack_release(ArenaStack* self);
 
 /// @brief Marks all Memory in the ArenaStack as reusable Clears all currently active arenas and
 /// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
 /// the current index are left unchanged until reused.
-/// @return `self`, for chaining
+/// @return `self`, for chaining. No-op returning `self` if `self` is `NULL`.
 static_fun ArenaStack* arenastack_clear(ArenaStack* self);
 
 /// @brief Returns the current position of the active arena as an opaque marker. Pass to
 /// `arenastack_rewind_to` to restore the ArenaStack to this state.
+/// @note Returns a null marker if `self` is `NULL`.
 static_fun ArenaMark   arenastack_mark(const ArenaStack* self) {
-  return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
+  return (self && self->arena_size) ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
 }
 /// @brief Rewinds the ArenaStack to a specific mark returned by `arenastack_mark()`, marking every
 /// allocation in every Arena of the Stack as free until the mark is reached.
-/// @return `self`, for chaining
+/// @return `self`, for chaining. No-op returning `self` if `self` is `NULL`.
 static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
@@ -112,8 +114,10 @@ static_fun Allocator         arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
 
+/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` is
+/// `NULL`.
 static_fun Allocator arenastack_allocator(const ArenaStack* self) {
-  return vec_allocator(self->arenas);
+  return self ? vec_allocator(self->arenas) : alloc_ctx;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +133,7 @@ static_fun Allocator arenastack_allocator(const ArenaStack* self) {
   ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
 static_fun void arenastack_release(ArenaStack* self) {
+  if rk_unlikely (!self) { return; }
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
   vec_foreach(self->arenas, arena) {
     alloc_deallocate(arena->beg, (size_t)(arena->end - arena->beg), align_max RK_IFALLOC(, alloc));
@@ -138,14 +143,14 @@ static_fun void arenastack_release(ArenaStack* self) {
 }
 
 static_fun ArenaStack* arenastack_clear(ArenaStack* self) {
-  if rk_unlikely (!self->arena_size) { return self; }
+  if rk_unlikely (!self || !self->arena_size) { return self; }
   for (size_t cur = self->cur, i = 0; i <= cur; ++i) { arena_clear(&self->arenas[i]); }
   return self->cur = 0, self;
 }
 
 static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
   const unsigned char* ptr = mark.pos;
-  if rk_unlikely (!ptr) { return self; }
+  if rk_unlikely (!self || !ptr) { return self; }
   for (size_t i = self->cur + 1; i-- > 0;) {
     Arena* arena = &self->arenas[i];
     if (ptr == arena->cur || rk_ptr_in_range(ptr, arena->beg, arena->cur)) {

@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="arena" tests="25" failures="0" errors="0" skipped="0" time="0.022">
+    <testcase classname="arena" name="init_runtime" assertions="7" time="0.000"/>
+    <testcase classname="arena" name="init_runtime_null" assertions="3" time="0.000"/>
+    <testcase classname="arena" name="init_static_basic" assertions="7" time="0.000"/>
+    <testcase classname="arena" name="cap_used_remaining_empty" assertions="12" time="0.000"/>
+    <testcase classname="arena" name="alloc_basic" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:92 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:97 </system-err>
+    </testcase>
+    <testcase classname="arena" name="allocate_zero_size" assertions="5" time="0.000"/>
+    <testcase classname="arena" name="allocate_alignment_range" assertions="14" time="0.000"/>
+    <testcase classname="arena" name="allocate_full_and_fail" assertions="3" time="0.000">
+      <system-err>Assertion failed: (RK___failcond &amp;&amp; &quot;arena allocation failed&quot;), function RK__arena_allocate, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arena.h, line 276.
+</system-err>
+    </testcase>
+    <testcase classname="arena" name="new_zero_count" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:145 </system-err>
+    </testcase>
+    <testcase classname="arena" name="new_aligned_overaligned" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:156 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:160 </system-err>
+    </testcase>
+    <testcase classname="arena" name="try_new_returns_null_on_oom" assertions="3" time="0.000"/>
+    <testcase classname="arena" name="try_new_aligned_returns_null_on_oom" assertions="3" time="0.000"/>
+    <testcase classname="arena" name="clear_idempotent" assertions="9" time="0.000"/>
+    <testcase classname="arena" name="mark_rewind_basic" assertions="7" time="0.000"/>
+    <testcase classname="arena" name="mark_rewind_roundtrip" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:236 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:238 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:244 </system-err>
+    </testcase>
+    <testcase classname="arena" name="is_top_allocation" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:259 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:262 </system-err>
+    </testcase>
+    <testcase classname="arena" name="extend_in_place_grow_and_shrink" assertions="20" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:274 </system-err>
+    </testcase>
+    <testcase classname="arena" name="extend_not_top_asserts" assertions="1" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:293 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:295 Assertion failed: (arena_is_top_allocation(self, ptr, old_size) &amp;&amp; &quot;Can only resize the top allocation of the arena&quot;), function RK__arena_try_extend, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arena.h, line 309.
+</system-err>
+    </testcase>
+    <testcase classname="arena" name="try_extend_oom_returns_null" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:307 </system-err>
+    </testcase>
+    <testcase classname="arena" name="edgecases_full_allocation" assertions="3" time="0.000"/>
+    <testcase classname="arena" name="aliasing_patterns" assertions="7040" time="0.010"/>
+    <testcase classname="arena" name="multiple_clear_reuse_stability" assertions="640" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 </system-err>
+    </testcase>
+    <testcase classname="arena" name="try_allocate_basic" assertions="7" time="0.000"/>
+    <testcase classname="arena" name="try_allocate_zero_size" assertions="3" time="0.000"/>
+    <testcase classname="arena" name="null_arena" assertions="11" time="0.000"/>
+  </testsuite>
+  <testsuite name="arenastack" tests="18" failures="0" errors="0" skipped="0" time="0.010">
+    <testcase classname="arenastack" name="init_basic" assertions="11" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="init_rounds_to_pow2" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="new_basic" assertions="15" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:53 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="new_zero_count" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:69 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="new_aligned" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:79 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:83 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="spills_into_multiple_arenas" assertions="28" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:93 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:97 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="large_alloc_grows_arena_size" assertions="4" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:115 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="clear_single_arena" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:129 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:130 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="clear_multiple_arenas" assertions="13" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:143 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:144 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:145 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="mark_rewind_same_arena" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:166 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:168 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:169 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="mark_rewind_previous_arena" assertions="9" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:184 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:186 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:187 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="mark_rewind_roundtrip" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:208 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:210 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:222 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="mark_null_rewind_noop" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:233 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="reuse_after_clear" assertions="192" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="multiple_type_patterns" assertions="928" time="0.002">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="allocate_wrapper" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="lazy_init_zero_arena_size" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:320 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:327 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+    <testcase classname="arenastack" name="release_after_growth" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:337 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:338 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:339 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="bitset" tests="7" failures="0" errors="0" skipped="1" time="0.005">
+    <testcase classname="bitset" name="singlebit" assertions="141" time="0.000"/>
+    <testcase classname="bitset" name="scf_all" assertions="210" time="0.000"/>
+    <testcase classname="bitset" name="range" time="0.000">
+      <skipped/>
+    </testcase>
+    <testcase classname="bitset" name="count" assertions="149" time="0.000"/>
+    <testcase classname="bitset" name="leading_trailing" assertions="288" time="0.001"/>
+    <testcase classname="bitset" name="bitwise" assertions="280" time="0.001"/>
+    <testcase classname="bitset" name="iterations" assertions="420" time="0.001"/>
+  </testsuite>
+  <testsuite name="bst" tests="5" failures="0" errors="0" skipped="0" time="0.002">
+    <testcase classname="bst" name="bsttest" assertions="72" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 </system-err>
+    </testcase>
+    <testcase classname="bst" name="init_static" assertions="9" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 </system-err>
+    </testcase>
+    <testcase classname="bst" name="foreach_empty" assertions="1" time="0.000"/>
+    <testcase classname="bst" name="remove_two_children" assertions="20" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 </system-err>
+    </testcase>
+    <testcase classname="bst" name="large_sorted_order" assertions="36" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="dict" tests="9" failures="0" errors="0" skipped="0" time="0.006">
+    <testcase classname="dict" name="null" assertions="12" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="tests1" assertions="1036" time="0.002">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 </system-err>
+    </testcase>
+    <testcase classname="dict" name="tests2" assertions="124" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="count_is_empty_cap_load_factor" assertions="8" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="foreach_key_visits_all_keys" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="foreach_val_visits_all_values" assertions="10" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="foreach_key_val_empty_are_noop" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="ops_on_empty_dict" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+    <testcase classname="dict" name="reserve_noop_when_smaller" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="set" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+    <testcase classname="set" name="tests0" assertions="260" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="arrdup" tests="1" failures="0" errors="0" skipped="0" time="0.000">
+    <testcase classname="arrdup" name="t0" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_alloc.h:732 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_alloc.h:732 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:347 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:348 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="pool" tests="32" failures="0" errors="0" skipped="0" time="0.014">
+    <testcase classname="pool" name="dynamic_init_empty_state" assertions="5" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="static_init_empty_state" assertions="5" time="0.000"/>
+    <testcase classname="pool" name="dynamic_new_single_element" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="static_new_single_element" assertions="4" time="0.000"/>
+    <testcase classname="pool" name="dynamic_insert_copies_value" assertions="5" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="static_insert_copies_value" assertions="5" time="0.000"/>
+    <testcase classname="pool" name="dynamic_fill_to_capacity" assertions="8" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="static_fill_to_capacity" assertions="7" time="0.000"/>
+    <testcase classname="pool" name="dynamic_new_crash" assertions="5" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 Assertion failed: (RK___failcond &amp;&amp; &quot;pool allocation failed&quot;), function RK__Dpool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 250.
+</system-err>
+    </testcase>
+    <testcase classname="pool" name="static_new_crash" assertions="5" time="0.000">
+      <system-err>Assertion failed: (RK___failcond &amp;&amp; &quot;pool allocation failed&quot;), function RK__Spool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 235.
+</system-err>
+    </testcase>
+    <testcase classname="pool" name="dynamic_insert_crash" assertions="5" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 Assertion failed: (RK___failcond &amp;&amp; &quot;pool allocation failed&quot;), function RK__Dpool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 250.
+</system-err>
+    </testcase>
+    <testcase classname="pool" name="delete_reclaims_slot_dynamic" assertions="12" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="delete_reclaims_slot_static" assertions="10" time="0.000"/>
+    <testcase classname="pool" name="clear_resets_usage_but_preserves_capacity_dynamic" assertions="11" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="clear_resets_usage_but_preserves_capacity_static" assertions="9" time="0.000"/>
+    <testcase classname="pool" name="release_resets_dynamic_pool" assertions="8" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 Assertion failed: (RK___failcond &amp;&amp; &quot;pool allocation failed&quot;), function RK__Dpool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 250.
+</system-err>
+    </testcase>
+    <testcase classname="pool" name="release_resets_static_pool_usage" assertions="10" time="0.000"/>
+    <testcase classname="pool" name="foreach_visits_all_inserted_dynamic" assertions="5" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="foreach_skips_deleted_slots_dynamic" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="foreach_allows_mutation_static" assertions="5" time="0.000"/>
+    <testcase classname="pool" name="foreach_empty_pool_is_noop_dynamic" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="addresses_of_distinct_live_elements_are_distinct_dynamic" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="addresses_of_distinct_live_elements_are_distinct_static" assertions="6" time="0.000"/>
+    <testcase classname="pool" name="pair_values_roundtrip_through_foreach_dynamic" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="clear_after_full_allows_refill_dynamic" assertions="11" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="clear_after_full_allows_refill_static" assertions="11" time="0.000"/>
+    <testcase classname="pool" name="try_new_returns_null_when_full_dynamic" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="try_new_returns_null_when_full_static" assertions="6" time="0.000"/>
+    <testcase classname="pool" name="try_new_after_delete_succeeds_dynamic" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="try_put_returns_null_when_full_dynamic" assertions="5" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+    <testcase classname="pool" name="try_put_returns_null_when_full_static" assertions="5" time="0.000"/>
+    <testcase classname="pool" name="try_put_copies_value_dynamic" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="string" tests="25" failures="0" errors="0" skipped="0" time="0.012">
+    <testcase classname="string" name="str_len" assertions="5" time="0.000"/>
+    <testcase classname="string" name="str_starts_with" assertions="5" time="0.000"/>
+    <testcase classname="string" name="str_init_and_from_literal" assertions="10" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:651 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_clone_and_assign" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_cat_and_push" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_cat_fmt" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:651 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_insert_and_erase" assertions="3" time="0.000">
+      <system-out>hello
+hello
+hllo
+hllo
+ho
+ho
+</system-out>
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_replace_and_case" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_reverse" assertions="1" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_trim" assertions="6" time="0.000"/>
+    <testcase classname="string" name="slice" assertions="1" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_erase_if" assertions="1" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_find_and_compare" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_split_alloc" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:943 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c:199 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_find" assertions="20" time="0.000"/>
+    <testcase classname="string" name="str_tok_single_empty" assertions="12" time="0.000">
+      <system-out> vs 
+ vs 
+ vs 
+ab vs ab
+ vs 
+</system-out>
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_tok_single_normal" assertions="8" time="0.000">
+      <system-out>one vs one
+two vs two
+three vs three
+four vs four
+</system-out>
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_tok_single_third" assertions="9" time="0.000">
+      <system-out> vs 
+ vs 
+ab vs ab
+ vs 
+</system-out>
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_tok_single_4" assertions="19" time="0.000">
+      <system-out> vs 
+ vs 
+ vs 
+ vs 
+ vs 
+hello vs hello
+ vs 
+hello vs hello
+</system-out>
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_tok_all" assertions="32" time="0.000">
+      <system-out> vs 
+ vs 
+ vs 
+ab vs ab
+ vs 
+ vs 
+ vs 
+ vs 
+ vs 
+ vs 
+,,,, vs ,,,,
+hello vs hello
+,hello vs ,hello
+</system-out>
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_tok_all_2" assertions="32" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 </system-err>
+    </testcase>
+    <testcase classname="string" name="str_tok_all_3" assertions="0" time="0.000"/>
+    <testcase classname="string" name="string_test_fmt" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:651 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 </system-err>
+    </testcase>
+    <testcase classname="string" name="string_test_split_example" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 </system-err>
+    </testcase>
+    <testcase classname="string" name="string_test_empty" assertions="9" time="0.000">
+      <system-err>[renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 </system-err>
+    </testcase>
+  </testsuite>
+  <testsuite name="vec" tests="26" failures="0" errors="0" skipped="1" time="0.012">
+    <testcase classname="vec" name="vec_init" assertions="22" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:26 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:45 </system-err>
+    </testcase>
+    <testcase classname="vec" name="init_list" assertions="20" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:62 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:76 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_copy" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:91 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:92 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_push_pop" assertions="522" time="0.001">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:114 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:118 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:129 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_insert_erase" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:135 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:139 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_foreach" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:149 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_reverse" assertions="9" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:168 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:177 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_index_in_range" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:186 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_push_n_pop_n" assertions="24" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:205 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:221 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_front_back" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:229 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_insert_arr_erase_n" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:240 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_clear_resize_reserve" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:247 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:249 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:251 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_reverse_foreach" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:260 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_remaining" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:270 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_compound" assertions="1" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:283 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_push" time="0.000">
+      <skipped/>
+    </testcase>
+    <testcase classname="vec" name="veceraseif" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:292 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_insert_at_unordered" assertions="10" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:306 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:324 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_erase_at_unordered" assertions="8" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:344 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_foreach_reversed" assertions="6" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:356 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_foreach_reversed_empty" assertions="1" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:367 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_push_unchecked" assertions="4" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:381 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_shrink_to_fit" assertions="7" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:392 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:398 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_shrink_to_fit_empty" assertions="2" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:404 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_assign" assertions="9" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:411 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:422 </system-err>
+    </testcase>
+    <testcase classname="vec" name="vec_end" assertions="3" time="0.000">
+      <system-err>[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:429 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:436 </system-err>
+    </testcase>
+  </testsuite>
+</testsuites>

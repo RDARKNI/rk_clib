@@ -54,7 +54,6 @@
 #ifndef RK_BST_H
 #define RK_BST_H
 #include "rk_alloc.h"
-#include "rk_vec.h"
 RK_HEADER_BEGIN
 
 /// @brief Generates a type-specific BST struct name.

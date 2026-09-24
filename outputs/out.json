@@ -1,0 +1,1209 @@
+{
+  "suites": [
+    {
+      "name": "arena",
+      "tests": [
+        {
+          "name": "init_runtime",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "init_runtime_null",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "init_static_basic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "cap_used_remaining_empty",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 12,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "alloc_basic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:92 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:97 "
+        },
+        {
+          "name": "allocate_zero_size",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "allocate_alignment_range",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 14,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "allocate_full_and_fail",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "Assertion failed: (RK___failcond && \"arena allocation failed\"), function RK__arena_allocate, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arena.h, line 276.\n"
+        },
+        {
+          "name": "new_zero_count",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:145 "
+        },
+        {
+          "name": "new_aligned_overaligned",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:156 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:160 "
+        },
+        {
+          "name": "try_new_returns_null_on_oom",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "try_new_aligned_returns_null_on_oom",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "clear_idempotent",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "mark_rewind_basic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "mark_rewind_roundtrip",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:236 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:238 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:244 "
+        },
+        {
+          "name": "is_top_allocation",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:259 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:262 "
+        },
+        {
+          "name": "extend_in_place_grow_and_shrink",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 20,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:274 "
+        },
+        {
+          "name": "extend_not_top_asserts",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:293 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:295 Assertion failed: (arena_is_top_allocation(self, ptr, old_size) && \"Can only resize the top allocation of the arena\"), function RK__arena_try_extend, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arena.h, line 309.\n"
+        },
+        {
+          "name": "try_extend_oom_returns_null",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:307 "
+        },
+        {
+          "name": "edgecases_full_allocation",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "aliasing_patterns",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 7040,
+          "outcome": "passed",
+          "duration_ms": 10
+        },
+        {
+          "name": "multiple_clear_reuse_stability",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 640,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c:366 "
+        },
+        {
+          "name": "try_allocate_basic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "try_allocate_zero_size",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "null_arena",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arena.c",
+          "assert_count": 11,
+          "outcome": "passed",
+          "duration_ms": 0
+        }
+      ]
+    },
+    {
+      "name": "arenastack",
+      "tests": [
+        {
+          "name": "init_basic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 11,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "init_rounds_to_pow2",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "new_basic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 15,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:53 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "new_zero_count",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:69 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "new_aligned",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:79 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:83 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "spills_into_multiple_arenas",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 28,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:93 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:97 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "large_alloc_grows_arena_size",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:115 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "clear_single_arena",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:129 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:130 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "clear_multiple_arenas",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 13,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:143 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:144 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:145 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "mark_rewind_same_arena",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:166 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:168 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:169 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "mark_rewind_previous_arena",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:184 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:186 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:187 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "mark_rewind_roundtrip",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:208 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:210 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:222 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "mark_null_rewind_noop",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:233 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "reuse_after_clear",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 192,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:248 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "multiple_type_patterns",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 928,
+          "outcome": "passed",
+          "duration_ms": 2,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "allocate_wrapper",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "lazy_init_zero_arena_size",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:320 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:327 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        },
+        {
+          "name": "release_after_growth",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:173 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:337 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:338 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_arenastack.c:339 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:206 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:139 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_arenastack.h:141 "
+        }
+      ]
+    },
+    {
+      "name": "bitset",
+      "tests": [
+        {
+          "name": "singlebit",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "assert_count": 141,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "scf_all",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "assert_count": 210,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "range",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "outcome": "skipped",
+          "duration_ms": 0
+        },
+        {
+          "name": "count",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "assert_count": 149,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "leading_trailing",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "assert_count": 288,
+          "outcome": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "bitwise",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "assert_count": 280,
+          "outcome": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "iterations",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bitset.c",
+          "assert_count": 420,
+          "outcome": "passed",
+          "duration_ms": 1
+        }
+      ]
+    },
+    {
+      "name": "bst",
+      "tests": [
+        {
+          "name": "bsttest",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c",
+          "assert_count": 72,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 "
+        },
+        {
+          "name": "init_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 "
+        },
+        {
+          "name": "foreach_empty",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "remove_two_children",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c",
+          "assert_count": 20,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 "
+        },
+        {
+          "name": "large_sorted_order",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c",
+          "assert_count": 36,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_bst.c:13 "
+        }
+      ]
+    },
+    {
+      "name": "dict",
+      "tests": [
+        {
+          "name": "null",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 12,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "tests1",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 1036,
+          "outcome": "passed",
+          "duration_ms": 2,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:33 "
+        },
+        {
+          "name": "tests2",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 124,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "count_is_empty_cap_load_factor",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 8,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "foreach_key_visits_all_keys",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "foreach_val_visits_all_values",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 10,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "foreach_key_val_empty_are_noop",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "ops_on_empty_dict",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        },
+        {
+          "name": "reserve_noop_when_smaller",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:21 "
+        }
+      ]
+    },
+    {
+      "name": "set",
+      "tests": [
+        {
+          "name": "tests0",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 260,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:324 "
+        }
+      ]
+    },
+    {
+      "name": "arrdup",
+      "tests": [
+        {
+          "name": "t0",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_alloc.h:732 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_alloc.h:732 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:347 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_dict.c:348 "
+        }
+      ]
+    },
+    {
+      "name": "pool",
+      "tests": [
+        {
+          "name": "dynamic_init_empty_state",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "static_init_empty_state",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "dynamic_new_single_element",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "static_new_single_element",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "dynamic_insert_copies_value",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "static_insert_copies_value",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "dynamic_fill_to_capacity",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 8,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "static_fill_to_capacity",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "dynamic_new_crash",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 Assertion failed: (RK___failcond && \"pool allocation failed\"), function RK__Dpool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 250.\n"
+        },
+        {
+          "name": "static_new_crash",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "Assertion failed: (RK___failcond && \"pool allocation failed\"), function RK__Spool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 235.\n"
+        },
+        {
+          "name": "dynamic_insert_crash",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 Assertion failed: (RK___failcond && \"pool allocation failed\"), function RK__Dpool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 250.\n"
+        },
+        {
+          "name": "delete_reclaims_slot_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 12,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "delete_reclaims_slot_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 10,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "clear_resets_usage_but_preserves_capacity_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 11,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "clear_resets_usage_but_preserves_capacity_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "release_resets_dynamic_pool",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 8,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 Assertion failed: (RK___failcond && \"pool allocation failed\"), function RK__Dpool_new, file /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h, line 250.\n"
+        },
+        {
+          "name": "release_resets_static_pool_usage",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 10,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "foreach_visits_all_inserted_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "foreach_skips_deleted_slots_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "foreach_allows_mutation_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "foreach_empty_pool_is_noop_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "addresses_of_distinct_live_elements_are_distinct_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "addresses_of_distinct_live_elements_are_distinct_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "pair_values_roundtrip_through_foreach_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "clear_after_full_allows_refill_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 11,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "clear_after_full_allows_refill_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 11,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "try_new_returns_null_when_full_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "try_new_returns_null_when_full_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "try_new_after_delete_succeeds_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "try_put_returns_null_when_full_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        },
+        {
+          "name": "try_put_returns_null_when_full_static",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "try_put_copies_value_dynamic",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_pool.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:171 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:172 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:323 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_pool.h:324 "
+        }
+      ]
+    },
+    {
+      "name": "string",
+      "tests": [
+        {
+          "name": "str_len",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "str_starts_with",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 5,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "str_init_and_from_literal",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 10,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:651 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_clone_and_assign",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_cat_and_push",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_cat_fmt",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:651 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_insert_and_erase",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stdout": "hello\nhello\nhllo\nhllo\nho\nho\n",
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_replace_and_case",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_reverse",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_trim",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "slice",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_erase_if",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_find_and_compare",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_split_alloc",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:943 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c:199 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_find",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 20,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "str_tok_single_empty",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 12,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stdout": " vs \n vs \n vs \nab vs ab\n vs \n",
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_tok_single_normal",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 8,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stdout": "one vs one\ntwo vs two\nthree vs three\nfour vs four\n",
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_tok_single_third",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stdout": " vs \n vs \nab vs ab\n vs \n",
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_tok_single_4",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 19,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stdout": " vs \n vs \n vs \n vs \n vs \nhello vs hello\n vs \nhello vs hello\n",
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_tok_all",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 32,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stdout": " vs \n vs \n vs \nab vs ab\n vs \n vs \n vs \n vs \n vs \n vs \n,,,, vs ,,,,\nhello vs hello\n,hello vs ,hello\n",
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_tok_all_2",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 32,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 "
+        },
+        {
+          "name": "str_tok_all_3",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 0,
+          "outcome": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "string_test_fmt",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:651 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 "
+        },
+        {
+          "name": "string_test_split_example",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:681 "
+        },
+        {
+          "name": "string_test_empty",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_string.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 [delete] /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:130 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_string.h:661 "
+        }
+      ]
+    },
+    {
+      "name": "vec",
+      "tests": [
+        {
+          "name": "vec_init",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 22,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:26 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:45 "
+        },
+        {
+          "name": "init_list",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 20,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:62 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:76 "
+        },
+        {
+          "name": "vec_copy",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:91 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:92 "
+        },
+        {
+          "name": "vec_push_pop",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 522,
+          "outcome": "passed",
+          "duration_ms": 1,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:107 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:114 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:118 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:122 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:129 "
+        },
+        {
+          "name": "vec_insert_erase",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:135 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:139 "
+        },
+        {
+          "name": "vec_foreach",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:149 "
+        },
+        {
+          "name": "vec_reverse",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:168 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:177 "
+        },
+        {
+          "name": "vec_index_in_range",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:186 "
+        },
+        {
+          "name": "vec_push_n_pop_n",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 24,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:205 [alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:221 "
+        },
+        {
+          "name": "vec_front_back",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:229 "
+        },
+        {
+          "name": "vec_insert_arr_erase_n",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:240 "
+        },
+        {
+          "name": "vec_clear_resize_reserve",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:247 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:249 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:251 "
+        },
+        {
+          "name": "vec_reverse_foreach",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:260 "
+        },
+        {
+          "name": "vec_remaining",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:270 "
+        },
+        {
+          "name": "vec_compound",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:283 "
+        },
+        {
+          "name": "vec_push",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "outcome": "skipped",
+          "duration_ms": 0
+        },
+        {
+          "name": "veceraseif",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:292 "
+        },
+        {
+          "name": "vec_insert_at_unordered",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 10,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:306 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:324 "
+        },
+        {
+          "name": "vec_erase_at_unordered",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 8,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:344 "
+        },
+        {
+          "name": "vec_foreach_reversed",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 6,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:356 "
+        },
+        {
+          "name": "vec_foreach_reversed_empty",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 1,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:367 "
+        },
+        {
+          "name": "vec_push_unchecked",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 4,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:381 "
+        },
+        {
+          "name": "vec_shrink_to_fit",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 7,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:392 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:398 "
+        },
+        {
+          "name": "vec_shrink_to_fit_empty",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 2,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:404 "
+        },
+        {
+          "name": "vec_assign",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 9,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:411 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:422 "
+        },
+        {
+          "name": "vec_end",
+          "file": "/Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c",
+          "assert_count": 3,
+          "outcome": "passed",
+          "duration_ms": 0,
+          "stderr": "[alloc]  /Users/robertknigge/Desktop/rk_lib/tests/../include/rk_vec.h:448 [renew]  /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:429 [delete] /Users/robertknigge/Desktop/rk_lib/tests/test_rk_vec.c:436 "
+        }
+      ]
+    }
+  ]
+}

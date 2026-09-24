@@ -384,7 +384,7 @@ static inline int             triax_run_argv(int argc, char* argv[], Triax_RunCo
 # define triax_run(...)        TRIAXI_WRONGMODULE_ERR(triax_run)
 # define triax_parse_argv(...) TRIAXI_WRONGMODULE_ERR(triax_parse_argv)
 # define triax_run_argv(...)   TRIAXI_WRONGMODULE_ERR(triax_run_argv)
-# define TRIAX_MAIN()          TRIAXI_WRONGMODULE_ERR(TRIAX_MAIN)
+# define TRIAX_MAIN()          TRIAXI_WRONGMODULE_ERR(TRIAX_MAIN);
 #endif
 
 /// @} // triax_runner

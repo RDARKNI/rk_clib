@@ -127,12 +127,12 @@ typedef struct VecHeader {
 ///
 /// Usage:
 /// ```c
-/// Vec(int) vec = vec_init(int, 1, 2, 3, 4, 5); /* uses alloc_ctx */
-/// Vec(int) vec2 = vec_init(int, my_alloc, 1, 2, 3); /* uses my_alloc */
+/// Vec(int) vec = vec_init_list(int, 1, 2, 3, 4, 5); /* uses alloc_ctx */
+/// Vec(int) vec2 = vec_init_list(int, my_alloc, 1, 2, 3); /* uses my_alloc */
 ///
 /// // Compound literals must be wrapped in parens
 /// typedef struct Pair{ int x, y; } Pair;
-/// Vec(struct Pair) vec3 = vec_init(Pair, ((Pair){1, 2}), ((Pair){3, 4}));
+/// Vec(struct Pair) vec3 = vec_init_list(Pair, ((Pair){1, 2}), ((Pair){3, 4}));
 /// ```
 #define vec_init_list(T, ...)                                                                      \
   ((Vec(T))(rk_ensure_vec_align(T), RK__vec_init_list(T, ##__VA_ARGS__)))

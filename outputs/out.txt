@@ -1,0 +1,523 @@
+
+arena
+--------------------------------------------------
+arena::init_runtime
+> PASS: 7/7 assertions passed (0ms)
+
+arena::init_runtime_null
+> PASS: 3/3 assertions passed (0ms)
+
+arena::init_static_basic
+> PASS: 7/7 assertions passed (0ms)
+
+arena::cap_used_remaining_empty
+> PASS: 12/12 assertions passed (0ms)
+
+arena::alloc_basic
+> PASS: 7/7 assertions passed (0ms)
+
+arena::allocate_zero_size
+> PASS: 5/5 assertions passed (0ms)
+
+arena::allocate_alignment_range
+> PASS: 14/14 assertions passed (0ms)
+
+arena::allocate_full_and_fail
+> PASS: 3/3 assertions passed (0ms)
+
+arena::new_zero_count
+> PASS: 3/3 assertions passed (0ms)
+
+arena::new_aligned_overaligned
+> PASS: 4/4 assertions passed (0ms)
+
+arena::try_new_returns_null_on_oom
+> PASS: 3/3 assertions passed (0ms)
+
+arena::try_new_aligned_returns_null_on_oom
+> PASS: 3/3 assertions passed (0ms)
+
+arena::clear_idempotent
+> PASS: 9/9 assertions passed (0ms)
+
+arena::mark_rewind_basic
+> PASS: 7/7 assertions passed (0ms)
+
+arena::mark_rewind_roundtrip
+> PASS: 4/4 assertions passed (0ms)
+
+arena::is_top_allocation
+> PASS: 3/3 assertions passed (0ms)
+
+arena::extend_in_place_grow_and_shrink
+> PASS: 20/20 assertions passed (0ms)
+
+arena::extend_not_top_asserts
+> PASS: 1/1 assertions passed (1ms)
+
+arena::try_extend_oom_returns_null
+> PASS: 3/3 assertions passed (0ms)
+
+arena::edgecases_full_allocation
+> PASS: 3/3 assertions passed (0ms)
+
+arena::aliasing_patterns
+> PASS: 7040/7040 assertions passed (10ms)
+
+arena::multiple_clear_reuse_stability
+> PASS: 640/640 assertions passed (1ms)
+
+arena::try_allocate_basic
+> PASS: 7/7 assertions passed (0ms)
+
+arena::try_allocate_zero_size
+> PASS: 3/3 assertions passed (0ms)
+
+arena::null_arena
+> PASS: 11/11 assertions passed (0ms)
+
+  25 passed
+/ 25 invocations
+--------------------------------------------------
+
+
+arenastack
+--------------------------------------------------
+arenastack::init_basic
+> PASS: 11/11 assertions passed (0ms)
+
+arenastack::init_rounds_to_pow2
+> PASS: 3/3 assertions passed (0ms)
+
+arenastack::new_basic
+> PASS: 15/15 assertions passed (1ms)
+
+arenastack::new_zero_count
+> PASS: 2/2 assertions passed (0ms)
+
+arenastack::new_aligned
+> PASS: 4/4 assertions passed (0ms)
+
+arenastack::spills_into_multiple_arenas
+> PASS: 28/28 assertions passed (0ms)
+
+arenastack::large_alloc_grows_arena_size
+> PASS: 4/4 assertions passed (1ms)
+
+arenastack::clear_single_arena
+> PASS: 6/6 assertions passed (0ms)
+
+arenastack::clear_multiple_arenas
+> PASS: 13/13 assertions passed (0ms)
+
+arenastack::mark_rewind_same_arena
+> PASS: 6/6 assertions passed (0ms)
+
+arenastack::mark_rewind_previous_arena
+> PASS: 9/9 assertions passed (0ms)
+
+arenastack::mark_rewind_roundtrip
+> PASS: 7/7 assertions passed (0ms)
+
+arenastack::mark_null_rewind_noop
+> PASS: 2/2 assertions passed (0ms)
+
+arenastack::reuse_after_clear
+> PASS: 192/192 assertions passed (0ms)
+
+arenastack::multiple_type_patterns
+> PASS: 928/928 assertions passed (2ms)
+
+arenastack::allocate_wrapper
+> PASS: 4/4 assertions passed (0ms)
+
+arenastack::lazy_init_zero_arena_size
+> PASS: 7/7 assertions passed (0ms)
+
+arenastack::release_after_growth
+> PASS: 6/6 assertions passed (0ms)
+
+  18 passed
+/ 18 invocations
+--------------------------------------------------
+
+
+bitset
+--------------------------------------------------
+bitset::singlebit
+> PASS: 141/141 assertions passed (0ms)
+
+bitset::scf_all
+> PASS: 210/210 assertions passed (0ms)
+
+bitset::range
+> SKIP (0ms)
+
+bitset::count
+> PASS: 149/149 assertions passed (0ms)
+
+bitset::leading_trailing
+> PASS: 288/288 assertions passed (1ms)
+
+bitset::bitwise
+> PASS: 280/280 assertions passed (1ms)
+
+bitset::iterations
+> PASS: 420/420 assertions passed (1ms)
+
+  1 skipped | 6 passed
+/ 7 invocations
+--------------------------------------------------
+
+
+bst
+--------------------------------------------------
+bst::bsttest
+> PASS: 72/72 assertions passed (0ms)
+
+bst::init_static
+> PASS: 9/9 assertions passed (0ms)
+
+bst::foreach_empty
+> PASS: 1/1 assertions passed (0ms)
+
+bst::remove_two_children
+> PASS: 20/20 assertions passed (0ms)
+
+bst::large_sorted_order
+> PASS: 36/36 assertions passed (0ms)
+
+  5 passed
+/ 5 invocations
+--------------------------------------------------
+
+
+dict
+--------------------------------------------------
+dict::null
+> PASS: 12/12 assertions passed (0ms)
+
+dict::tests1
+> PASS: 1036/1036 assertions passed (2ms)
+
+dict::tests2
+> PASS: 124/124 assertions passed (0ms)
+
+dict::count_is_empty_cap_load_factor
+> PASS: 8/8 assertions passed (0ms)
+
+dict::foreach_key_visits_all_keys
+> PASS: 4/4 assertions passed (0ms)
+
+dict::foreach_val_visits_all_values
+> PASS: 10/10 assertions passed (0ms)
+
+dict::foreach_key_val_empty_are_noop
+> PASS: 2/2 assertions passed (0ms)
+
+dict::ops_on_empty_dict
+> PASS: 6/6 assertions passed (0ms)
+
+dict::reserve_noop_when_smaller
+> PASS: 3/3 assertions passed (0ms)
+
+  9 passed
+/ 9 invocations
+--------------------------------------------------
+
+
+set
+--------------------------------------------------
+set::tests0
+> PASS: 260/260 assertions passed (1ms)
+
+  1 passed
+/ 1 invocations
+--------------------------------------------------
+
+
+arrdup
+--------------------------------------------------
+arrdup::t0
+> PASS: 3/3 assertions passed (0ms)
+
+  1 passed
+/ 1 invocations
+--------------------------------------------------
+
+
+pool
+--------------------------------------------------
+pool::dynamic_init_empty_state
+> PASS: 5/5 assertions passed (0ms)
+
+pool::static_init_empty_state
+> PASS: 5/5 assertions passed (0ms)
+
+pool::dynamic_new_single_element
+> PASS: 6/6 assertions passed (0ms)
+
+pool::static_new_single_element
+> PASS: 4/4 assertions passed (0ms)
+
+pool::dynamic_insert_copies_value
+> PASS: 5/5 assertions passed (0ms)
+
+pool::static_insert_copies_value
+> PASS: 5/5 assertions passed (0ms)
+
+pool::dynamic_fill_to_capacity
+> PASS: 8/8 assertions passed (0ms)
+
+pool::static_fill_to_capacity
+> PASS: 7/7 assertions passed (0ms)
+
+pool::dynamic_new_crash
+> PASS: 5/5 assertions passed (0ms)
+
+pool::static_new_crash
+> PASS: 5/5 assertions passed (0ms)
+
+pool::dynamic_insert_crash
+> PASS: 5/5 assertions passed (1ms)
+
+pool::delete_reclaims_slot_dynamic
+> PASS: 12/12 assertions passed (0ms)
+
+pool::delete_reclaims_slot_static
+> PASS: 10/10 assertions passed (0ms)
+
+pool::clear_resets_usage_but_preserves_capacity_dynamic
+> PASS: 11/11 assertions passed (0ms)
+
+pool::clear_resets_usage_but_preserves_capacity_static
+> PASS: 9/9 assertions passed (0ms)
+
+pool::release_resets_dynamic_pool
+> PASS: 8/8 assertions passed (0ms)
+
+pool::release_resets_static_pool_usage
+> PASS: 10/10 assertions passed (0ms)
+
+pool::foreach_visits_all_inserted_dynamic
+> PASS: 5/5 assertions passed (0ms)
+
+pool::foreach_skips_deleted_slots_dynamic
+> PASS: 6/6 assertions passed (0ms)
+
+pool::foreach_allows_mutation_static
+> PASS: 5/5 assertions passed (0ms)
+
+pool::foreach_empty_pool_is_noop_dynamic
+> PASS: 2/2 assertions passed (0ms)
+
+pool::addresses_of_distinct_live_elements_are_distinct_dynamic
+> PASS: 6/6 assertions passed (0ms)
+
+pool::addresses_of_distinct_live_elements_are_distinct_static
+> PASS: 6/6 assertions passed (0ms)
+
+pool::pair_values_roundtrip_through_foreach_dynamic
+> PASS: 6/6 assertions passed (0ms)
+
+pool::clear_after_full_allows_refill_dynamic
+> PASS: 11/11 assertions passed (0ms)
+
+pool::clear_after_full_allows_refill_static
+> PASS: 11/11 assertions passed (0ms)
+
+pool::try_new_returns_null_when_full_dynamic
+> PASS: 6/6 assertions passed (0ms)
+
+pool::try_new_returns_null_when_full_static
+> PASS: 6/6 assertions passed (0ms)
+
+pool::try_new_after_delete_succeeds_dynamic
+> PASS: 7/7 assertions passed (0ms)
+
+pool::try_put_returns_null_when_full_dynamic
+> PASS: 5/5 assertions passed (0ms)
+
+pool::try_put_returns_null_when_full_static
+> PASS: 5/5 assertions passed (0ms)
+
+pool::try_put_copies_value_dynamic
+> PASS: 4/4 assertions passed (0ms)
+
+  32 passed
+/ 32 invocations
+--------------------------------------------------
+
+
+string
+--------------------------------------------------
+string::str_len
+> PASS: 5/5 assertions passed (0ms)
+
+string::str_starts_with
+> PASS: 5/5 assertions passed (0ms)
+
+string::str_init_and_from_literal
+> PASS: 10/10 assertions passed (0ms)
+
+string::str_clone_and_assign
+> PASS: 6/6 assertions passed (0ms)
+
+string::str_cat_and_push
+> PASS: 2/2 assertions passed (0ms)
+
+string::str_cat_fmt
+> PASS: 2/2 assertions passed (0ms)
+
+string::str_insert_and_erase
+> PASS: 3/3 assertions passed (0ms)
+
+string::str_replace_and_case
+> PASS: 3/3 assertions passed (0ms)
+
+string::str_reverse
+> PASS: 1/1 assertions passed (0ms)
+
+string::str_trim
+> PASS: 6/6 assertions passed (0ms)
+
+string::slice
+> PASS: 1/1 assertions passed (0ms)
+
+string::str_erase_if
+> PASS: 1/1 assertions passed (0ms)
+
+string::str_find_and_compare
+> PASS: 7/7 assertions passed (0ms)
+
+string::str_split_alloc
+> PASS: 4/4 assertions passed (0ms)
+
+string::str_find
+> PASS: 20/20 assertions passed (0ms)
+
+string::str_tok_single_empty
+> PASS: 12/12 assertions passed (0ms)
+
+string::str_tok_single_normal
+> PASS: 8/8 assertions passed (0ms)
+
+string::str_tok_single_third
+> PASS: 9/9 assertions passed (0ms)
+
+string::str_tok_single_4
+> PASS: 19/19 assertions passed (0ms)
+
+string::str_tok_all
+> PASS: 32/32 assertions passed (0ms)
+
+string::str_tok_all_2
+> PASS: 32/32 assertions passed (0ms)
+
+string::str_tok_all_3
+> PASS: 0/0 assertions passed (0ms)
+
+string::string_test_fmt
+> PASS: 3/3 assertions passed (0ms)
+
+string::string_test_split_example
+> PASS: 7/7 assertions passed (0ms)
+
+string::string_test_empty
+> PASS: 9/9 assertions passed (0ms)
+
+  25 passed
+/ 25 invocations
+--------------------------------------------------
+
+
+vec
+--------------------------------------------------
+vec::vec_init
+> PASS: 22/22 assertions passed (0ms)
+
+vec::init_list
+> PASS: 20/20 assertions passed (0ms)
+
+vec::vec_copy
+> PASS: 2/2 assertions passed (0ms)
+
+vec::vec_push_pop
+> PASS: 522/522 assertions passed (1ms)
+
+vec::vec_insert_erase
+> PASS: 2/2 assertions passed (0ms)
+
+vec::vec_foreach
+> PASS: 7/7 assertions passed (0ms)
+
+vec::vec_reverse
+> PASS: 9/9 assertions passed (0ms)
+
+vec::vec_index_in_range
+> PASS: 3/3 assertions passed (0ms)
+
+vec::vec_push_n_pop_n
+> PASS: 24/24 assertions passed (0ms)
+
+vec::vec_front_back
+> PASS: 2/2 assertions passed (0ms)
+
+vec::vec_insert_arr_erase_n
+> PASS: 3/3 assertions passed (0ms)
+
+vec::vec_clear_resize_reserve
+> PASS: 3/3 assertions passed (0ms)
+
+vec::vec_reverse_foreach
+> PASS: 4/4 assertions passed (0ms)
+
+vec::vec_remaining
+> PASS: 3/3 assertions passed (0ms)
+
+vec::vec_compound
+> PASS: 1/1 assertions passed (0ms)
+
+vec::vec_push
+> SKIP (0ms)
+
+vec::veceraseif
+> PASS: 3/3 assertions passed (0ms)
+
+vec::vec_insert_at_unordered
+> PASS: 10/10 assertions passed (0ms)
+
+vec::vec_erase_at_unordered
+> PASS: 8/8 assertions passed (0ms)
+
+vec::vec_foreach_reversed
+> PASS: 6/6 assertions passed (0ms)
+
+vec::vec_foreach_reversed_empty
+> PASS: 1/1 assertions passed (0ms)
+
+vec::vec_push_unchecked
+> PASS: 4/4 assertions passed (0ms)
+
+vec::vec_shrink_to_fit
+> PASS: 7/7 assertions passed (0ms)
+
+vec::vec_shrink_to_fit_empty
+> PASS: 2/2 assertions passed (0ms)
+
+vec::vec_assign
+> PASS: 9/9 assertions passed (0ms)
+
+vec::vec_end
+> PASS: 3/3 assertions passed (0ms)
+
+  1 skipped | 25 passed
+/ 26 invocations
+--------------------------------------------------
+
+== PASSED ======================================== 
+147 Passed | 2 skipped
+Tests: 149 selected / 149 total
+Suites run: 10
+Invocations: 149 run / 149 selected / 149 total
+Total time: 84ms

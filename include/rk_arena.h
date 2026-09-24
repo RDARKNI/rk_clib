@@ -65,7 +65,9 @@ static_fun rk_pure size_t arena_remaining(const Arena* self) {
 }
 
 /// @brief Returns whether the arena has not allocated any memory.
-static_fun rk_pure bool  arena_is_empty(const Arena* self) { return self->cur == self->beg; }
+static_fun rk_pure bool arena_is_empty(const Arena* self) {
+  return rk_likely(self && self->beg) ? self->cur == self->beg : true;
+}
 
 /// @brief Resets the arena, marking all of its allocations as free.
 /// @return `self`, for chaining
@@ -220,7 +222,7 @@ static_fun Allocator arena_to_alloc(Arena* arena) {
 /// Usage:
 /// ```c
 ///     arr_allocator_create(temp_alloc, 4096);
-///     int* ptr = alloc_new(int, 10, &temp_alloc);
+///     int* ptr = alloc_new(int, 10, temp_alloc.alloc);
 /// ```
 #define arr_allocator_create(name, size) arr_allocator(size) name = arr_allocator_init(&name)
 

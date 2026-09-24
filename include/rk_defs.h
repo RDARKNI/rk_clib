@@ -462,11 +462,9 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
                default: (type*)0)))((char*)(typeof(((const type*)0)->member)*){ptr}                \
                                     - offsetof(type, member)))
 
-#ifndef rk_mult
-# define rk_mult(x, y) ((x) * (y))
-#endif
-
-/// @brief todo docs, attribute
+/// @brief Overflow-checked `size_t` multiplication; `abort()`s instead of wrapping. Not used by
+/// default — see the `rk_mult` config hook in `rk_config.h` to opt every size/count computation in
+/// the library into this behaviour (`#define rk_mult(x, y) rk_mult_safe(x, y)`).
 static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
   return rk_likely(x == 0 || y <= SIZE_MAX / x) ? x * y : (abort(), (size_t)0);
 }
@@ -516,11 +514,11 @@ static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
                 (union {                                                                           \
                  static_assert(sizeof(typeof(expr)) == sizeof(to_type),                            \
                                "Types must be the same size.");                                    \
-                 typeof(expr) f;                                                                   \
-                 to_type      t;                                                                   \
+                 typeof_decayed(expr) f;                                                           \
+                 to_type               t;                                                          \
                 }){(expr)}                                                                         \
                     .t,                                                                            \
-                *(to_type*)rk_memcpy(rk_dummyofp(to_type),                                         \
+                *(to_type*)rk_memcpy(&(to_type){RK_ZINIT},                                         \
                                      (union {                                                      \
                                       typeof_decayed(expr) _v2;                                    \
                                       void* _v;                                                    \
@@ -948,8 +946,10 @@ T:                                                                              
                (typeof(x))0, (typeof(y))0)
 
 #define RK__wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(sizeof(RK__wider_t(a1, a2)) >= sizeof(typeof(a3)), RK__wider_t(a1, a2),             \
-               (typeof(a3))0)
+  rk_static_if(rk_ensure_numclass_compatible(RK__wider_t(a1, a2), a3) +                            \
+                       sizeof(RK__wider_t(a1, a2)) >=                                               \
+                   sizeof(typeof(a3)),                                                              \
+               RK__wider_t(a1, a2), (typeof(a3))0)
 
 #define RK__twonum_macro(pref, classes, x, y)                                                      \
   _Generic(RK__wider_t(x, y) classes(RK__GENCASE, pref))(x, y)
