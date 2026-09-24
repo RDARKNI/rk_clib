@@ -145,9 +145,10 @@
 # define RK__SILENCE_WARNINGS_END   __pragma(warning(pop))
 # define RK__IGNWARN_MSC_BEG(warn)  __pragma(warning(push)) __pragma(warning(disable : warn))
 # define RK__IGNWARN_MSC_END()      __pragma(warning(pop))
-
 # define RK__IGNWARN_MSC(warn, ...) RK__IGNWARN_MSC_BEG(warn) __VA_ARGS__ __pragma(warning(pop))
 #else
+# define RK__IGNWARN_MSC_BEG(warn)
+# define RK__IGNWARN_MSC_END()
 # define RK__IGNWARN_MSC(warn, ...) __VA_ARGS__
 # ifndef RK__SILENCE_WARNINGS_BEG
 #  define RK__SILENCE_WARNINGS_BEG
@@ -416,12 +417,10 @@ RK_HEADER_BEGIN
 #  define unreachable() __builtin_unreachable()
 # elif defined(_MSC_VER)
 static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
-  __assume(0);
 #  if defined(_DEBUG)
   __debugbreak();
-#  else
-  __fastfail(1);
 #  endif
+  __assume(0);
 }
 #  define unreachable() RK__unreachable_impl()
 # else
