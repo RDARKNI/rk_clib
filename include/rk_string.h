@@ -189,10 +189,13 @@ static_fun Str* str_reserve(Str* restrict self, size_t new_cap);
 static_fun Str* str_resize(Str* restrict self, size_t new_len);
 
 /// @brief Resizes a Str's capacity to the next power of two larger than its length,
-/// null-terminating it.
+/// null-terminating it (matching `vec_shrink_to_fit()`'s convention). Leaves some slack to reduce
+/// reallocation on subsequent growth.
+/// @note Use `str_shrink_to_fit_exact()` for an exact-capacity shrink.
 static_fun Str* str_shrink_to_fit(Str* restrict self);
 
-/// @brief Resizes a Str's capacity to exactly its length + 1.
+/// @brief Resizes a Str's capacity to exactly its length + 1 (matching
+/// `vec_shrink_to_fit_exact()`'s convention).
 static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
 
 // ----------------------------------------
@@ -407,13 +410,19 @@ static_fun Strv strv_from_cstrn(const char* str, size_t len) {
 #define str_split_alloc(strlike, delims, out_count, ...)                                           \
   rk_overload(RK__STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
 
-/// @brief Trims a Stringlike into a string by adjusting its starting position to the first
-/// non-space character it finds.
+/// @brief Trims a Stringlike by adjusting both its starting and ending position past any leading
+/// and trailing space characters.
 /// @param strlike The Stringlike to trim, by value
 /// @return A Strv over the trimmed Stringlike
 /// @note `c` counts as space if `(c == ' ' || (c >= '\t' && c <= '\r'))`
 #define str_trimmed(strlike)            str_trimmed_strv(strv_from(strlike))
+
+/// @brief Like `str_trimmed()`, but only adjusts the starting position past any leading space
+/// characters, leaving trailing space untouched.
 #define str_trimmed_left(strlike)       str_trimmed_left_strv(strv_from(strlike))
+
+/// @brief Like `str_trimmed()`, but only adjusts the ending position past any trailing space
+/// characters, leaving leading space untouched.
 #define str_trimmed_right(strlike)      str_trimmed_right_strv(strv_from(strlike))
 
 // ----------------------------------------

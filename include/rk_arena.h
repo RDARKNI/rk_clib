@@ -180,13 +180,16 @@ static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena
 /// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
 /// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
 /// be used for static initialisation.
-#define arena_to_alloc_static(arena) {.vtab = &arena_allocator_vtable, .ctx = (arena)}
+/// @note Expands to a fully parenthesized compound literal (not a bare brace-list) specifically so
+/// it stays a single, comma-safe expression when passed as an argument to another macro (e.g.
+/// `dict_init_static(K, V, arena_to_alloc_static(&my_arena))`) -- a bare `{...}`'s internal comma
+/// would otherwise be miscounted as an argument separator by the enclosing macro.
+#define arena_to_alloc_static(arena)                                                              \
+  ((Allocator){.vtab = &arena_allocator_vtable, .ctx = (arena)})
 
 /// @brief Creates an Allocator from an Arena at runtime, allowing it to serve as backing allocator
 /// for other rk_clib types.
-static_fun Allocator arena_to_alloc(Arena* arena) {
-  return (Allocator)arena_to_alloc_static(arena);
-}
+static_fun Allocator arena_to_alloc(Arena* arena) { return arena_to_alloc_static(arena); }
 
 /// @brief Type of an Allocator object managing an array of size `size` using an Arena to manage its
 /// memory.

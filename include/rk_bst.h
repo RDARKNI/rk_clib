@@ -103,9 +103,19 @@ RK_HEADER_BEGIN
 /// @return Pointer to the value, or `NULL` if the key is absent
 #define bst_get(K, V, self, key)        RK__BST_PUB(K, V, get)(self, key)
 
+/// @brief `V* bst_get_or_add(K, V, Bst(K, V)* self, K key, V default_value, bool* inserted_out)` -
+/// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
+/// Performs a single tree traversal, unlike a separate `bst_get()`/`bst_add()` pair.
+/// @param default_value Value to insert if `key` is not present.
+/// @param inserted_out Set to `true` if a new node was inserted, `false` if the key already
+/// existed. Must not be `NULL`.
+/// @return Pointer to the value for `key` (never `NULL`).
+#define bst_get_or_add(K, V, self, key, default_value, inserted_out)                               \
+  RK__BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+
 /// @brief `bool bst_contains(K, V, Bst(K, V)* self, K key)` - Returns `true` iff the BST contains
 /// an entry with the given key.
-#define bst_contains(K, V, self, key)   RK__BST_PUB(K, V, contains)(self, key)
+#define bst_contains(K, V, self, key) RK__BST_PUB(K, V, contains)(self, key)
 
 /// @brief `bool bst_extract(K, V, Bst(K, V)* self, K key, V* value_outptr)` - Removes the entry
 /// with `key` from the BST and writes its value to `value_outptr`.
@@ -258,6 +268,24 @@ typedef struct bst_iter {
   static_fun V* RK__BST_PUB(K, V, add)(Bst(K, V) * self, K key, V val) {                           \
     return RK__BST_PRI(K, V, set_add)(false, self, key, val);                                      \
   }                                                                                                \
+  static_fun V* RK__BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                      \
+                                              bool* restrict inserted_out) {                       \
+    rk_assert_ptr_nonnull(inserted_out);                                                           \
+    typedef struct RK__BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    if (*lnk) {                                                                                    \
+      *inserted_out = false;                                                                       \
+      return &((*lnk)->entry_mod.val);                                                             \
+    }                                                                                              \
+    rk_set_alloc_fallback(self->alloc);                                                            \
+    node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
+    n->r = n->l  = rk_null;                                                                        \
+    n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
+    *lnk         = n;                                                                              \
+    ++self->count;                                                                                 \
+    *inserted_out = true;                                                                          \
+    return &(n->entry_mod.val);                                                                    \
+  }                                                                                                \
   static_fun bool RK__BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {               \
     rk_assert_ptr_nonnull(val_out);                                                                \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
@@ -356,8 +384,10 @@ static_fun bool bst_iter_next(bst_iter* restrict it, bst_node** node_out) {
 ///
 /// @param self          Pointer to the `Bst(K, V)` to iterate
 /// @param stack_buf     Array of `bst_node*` used as the traversal stack
-/// @param stack_buf_cap Number of elements in `stack_buf`; must be at least the height of the tree
-/// to avoid assertion failure
+/// @param stack_buf_cap Number of elements in `stack_buf`; must be at least the number of nodes on
+/// the tree's longest root-to-leaf path (its height, counting nodes rather than edges) to avoid
+/// writing past `stack_buf`. Checked via `rk_assert` in debug builds only; violating this in a
+/// release build is undefined behaviour, not a caught error.
 /// @param _entry        Name for the loop variable (a `const BstEntry(K, V)*`)
 ///
 /// @warning Do not insert or remove elements during iteration.

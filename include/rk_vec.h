@@ -259,11 +259,19 @@ static_fun void vec_clear(Vec(void) self) {
 /// @note Reassigns `self`, if necessary
 #define vec_resize(self, len)         ((void)RK__vec_resize(self, len))
 
-/// @brief `void vec_shrink_to_fit(Vec(T)& self)` - Shrink the Vec's capacity to be equal to its
-/// length.
+/// @brief `void vec_shrink_to_fit(Vec(T)& self)` - Shrinks the Vec's capacity to the next power of
+/// two greater than or equal to its length (matching `str_shrink_to_fit()`'s convention), leaving
+/// some slack to reduce reallocation on subsequent growth.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
+/// @note Use `vec_shrink_to_fit_exact()` for an exact-capacity shrink.
 #define vec_shrink_to_fit(self)       ((void)RK__vec_shrink_to_fit(self))
+
+/// @brief `void vec_shrink_to_fit_exact(Vec(T)& self)` - Shrinks the Vec's capacity to be exactly
+/// equal to its length.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
+#define vec_shrink_to_fit_exact(self) ((void)RK__vec_shrink_to_fit_exact(self))
 
 /// @brief `void vec_assign(Vec(T)& self, T* arr, size_t count)` - Assigns `count` objects of `arr`
 /// to the Vec, overriding its contents and expanding `self`, if necessary.
@@ -497,9 +505,14 @@ static_fun rk_forceinline VecHeader* rk_alloc_size(3)
 
 #define RK__vec_resize(V, C) (RK__vec_reserve(V, C), (V) && (vec_COUNT(V) = (C)))
 
-#define RK__vec_shrink_to_fit(V)                                                                   \
+#define RK__vec_shrink_to_fit_exact(V)                                                             \
   ((V) && vec_COUNT(V) < vec_CAP(V)                                                                \
    && (vec_COUNT(V) ? RK__VEC_CHANGE_CAP(V, vec_COUNT(V)) : (vec_release(V), (V) = rk_null)))
+
+#define RK__vec_shrink_to_fit(V)                                                                   \
+  ((V) && (vec_COUNT(V) ? stdc_bit_ceil(vec_COUNT(V)) : 0) < vec_CAP(V)                            \
+   && (vec_COUNT(V) ? RK__VEC_CHANGE_CAP(V, stdc_bit_ceil(vec_COUNT(V)))                           \
+                    : (vec_release(V), (V) = rk_null)))
 
 #define RK__vec_push_u(V, O)        ((V)[vec_COUNT(RK__check_vec_push_u(V))++] = (O))
 #define RK__vec_push(V, O)          (RK__vec_reserve_1(V), RK__vec_push_u(V, O))

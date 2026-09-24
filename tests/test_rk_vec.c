@@ -389,7 +389,34 @@ triax_test(vec, vec_shrink_to_fit) {
   triax_expect_eq(vec_count(v), 3u);
   triax_expect_true(vec_cap(v) >= 32u);
 
+  vec_shrink_to_fit(v); // rounds up to the next power of two (bit_ceil(3) == 4)
+  triax_expect_eq(vec_count(v), 3u);
+  triax_expect_eq(vec_cap(v), 4u);
+  triax_expect_eq(v[0], 1);
+  triax_expect_eq(v[1], 2);
+  triax_expect_eq(v[2], 3);
+
+  vec_shrink_to_fit(v); // already at the minimal power-of-two capacity; no-op
+  triax_expect_eq(vec_cap(v), 4u);
+  vec_release(v);
+}
+
+triax_test(vec, vec_shrink_to_fit_empty) {
+  Vec(int) v = vec_init(int, 16);
+  triax_expect_eq(vec_count(v), 0u);
   vec_shrink_to_fit(v);
+  triax_expect_null(v); // empty vec deallocated entirely
+}
+
+triax_test(vec, vec_shrink_to_fit_exact) {
+  Vec(int) v = vec_init(int, 32);
+  vec_push(v, 1);
+  vec_push(v, 2);
+  vec_push(v, 3);
+  triax_expect_eq(vec_count(v), 3u);
+  triax_expect_true(vec_cap(v) >= 32u);
+
+  vec_shrink_to_fit_exact(v);
   triax_expect_eq(vec_count(v), 3u);
   triax_expect_eq(vec_cap(v), 3u);
   triax_expect_eq(v[0], 1);
@@ -398,10 +425,10 @@ triax_test(vec, vec_shrink_to_fit) {
   vec_release(v);
 }
 
-triax_test(vec, vec_shrink_to_fit_empty) {
+triax_test(vec, vec_shrink_to_fit_exact_empty) {
   Vec(int) v = vec_init(int, 16);
   triax_expect_eq(vec_count(v), 0u);
-  vec_shrink_to_fit(v);
+  vec_shrink_to_fit_exact(v);
   triax_expect_null(v); // empty vec deallocated entirely
 }
 

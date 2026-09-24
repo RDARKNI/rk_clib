@@ -13,12 +13,24 @@ extern_fun unsigned int int_hash(int key) {
   return (unsigned int)key * 2654435761u;
 }
 
-extern_fun int int_cmp(int a, int b) {
-  return a != b; // returns 0 if equal
-}
+extern_fun int int_cmp(int a, int b) { return a != b; }
 
 // Instantiate the dict for int -> cstr
 DICT_DEFINE(int, cstr, int_hash, int_cmp)
+
+// dict_init_static/set_init_static must be usable as genuine constant-expression initializers for
+// static/global variables (unlike dict_init/set_init, which allocate and are therefore ordinary
+// function calls) -- declaring these at file scope is itself part of the test. The allocator must
+// be given as a literal expression here, not a separately-declared variable: referencing another
+// object's value (even a `static const` one) is not itself a constant expression in C.
+// Only meaningful under RK_CUSTOM_ALLOCATORS: with it disabled, dict_init_static takes no allocator
+// argument at all (there is no allocator field to set).
+#if RK_CUSTOM_ALLOCATORS
+static unsigned char   dict_static_storage[4096];
+static Arena           DICT_STATIC_ARENA = arena_init_static(dict_static_storage);
+static Dict(int, cstr) g_static_dict
+    = dict_init_static(int, cstr, arena_to_alloc_static(&DICT_STATIC_ARENA));
+#endif
 
 typedef const char*     cstr;
 
@@ -55,6 +67,42 @@ triax_test(dict, null) {
   bool inserted;
   triax_assert_true(dict_get_or_add(int, cstr, &d, 0, "ok", &inserted));
 }
+
+triax_test(dict, init_static) {
+  Dict(int, cstr) d = dict_init_static(int, cstr);
+  triax_expect_true(dict_is_empty(&d));
+  triax_expect_eq(dict_count(&d), 0u);
+  triax_expect_eq(dict_cap(&d), 0u);
+
+  triax_expect_true(dict_set(int, cstr, &d, 7, "seven"));
+  triax_expect_eq(dict_count(&d), 1u);
+  triax_expect_true(dict_contains(int, cstr, &d, 7));
+  triax_expect_streq(*dict_get(int, cstr, &d, 7), "seven");
+
+  dict_release(int, cstr, &d);
+  triax_expect_true(dict_is_empty(&d));
+}
+
+#if RK_CUSTOM_ALLOCATORS
+triax_test(dict, init_static_file_scope_honors_baked_in_allocator) {
+  // g_static_dict was declared at file scope via
+  // dict_init_static(int, cstr, arena_to_alloc_static(&DICT_STATIC_ARENA)) -- a genuine
+  // constant-expression initializer, not runnable code. Verify the baked-in allocator is what
+  // actually backs the first (lazy) allocation, matching dict_init's allocator-argument semantics.
+  triax_expect_eq(dict_cap(&g_static_dict), 0u);
+  triax_expect_memeq((Allocator[]){dict_allocator(&g_static_dict)},
+                     (Allocator[]){arena_to_alloc_static(&DICT_STATIC_ARENA)}, sizeof(Allocator));
+
+  triax_expect_true(dict_set(int, cstr, &g_static_dict, 1, "one"));
+  triax_expect_streq(*dict_get(int, cstr, &g_static_dict, 1), "one");
+  triax_expect_memeq((Allocator[]){dict_allocator(&g_static_dict)},
+                     (Allocator[]){arena_to_alloc_static(&DICT_STATIC_ARENA)}, sizeof(Allocator));
+  triax_expect_true(arena_used(&DICT_STATIC_ARENA) > 0);
+
+  dict_release(int, cstr, &g_static_dict);
+}
+#endif
+
 triax_test(dict, tests1) {
   // ---- basic insert/get ----
   Dict(int, cstr) d1 = dict_init(int, cstr, 4);
@@ -337,9 +385,22 @@ triax_test(set, tests0) {
   for (int i = 0; i < 256; ++i) { set_add(uchar, &s, (uchar)i); }
   triax_assert_eq(set_count(&s), 256);
 }
+triax_test(set, init_static) {
+  Set(uchar) s = set_init_static(uchar);
+  triax_expect_true(set_is_empty(&s));
+  triax_expect_eq(set_count(&s), 0u);
+  triax_expect_eq(set_cap(&s), 0u);
+
+  triax_expect_true(set_add(uchar, &s, 7));
+  triax_expect_eq(set_count(&s), 1u);
+  triax_expect_true(set_contains(uchar, &s, 7));
+
+  set_release(uchar, &s);
+  triax_expect_true(set_is_empty(&s));
+}
 triax_test(arrdup, t0) {
-  int src[5] = {1, 2, 3, 4, 5};
-  int*      dst    = rk_arrdup(src, 5);
+  int  src[5] = {1, 2, 3, 4, 5};
+  int* dst    = rk_arrdup(src, 5);
   triax_expect_memeq(dst, src, sizeof(src));
   int* dst2 = rk_arrdup(dst, 5);
   triax_expect_memeq(dst2, src, sizeof(src));

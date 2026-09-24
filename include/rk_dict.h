@@ -23,7 +23,7 @@
 /// - Header-only; no external linking required.
 /// - Type-generic via macros, supporting custom key/value types.
 /// - Custom allocator support for flexible memory management.
-/// - Automatic resize/compact when the load factor exceeds a configurable threshold (default 0.7).
+/// - Automatic resize/compact when the load factor exceeds a configurable threshold (default 0.75).
 /// - SOA layout (separate arrays for metadata, keys, and optionally values).
 /// - Dict and Set share the same underlying implementation.
 ///
@@ -126,14 +126,22 @@ RK_HEADER_BEGIN
 /// Dict(int, cstr) tab =  dict_init(int, cstr, 10, alloc);
 /// ```
 /// @return An initialised Dict
-#define dict_init(K, V, cap, ...) rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
+#define dict_init(K, V, cap, ...)   rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
+
+/// @brief `Dict(K, V) dict_init_static(K, V, Allocator alloc = alloc_ctx)` - Static/compile-time
+/// initializer for a Dict. Suitable for global and static variables. No memory is allocated;
+/// storage is lazily allocated on first insert.
+/// @param K     Key type name
+/// @param V     Value type name
+/// @param alloc Optional allocator; defaults to `alloc_ctx`
+#define dict_init_static(K, V, ...) rk_overload(RK__DICT_INIT_STATIC, K, V, ##__VA_ARGS__)
 
 /// @brief `void dict_release(K, V, Dict(K, V)* self)` - Frees the underlying memory of the Dict.
-#define dict_release(K, V, self)  RK__DICT_PUB(K, V, release)(self)
+#define dict_release(K, V, self)    RK__DICT_PUB(K, V, release)(self)
 
 /// @brief `size_t dict_count(Dict(K, V)* self)` - Returns the number of live key-value pairs stored
 /// in the Dict.
-#define dict_count(self)          ((size_t)((self)->count))
+#define dict_count(self)            ((size_t)((self)->count))
 
 #if RK_CUSTOM_ALLOCATORS
 # define dict_allocator(self) rk_to_rvalue((self)->alloc)
@@ -299,6 +307,13 @@ RK_HEADER_BEGIN
 /// @return An initialised Set
 #define set_init(K, cap, ...)            rk_overload(RK__SET_INIT, K, cap, ##__VA_ARGS__)
 
+/// @brief `Set(K) set_init_static(K, Allocator alloc = alloc_ctx)` - Static/compile-time
+/// initializer for a Set. Suitable for global and static variables. No memory is allocated;
+/// storage is lazily allocated on first insert.
+/// @param K     Key type name
+/// @param alloc Optional allocator; defaults to `alloc_ctx`
+#define set_init_static(K, ...)          rk_overload(RK__SET_INIT_STATIC, K, ##__VA_ARGS__)
+
 /// @brief `void set_release(K, Set(K)* self)` - Frees the underlying memory of the Set.
 #define set_release(K, self)             RK__SET_PUB(K, release)(self)
 
@@ -414,6 +429,14 @@ typedef size_t RK__hashprobe_t;
 #define RK__SET_INIT(K, init_cap, alloc)      RK__SET_PUB(K, init)(init_cap RK_IFALLOC(, alloc))
 #define RK__SET_INIT3(K, init_cap, alloc)     rk_disable_if(RK__SET_INIT(K, init_cap, alloc))
 #define RK__SET_INIT2(K, init_cap)            RK__SET_INIT(K, init_cap, alloc_ctx)
+
+#define RK__DS_INIT_STATIC(_Alloc)            {.cap = 0, RK_IFALLOC(.alloc = (_Alloc))}
+
+#define RK__DICT_INIT_STATIC2(K, V)           RK__DS_INIT_STATIC(alloc_ctx)
+#define RK__DICT_INIT_STATIC3(K, V, _Alloc)   rk_disable_if(RK__DS_INIT_STATIC(_Alloc))
+
+#define RK__SET_INIT_STATIC1(K)               RK__DS_INIT_STATIC(alloc_ctx)
+#define RK__SET_INIT_STATIC2(K, _Alloc)       rk_disable_if(RK__DS_INIT_STATIC(_Alloc))
 
 #define RK__SET_PUB(K, FNAME)                 setf_##FNAME##_##K
 #define RK__SET_PRI(K, FNAME)                 RK__set##_##K##_##FNAME

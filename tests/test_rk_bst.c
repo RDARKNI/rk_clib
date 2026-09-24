@@ -188,6 +188,36 @@ triax_test(bst, init_static) {
   triax_expect_true(bst_is_empty(&b));
 }
 
+triax_test(bst, get_or_add) {
+  Bst(int, char) b = bst_init(int, char);
+
+  bool inserted = false;
+  char* p1      = bst_get_or_add(int, char, &b, 5, 'e', &inserted);
+  triax_expect_true(inserted);
+  triax_expect_eq(*p1, 'e');
+  triax_expect_eq(bst_count(&b), 1u);
+
+  // key already present: returns existing value, does not overwrite, does not insert
+  inserted  = true;
+  char* p2  = bst_get_or_add(int, char, &b, 5, 'z', &inserted);
+  triax_expect_false(inserted);
+  triax_expect_eq(*p2, 'e');
+  triax_expect_eq(bst_count(&b), 1u);
+  triax_expect_eq(p1, p2);
+
+  // a second, distinct key still triggers a real insertion
+  inserted     = false;
+  char* p3     = bst_get_or_add(int, char, &b, 9, 'i', &inserted);
+  triax_expect_true(inserted);
+  triax_expect_eq(*p3, 'i');
+  triax_expect_eq(bst_count(&b), 2u);
+
+  triax_expect_eq(*bst_get(int, char, &b, 5), 'e');
+  triax_expect_eq(*bst_get(int, char, &b, 9), 'i');
+
+  bst_release(int, char, &b);
+}
+
 triax_test(bst, foreach_empty) {
   Bst(int, char) b = bst_init(int, char);
   bst_node* stack[4];
