@@ -718,7 +718,7 @@ static_fun Str RK__str_join_strv_n(Strv* svs, size_t count,
 
 static_fun Str* str_assign_strv(Str* restrict self, Strv sv) {
   RK__str_ensure_cap(self, sv.len + 1);
-  if (sv.len) { memcpy(self->str, sv.str, sv.len); }
+  if (sv.len) { memmove(self->str, sv.str, sv.len); }
   self->str[self->len = sv.len] = '\0';
   return self;
 }

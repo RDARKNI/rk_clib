@@ -544,6 +544,7 @@ static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void
                                  ((typeof (*(V))[1]){(O)})))
 
 static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size_t i, size_t n) {
+  if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
           rk_mult(((vec_COUNT(v) -= n) - i),

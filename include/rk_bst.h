@@ -217,7 +217,7 @@ typedef struct bst_iter {
   }                                                                                                \
   static_fun void RK__BST_PUB(K, V, release)(Bst(K, V) * self) {                                   \
     RK__BST_PUB(K, V, release_)(self->root RK_IFALLOC(, self->alloc));                             \
-    self->count = 0;                                                                               \
+    self->root = rk_null, self->count = 0;                                                         \
   }                                                                                                \
   static_fun struct RK__BstNode(K, V) * *RK__BST_PUB(K, V, search_ptr)(Bst(K, V) * self, K key) {  \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
