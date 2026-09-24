@@ -35,13 +35,13 @@
 # define rk_has_gnu_attribute(x) 0
 #endif
 
-#ifdef __has_c_attribute
-# define rk_has_c_attribute(x) __has_c_attribute(x)
+#if defined(__has_c_attribute) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+# define rk_has_c_attribute(x) (__has_c_attribute(x))
 #else
 # define rk_has_c_attribute(x) 0
 #endif
 
-#ifdef __has_cpp_attribute
+#if defined(__has_cpp_attribute) && defined(__cplusplus)
 # define rk_has_cpp_attribute(x) __has_cpp_attribute(x)
 #else
 # define rk_has_cpp_attribute(x) 0
