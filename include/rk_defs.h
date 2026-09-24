@@ -891,9 +891,7 @@ enum {                 // NOLINT
   RK_numclass_c = 0x8, ///< Char type      (0b1000)
 };
 
-#define RK__numclassof_(T, N, class)                                                               \
-T:                                                                                                 \
-  class,
+#define RK__numclassof_(T, N, class) T:
 
 #define RK_numclassof(x)                                                                           \
   (_Generic(rk_ensure_type_is_num(typeof(x)),                                                      \

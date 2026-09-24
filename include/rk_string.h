@@ -808,7 +808,7 @@ static_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv
     memcpy(self->str + idx, from, sv.len);
     alloc_delete(from, sv.len RK_IFALLOC(, self->alloc));
   } else {
-    const char* from = (char*)sv.str;
+    const char* from = sv.str;
     new_len          = sv.len + self->len;
     RK__str_ensure_cap(self, new_len + 1);
     memmove(self->str + idx + sv.len, self->str + idx, self->len + 1 - idx);
