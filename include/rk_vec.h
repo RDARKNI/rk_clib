@@ -361,7 +361,7 @@ static_fun void vec_clear(Vec(void) self) {
 /// ```
 #define vec_erase_if(vec, it, pred)                                                                \
   do {                                                                                             \
-    RK__IGNWARN_MSC_BEG(C4114)                                                                     \
+    RK__IGNWARN_MSC_BEG(4114)                                                                      \
     typeof(vec) RK___VEC = (vec);                                                                  \
     if (!vec_count(RK___VEC)) { break; }                                                           \
     typeof(*RK___VEC)*RK___BEG = RK___VEC, *const RK___END = RK___BEG + vec_COUNT(RK___BEG);       \
