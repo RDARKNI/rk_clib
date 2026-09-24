@@ -891,20 +891,22 @@ enum {                 // NOLINT
   RK_numclass_c = 0x8, ///< Char type      (0b1000)
 };
 
-#define RK__numclassof_(T, N, class) T:
+#define RK__numclassof_(T, N, class)                                                               \
+T:                                                                                                 \
+  class,
 
 #define RK_numclassof(x)                                                                           \
-  (_Generic(rk_ensure_type_is_num(typeof(x)),                                                      \
-       RK_F_TYPES(RK__numclassof_, RK_numclass_f) bool: RK_numclass_b,                             \
-       RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: 1 + !(((typeof(x))-1) > 0)))
+  _Generic(rk_ensure_type_is_num(typeof(x)),                                                       \
+      RK_F_TYPES(RK__numclassof_, RK_numclass_f) bool: RK_numclass_b,                              \
+      RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: 1 + !(((typeof(x))-1) > 0))
 
 #define RK_TOSIGNED(x)                                                                             \
-  (_Generic((x),                                                                                   \
-       unsigned char: (signed char)(x),                                                            \
-       unsigned short: (short)(x),                                                                 \
-       unsigned: (int)(x),                                                                         \
-       unsigned long: (long)(x),                                                                   \
-       unsigned long long: (long long)(x)RK__IFHAS_INT128(, u128 : (s128)(x))))
+  _Generic((x),                                                                                    \
+      unsigned char: (signed char)(x),                                                             \
+      unsigned short: (short)(x),                                                                  \
+      unsigned: (int)(x),                                                                          \
+      unsigned long: (long)(x),                                                                    \
+      unsigned long long: (long long)(x)RK__IFHAS_INT128(, u128 : (s128)(x)))
 
 #define RK_U_TYPES(X, ...)                                                                         \
   X(unsigned char, uc, ##__VA_ARGS__)                                                              \
@@ -949,10 +951,10 @@ enum {                 // NOLINT
                (typeof(a3))0)
 
 #define RK__twonum_macro(pref, classes, x, y)                                                      \
-  (_Generic(RK__wider_t(x, y) classes(RK__GENCASE, pref))(x, y))
+  _Generic(RK__wider_t(x, y) classes(RK__GENCASE, pref))(x, y)
 
 #define RK__threenum_macro(pref, classes, x, y, z)                                                 \
-  (_Generic(RK__wider_t3(x, y, z) classes(RK__GENCASE, pref))(x, y, z))
+  _Generic(RK__wider_t3(x, y, z) classes(RK__GENCASE, pref))(x, y, z)
 
 RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
   return x < 0 ? -x : x; // UB if v == I128_MIN
