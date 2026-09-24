@@ -184,7 +184,7 @@
 #  endif
 # endif
 #else
-# define static_fun rk_unused static inline
+# define static_fun /*rk_unused*/ static inline
 # if !defined(RK_MULTI_TU)
 #  define extern_fun      extern inline
 #  define extern_var      static

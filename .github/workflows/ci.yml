@@ -11,6 +11,14 @@ jobs:
   # (macos-latest); Intel macOS was not added given Triax's (this author's
   # other project) experience of its GitHub-hosted runner pool being short
   # enough on capacity to leave jobs queued for 5+ hours.
+  # rk_clib's C++ support is Clang-only (its headers lean on _Generic, which
+  # only Clang's C++ frontend accepts as an extension), and CMakeLists.txt
+  # only wires up the rk_clib-selftest-cpp target/ctest when the C++
+  # compiler actually is Clang. None of these OSes set CC/CXX explicitly, so
+  # only macos-latest (AppleClang by default) runs 3 tests here; the other
+  # three legs run 2 (C only) — that's expected, not a partial failure. Linux
+  # Clang++ coverage instead comes from the clang-sanitizers job below and
+  # strict-warnings' clang leg.
   native:
     strategy:
       fail-fast: false
