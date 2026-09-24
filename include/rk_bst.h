@@ -136,7 +136,7 @@ RK_HEADER_BEGIN
 
 typedef struct bst_node {
   struct bst_node *l, *r;
-  char             data[];
+  alignas_max char data[];
 } bst_node;
 
 typedef struct bst_data {
@@ -235,7 +235,7 @@ typedef struct bst_iter {
     return *node ? &((*node)->entry.val) : rk_null;                                                \
   }                                                                                                \
   static_fun bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                           \
-    return (bool)(*RK__BST_PUB(K, V, search_ptr)(self, key));                                      \
+    return !!(*RK__BST_PUB(K, V, search_ptr)(self, key));                                          \
   }                                                                                                \
   static_fun V* RK__BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,      \
                                            V val) {                                                \
@@ -254,7 +254,7 @@ typedef struct bst_iter {
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
   static_fun bool RK__BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                         \
-    return (bool)RK__BST_PRI(K, V, set_add)(true, self, key, val);                                 \
+    return !!RK__BST_PRI(K, V, set_add)(true, self, key, val);                                     \
   }                                                                                                \
   static_fun V* RK__BST_PUB(K, V, add)(Bst(K, V) * self, K key, V val) {                           \
     return RK__BST_PRI(K, V, set_add)(false, self, key, val);                                      \

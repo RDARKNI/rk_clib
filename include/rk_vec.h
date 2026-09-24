@@ -363,8 +363,8 @@ static_fun void vec_clear(Vec(void) self) {
   do {                                                                                             \
     typeof(vec) const RK___VEC = (vec);                                                            \
     if (!vec_count(RK___VEC)) { break; }                                                           \
-    typeof(vec)            RK___BEG = RK___VEC;                                                    \
-    const typeof(RK___VEC) RK___END = RK___BEG + vec_COUNT(RK___BEG);                              \
+    typeof(vec)      RK___BEG = RK___VEC;                                                          \
+    typeof(RK___VEC) RK___END = RK___BEG + vec_COUNT(RK___BEG);                                    \
     for (typeof(RK___BEG) RK___IT = RK___VEC; RK___IT != RK___END; ++RK___IT) {                    \
       typeof(RK___VEC) const it = RK___IT;                                                         \
       if (!(pred)) { *RK___BEG++ = *RK___IT; }                                                     \

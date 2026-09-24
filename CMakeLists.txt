@@ -80,7 +80,16 @@ if(BUILD_TESTING)
     )
     if(MSVC)
         target_compile_options(rk_clib-warnings INTERFACE /W4)
-        target_compile_definitions(rk_clib-warnings INTERFACE _CRT_SECURE_NO_WARNINGS)
+        # _CRT_SECURE_NO_WARNINGS covers "unsafe" CRT functions (strcpy etc.);
+        # _CRT_NONSTDC_NO_WARNINGS is the separate switch for "POSIX name is
+        # deprecated, use the ISO name" (e.g. strdup vs _strdup) -- the test
+        # suite intentionally uses the POSIX names for portability.
+        target_compile_definitions(
+            rk_clib-warnings
+            INTERFACE
+                _CRT_SECURE_NO_WARNINGS
+                _CRT_NONSTDC_NO_WARNINGS
+        )
     else()
         target_compile_options(
             rk_clib-warnings
@@ -111,7 +120,37 @@ if(BUILD_TESTING)
     )
     if(RK_CLIB_WARNINGS_AS_ERRORS)
         if(MSVC)
-            target_compile_options(rk_clib-warnings INTERFACE /WX)
+            target_compile_options(
+                rk_clib-warnings
+                INTERFACE
+                    /WX
+                    # C4189 ('local variable is initialized but not
+                    # referenced): rk_static_if's _Generic-based fallback
+                    # (used pervasively by RK__pool_dispatch etc.) must
+                    # type-check both branches even though only one is ever
+                    # selected -- on MSVC this synthesizes a compiler-internal
+                    # temporary for the unselected branch at every one of the
+                    # hundreds of call sites across rk_pool.h/rk_bst.h/
+                    # rk_dict.h, and MSVC flags each as unreferenced. Same
+                    # false-positive class as -Wcast-align above, just
+                    # surfacing as a different diagnostic on this compiler.
+                    /wd4189
+                    # C4146 (unary minus on unsigned, "result still
+                    # unsigned"): rk_align_pad and bitset_write's
+                    # -(unsigned)x two's-complement masking idiom is
+                    # deliberate, not a mistake -- there's no way to "fix" it
+                    # without obscuring the intent, since producing an
+                    # unsigned result is the entire point.
+                    /wd4146
+                    # C4100 (unreferenced parameter): the Allocator/vtable
+                    # style dispatch functions across rk_alloc.h/rk_arena.h/
+                    # rk_bitset.h/rk_pool.h intentionally share a common
+                    # signature where not every implementation uses every
+                    # parameter (e.g. malloc-backed allocators ignore their
+                    # ctx). Same rationale as the GNU/Clang cast-qual/
+                    # cast-align exemptions below.
+                    /wd4100
+            )
         else()
             target_compile_options(
                 rk_clib-warnings

@@ -338,7 +338,7 @@ triax_test(set, tests0) {
   triax_assert_eq(set_count(&s), 256);
 }
 triax_test(arrdup, t0) {
-  const int src[5] = {1, 2, 3, 4, 5};
+  int src[5] = {1, 2, 3, 4, 5};
   int*      dst    = rk_arrdup(src, 5);
   triax_expect_memeq(dst, src, sizeof(src));
   int* dst2 = rk_arrdup(dst, 5);

@@ -1,8 +1,8 @@
 #ifndef TRIAX_CONF
 #define TRIAX_CONF
 
-#pragma GCC diagnostic push
 #ifdef __clang__
+# pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #endif
 // #define RK_MULTI_TU
