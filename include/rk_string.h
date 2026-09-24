@@ -579,6 +579,7 @@ static_fun bool str_starts_with_strv(Strv sv, Strv pref) {
 static_fun bool str_ends_with_char(Strv sv, char c) { return sv.len && sv.str[sv.len - 1] == c; }
 
 static_fun bool str_ends_with_strv(Strv sv, Strv suf) {
+  if (!suf.len) { return true; }
   return suf.len <= sv.len && !rk_memcmp(sv.str + sv.len - suf.len, suf.str, suf.len);
 }
 
@@ -634,6 +635,7 @@ static_fun bool str_contains_char(Strv sv, char c) {
 }
 
 static_fun bool str_contains_strv(Strv s1, Strv s2) {
+  if (!s2.len) { return true; }
   for (size_t i = 0, j; i < s1.len && s1.len - i >= s2.len; ++i) {
     for (j = 0; j < s2.len; ++j) {
       if (s2.str[j] != s1.str[i + j]) { break; }
@@ -725,7 +727,8 @@ static_fun Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
   if (start > sv.len || end < start) {
     sv.len = 0;
   } else {
-    sv.str += start, sv.len = rk_MIN(end, sv.len) - start;
+    if (sv.str) { sv.str += start; }
+    sv.len = rk_MIN(end, sv.len) - start;
   }
   return sv;
 }
@@ -939,10 +942,11 @@ static_fun Strv*(str_split_alloc)(Strv str, Strv dels,
       start        = i + 1;
     }
   }
-  data[cidx++] = (Strv){.str = str.str + start, .len = str.len - start};
+  data[cidx++] = (Strv){.str = str.str ? str.str + start : rk_null, .len = str.len - start};
   *out_count   = count;
   return data;
 }
+
 #define RK__STR_SPLIT_ALLOC(str, delims, count, alloc)                                             \
   str_split_alloc(str, delims, count RK_IFALLOC(, alloc))
 #define RK__STR_SPLIT_ALLOC4(str, delims, count, alloc)                                            \

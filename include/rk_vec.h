@@ -504,7 +504,7 @@ static_fun rk_forceinline VecHeader* rk_alloc_size(3)
 
 #define RK__vec_push_arr_u(V, O, N) (rk_copy((V) + vec_COUNT(V), O, N), vec_COUNT(V) += (N))
 #define RK__vec_push_arr(V, O, N)                                                                  \
-  (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_push_arr_u(V, O, N))
+  ((void)((N) && (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_push_arr_u(V, O, N), 1)))
 
 static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* restrict v, size_t i,
                                                        const void* restrict arr, size_t n) {
@@ -522,7 +522,7 @@ static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* rest
 #define RK__vec_insert_at(V, I, O)   (RK__vec_reserve_1(V), RK__vec_insert_at_u(V, I, O))
 
 #define RK__vec_insert_arr_at(V, I, O, N)                                                          \
-  (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_insert_arr_at_u(V, I, O, N))
+  ((void)((N) && (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_insert_arr_at_u(V, I, O, N), 1)))
 
 static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void* restrict vec,
                                                              size_t i, const void* restrict o) {
