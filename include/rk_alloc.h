@@ -5,8 +5,8 @@
 /// @brief Customizable memory allocator abstraction for C.
 ///
 /// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
-/// context pointer. Three predefined allocators are provided: `alloc_malloc_allocator`,
-/// `alloc_page_allocator`, and `alloc_nop_allocator`. Custom allocators can be created by filling
+/// context pointer. Three predefined allocators are provided: `alloc_malloc_allocator` and
+/// `alloc_page_allocator`. Custom allocators can be created by filling
 /// an `AllocatorVTable` and constructing an `Allocator`.
 ///
 /// Allocation failures are handled inside the allocator, not at call sites. The provided allocators

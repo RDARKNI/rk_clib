@@ -214,14 +214,14 @@ static_fun bitset bitset_clear_padding(bitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return `bs` (for chaining).
 static_fun bitset bitset_clear_all(bitset bs, size_t nbits) {
-  return (bitset)memset(bs, 0, sizeof_n(*bs, bitset_words(nbits)));
+  return (bitset)rk_memset(bs, 0, sizeof_n(*bs, bitset_words(nbits)));
 }
 
 /// @brief Sets all bits to 1 (and clears padding bits).
 /// @param bs,nbits Bitset and its logical size
 /// @return `bs` (for chaining).
 static_fun bitset bitset_set_all(bitset bs, size_t nbits) {
-  memset(bs, 0xFF, sizeof_n(*bs, bitset_words(nbits)));
+  rk_memset(bs, 0xFF, sizeof_n(*bs, bitset_words(nbits)));
   return bitset_clear_padding(bs, nbits);
 }
 
