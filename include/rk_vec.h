@@ -84,7 +84,7 @@ typedef struct VecHeader {
 # define vec_ALLOCATOR(V) (vec_HEADER(V)->alloc) // NOLINT(clang-analyzer-security.ArrayBound)
 
 #else
-# define vec_ALLOCATOR(V) rk_allocator_disabled()
+# define vec_ALLOCATOR(V) ((void)(V), alloc_ctx)
 #endif
 
 /// @brief Unchecked access to the capacity of `self` as an lvalue.
@@ -166,8 +166,7 @@ static_fun rk_const VecHeader* vec_header(const Vec(void) self) {
   return self ? vec_HEADER(self) : rk_null;
 }
 
-/// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`. Produces an error if
-/// local allocators are disabled.
+/// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`.
 static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
 #if RK_CUSTOM_ALLOCATORS
   return self ? vec_ALLOCATOR(self) : alloc_ctx;

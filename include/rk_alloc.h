@@ -153,8 +153,9 @@ rk_unused static const Allocator alloc_page_allocator
 # define RK__ALLOCCTX_INIT(...) extern_def({__VA_ARGS__})
 #else
 # define RK__ALLOCCTX_STORAGE   static const
-# define RK__ALLOCCTX_INIT(...) {__VA_ARGS__}
+# define RK__ALLOCCTX_INIT(...) = {__VA_ARGS__}
 #endif
+
 /// @brief Default allocator used by all rklib macros when no explicit allocator argument is
 /// provided. Defaults to `alloc_malloc_allocator`. Objects capture its value when initialised, so
 /// replacing it affects only subsequently created objects. When `RK_ALLOC_MULTITHREADED == 1`, it
@@ -412,7 +413,7 @@ __declspec(dllimport) int __stdcall   VirtualFree(void* lpAddress, size_t dwSize
                                                   unsigned long dwFreeType);
 #endif
 
-static_fun size_t RK__mmap_init_page_size(void) {
+static_fun size_t RK__mmap_page_size(void) {
 #ifndef _MSC_VER
   long ps = sysconf(_SC_PAGESIZE);
   RK_MMAP_FAIL(ps != -1, ps, rk_null, 0, 0);
@@ -424,7 +425,7 @@ static_fun size_t RK__mmap_init_page_size(void) {
 
 static_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
   if rk_unlikely (!size) { return rk_null; }
-  size_t ps = RK__mmap_init_page_size();
+  size_t ps = RK__mmap_page_size();
   size      = rk_align_up(size, ps);
 #ifndef _MSC_VER
   void* res = mmap(rk_null, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -438,30 +439,31 @@ static_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
 
 static_fun void page_free(void* ptr, size_t size) {
   if rk_unlikely (!size) { return; }
-  size_t ps = RK__mmap_init_page_size();
+  size_t ps = RK__mmap_page_size();
   size      = rk_align_up(size, ps);
 #ifndef _MSC_VER
   int r = munmap(ptr, size);
-  rk_assert(r == 0 && "munmap failed"), (void)r;
+  RK_MMAP_FAIL(r == 0, ps, ptr, 0, size);
 #else
   int r = VirtualFree(ptr, 0, 0x00008000);
-  rk_assert(r != 0 && "VirtualFree failed"), (void)r;
+  RK_MMAP_FAIL(r != 0, ps, ptr, 0, size);
 #endif
 }
 
 static_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_t new_size) {
   if (!old_size) { return page_alloc(new_size); }
   if (!new_size) { return page_free(ptr, old_size), rk_null; }
-  size_t ps         = RK__mmap_init_page_size();
-  size_t al_size    = rk_align_up(new_size, ps);
-  size_t al_oldsize = rk_align_up(old_size, ps);
+  size_t ps      = RK__mmap_page_size();
+  size_t al_size = rk_align_up(new_size, ps), al_oldsize = rk_align_up(old_size, ps);
   if (al_size == al_oldsize) {
     return ptr;
   } else if (al_size < al_oldsize) {
 #ifndef _MSC_VER
-    munmap((char*)ptr + al_size, al_oldsize - al_size);
+    int r = munmap((char*)ptr + al_size, al_oldsize - al_size);
+    RK_MMAP_FAIL(r == 0, ps, ptr, 0, new_size);
 #else
-    VirtualFree((char*)ptr + al_size, al_oldsize - al_size, 0x4000);
+    int r = VirtualFree((char*)ptr + al_size, al_oldsize - al_size, 0x4000);
+    RK_MMAP_FAIL(r != 0, ps, ptr, 0, new_size);
 #endif
     return ptr;
   } else {
@@ -472,12 +474,14 @@ static_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_
     void* res = mmap(rk_null, al_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     RK_MMAP_FAIL(res != MAP_FAILED, ps, rk_null, 0, new_size);
     rk_memcpy(res, ptr, old_size);
-    munmap(ptr, al_oldsize);
+    int r = munmap(ptr, al_oldsize);
+    RK_MMAP_FAIL(r == 0, ps, ptr, 0, new_size);
 #else
     void* res = VirtualAlloc(rk_null, al_size, 0x00001000 | 0x00002000, 0x04);
     RK_MMAP_FAIL(res, ps, rk_null, 0, new_size);
     rk_memcpy(res, ptr, old_size);
-    VirtualFree(ptr, 0, 0x00008000);
+    int r = VirtualFree(ptr, 0, 0x00008000);
+    RK_MMAP_FAIL(r != 0, ps, ptr, 0, new_size);
 #endif
     return res;
   }
@@ -486,7 +490,7 @@ static_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_
 static_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* RK__page_allocate(size_t       size,
                                                                           size_t align rk_unused,
                                                                           void* ctx    rk_unused) {
-  rk_assert(align <= RK__mmap_init_page_size() && "Wrong alignment");
+  rk_assert(align <= RK__mmap_page_size() && "Wrong alignment");
   return page_alloc(size);
 }
 
@@ -494,13 +498,13 @@ static_fun rk_alloc_alignsize(4, 3) void* RK__page_reallocate(void* ptr, size_t 
                                                               size_t       new_size,
                                                               size_t align rk_unused,
                                                               void* ctx    rk_unused) {
-  rk_assert(align <= RK__mmap_init_page_size() && "Wrong alignment");
+  rk_assert(align <= RK__mmap_page_size() && "Wrong alignment");
   return page_realloc(ptr, old_size, new_size);
 }
 
 static_fun void RK__page_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
                                     void* ctx rk_unused) {
-  rk_assert(align <= RK__mmap_init_page_size() && "Wrong alignment");
+  rk_assert(align <= RK__mmap_page_size() && "Wrong alignment");
   page_free(ptr, old_size);
 }
 

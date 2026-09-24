@@ -281,6 +281,7 @@ static_fun void RK__arena_deallocate(void* ptr, size_t old_size, size_t align rk
     (void)arena_try_resize_top(old_size, 0, (Arena*)ctx);
   }
 }
+
 static_fun rk_alloc_alignsize(4, 3) void* RK__arena_reallocate(void* ptr, size_t old_size,
                                                                size_t new_size, size_t align,
                                                                void* ctx) {

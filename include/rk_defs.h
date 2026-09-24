@@ -1252,13 +1252,14 @@ static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   rk_assert_align_pow2(align);
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
+RK_HEADER_END
+
 #ifdef __cplusplus
 template <class T, size_t N>
 constexpr inline size_t RK__countof(T (&)[N]) noexcept {
   return N;
 }
 #endif
-RK_HEADER_END
 /// @}
 
 #endif // RK_DEFS_H

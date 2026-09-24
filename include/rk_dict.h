@@ -150,9 +150,8 @@ RK_HEADER_BEGIN
 #define dict_cap(self)                    ((size_t)((self)->cap))
 
 /// @brief `float dict_load_factor(Dict(K, V)* self)` - Returns the current load factor (live
-/// entries / capacity). Rehash is triggered when the
-/// combined live-and-tombstone load exceeds `RK_DICT_LOAD_NUM /
-/// RK_DICT_LOAD_DEN`.
+/// entries / capacity). Rehash is triggered when the combined live-and-tombstone load exceeds
+/// `RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN`.
 #define dict_load_factor(self)            ((float)dict_count(self) / (float)dict_cap(self))
 
 /// @brief `Dict(K, V)* dict_clear(K, V, Dict(K, V)* self)` - Marks all slots in the Dict as free,
@@ -375,9 +374,9 @@ RK_HEADER_BEGIN
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-// Probe result packed into a single size_t: bits[1:0] = flags, bits[N:2] = slot
-// index. bit 0: found — key exists at the returned slot. bit 1: tombstone —
-// insert slot was a deleted slot (only meaningful when !found).
+// Probe result packed into a single size_t: bits[1:0] = flags, bits[N:2] = slot index. bit 0: found
+// — key exists at the returned slot. bit 1: tombstone — insert slot was a deleted slot (only
+// meaningful when !found).
 typedef size_t RK__hashprobe_t;
 #define RK__PROBE_MAKE(found, tomb, idx)                                                           \
   (((size_t)(idx) << 2) | ((size_t)(tomb) << 1) | (size_t)(found))
