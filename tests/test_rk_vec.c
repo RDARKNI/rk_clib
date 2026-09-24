@@ -6,10 +6,10 @@ RK__IGNWARN_CLANG_BEG("-Wunused-variable")
 
 static unsigned char vec_storage[102400];
 static Arena         MYARENA          = arena_init_static(vec_storage);
-static Allocator     glob_arena_alloc = arena_to_alloc_static(&MYARENA);
+rk_unused static Allocator glob_arena_alloc = arena_to_alloc_static(&MYARENA);
 
 triax_test(vec, vec_init) {
-  Allocator used_alloc = alloc_ctx;
+  rk_unused Allocator used_alloc = alloc_ctx;
   Vec(int)  v;
   {
     v = vec_init(int, 4);
@@ -19,7 +19,7 @@ triax_test(vec, vec_init) {
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     vec_push(v, 99);
     triax_expect_eq(vec_count(v), 1u), triax_expect_false(vec_is_empty(v));
-    vec_pop(v);
+    (void)vec_pop(v);
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     triax_expect_eq(vec_cap(v), 4);
     triax_expect_eq(vec_allocation_size(v), sizeof(VecHeader) + sizeof(int) * 4);
@@ -38,7 +38,7 @@ triax_test(vec, vec_init) {
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     vec_push(v, 99);
     triax_expect_eq(vec_count(v), 1u), triax_expect_false(vec_is_empty(v));
-    vec_pop(v);
+    (void)vec_pop(v);
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     triax_expect_eq(vec_cap(v), 4);
     triax_expect_eq(vec_allocation_size(v), sizeof(VecHeader) + sizeof(int) * 4);
@@ -48,7 +48,7 @@ triax_test(vec, vec_init) {
 }
 
 triax_test(vec, init_list) {
-  Allocator used_alloc = alloc_ctx;
+  rk_unused Allocator used_alloc = alloc_ctx;
   Vec(int)  v;
   {
     v = vec_init_list(int, 0, 1, 2, 3, 4, 5);
@@ -78,7 +78,7 @@ triax_test(vec, init_list) {
 }
 
 triax_test(vec, vec_copy) {
-  Allocator used_alloc = alloc_ctx;
+  rk_unused Allocator used_alloc = alloc_ctx;
   Vec(int)  v;
   {
 #if RK_CUSTOM_ALLOCATORS

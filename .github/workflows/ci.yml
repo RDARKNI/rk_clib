@@ -65,7 +65,11 @@ jobs:
       - name: Configure (warnings-as-errors)
         run: cmake -S . -B build -DRK_CLIB_WARNINGS_AS_ERRORS=ON -DBUILD_TESTING=ON
       - name: Build
-        run: cmake --build build
+        # -- -k (make's keep-going): without it, make aborts the whole build
+        # the moment any one target fails, so e.g. rk_clib-selftest-c-noalloc
+        # never even gets attempted once rk_clib-selftest-c fails -- hiding
+        # whatever it would have found until a separate, later push.
+        run: cmake --build build -- -k
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
@@ -92,7 +96,7 @@ jobs:
       - name: Configure (Clang, ASan+UBSan)
         run: cmake -S . -B build -DRK_CLIB_ENABLE_SANITIZERS=ON -DBUILD_TESTING=ON
       - name: Build
-        run: cmake --build build
+        run: cmake --build build -- -k
       - name: Test
         # Leak detection is left on here (unlike Triax's own CI, which sets
         # ASAN_OPTIONS=detect_leaks=0): rk_clib's test suite has no known

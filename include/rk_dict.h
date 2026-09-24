@@ -395,7 +395,10 @@ typedef size_t RK__hashprobe_t;
 // internal helper macros
 #define RK__DS_home(MASK, hash)               ((size_t)(hash) & (MASK))
 #define RK__DS_next(MASK, i)                  (((i) + 1) & (MASK))
-#define RK__DS_fp(hash)                       ((hash) >> (bitsof(hash) - 7))
+// The shift always yields a 7-bit value (0-127), which always fits in u8 --
+// every call site assigns straight into a u8, so the cast belongs here once
+// rather than at each site.
+#define RK__DS_fp(hash)                       ((u8)((hash) >> (bitsof(hash) - 7)))
 
 #define RK__DS_SLOT_EMPTY                     ((u8)0x80)
 #define RK__DS_SLOT_DELETED                   ((u8)0xFE)

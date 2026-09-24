@@ -896,14 +896,16 @@ static_fun char str_replace_at(Str* restrict self, size_t pos, char c) {
 static_fun Str* str_to_upper(Str* restrict self) {
   char* s = self->str;
   for (size_t i = 0, len = self->len; i < len; ++i) {
-    s[i] -= (s[i] >= 'a' && s[i] <= 'z') * ('a' - 'A');
+    // The adjustment is always exactly 0 or 'a'-'A', so the result always
+    // stays within a valid char; the cast just makes that narrowing explicit.
+    s[i] = (char)(s[i] - (s[i] >= 'a' && s[i] <= 'z') * ('a' - 'A'));
   }
   return self;
 }
 static_fun Str* str_to_lower(Str* restrict self) {
   char* s = self->str;
   for (size_t i = 0, len = self->len; i < len; ++i) {
-    s[i] += (s[i] >= 'A' && s[i] <= 'Z') * ('a' - 'A');
+    s[i] = (char)(s[i] + (s[i] >= 'A' && s[i] <= 'Z') * ('a' - 'A'));
   }
   return self;
 }

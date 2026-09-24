@@ -762,7 +762,7 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 #ifndef __cplusplus
 # define rk_dummyof(v)     ((typeof(v)){RK_ZINIT})
 # define rk_dummyofp(v)    ((typeof(v)*)0)
-# define typeof_decayed(v) typeof(0, rk_dummyof(v))
+# define typeof_decayed(v) typeof((void)0, rk_dummyof(v))
 #else
 # define rk_dummyof(v)     ((std::remove_reference<decltype(v)>::type*)0)
 # define rk_dummyofp(v)    ((typeof(v)*)0)
@@ -1227,7 +1227,7 @@ RK_S_TYPES(RK__DEF_SAT_S)
      return bitsof(T) - stdc_leading_zeros_##N(value);                                              \
    }                                                                                                \
    static_fun rk_const T stdc_bit_floor_##N(T value) rk_unsequenced {                               \
-     return (T)(value ? ((T)1u << (stdc_bit_width_##N(value) - 1u)) : 0u);                          \
+     return (T)(value ? ((T)1u << (stdc_bit_width_##N(value) - 1u)) : (T)0u);                       \
    }                                                                                                \
    static_fun rk_const T stdc_bit_ceil_##N(T value) rk_unsequenced {                                \
      if (!value) { return (T)1u; }                                                                  \

@@ -380,7 +380,7 @@ static_fun void  page_free(void* ptr, size_t size);
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return A pointer to the allocated array
 #define rk_arrdup(src, count, ...)                                                                 \
-  ((typeof((0, (src)[0]))*)rk_overload(RK__ARRDUP, src, count, ##__VA_ARGS__))
+  ((typeof(((void)0, (src)[0]))*)rk_overload(RK__ARRDUP, src, count, ##__VA_ARGS__))
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////

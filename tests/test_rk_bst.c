@@ -201,11 +201,11 @@ triax_test(bst, foreach_empty) {
 }
 
 triax_test(bst, remove_two_children) {
-  // Build:        5
-  //             /   \
-  //            3     7
-  //           / \   / \
-  //          1   4 6   8
+  /* Build:        5
+                 /   \
+                3     7
+               / \   / \
+              1   4 6   8 */
   Bst(int, char) b = bst_init(int, char);
   bst_set(int, char, &b, 5, 'e');
   bst_set(int, char, &b, 3, 'c');

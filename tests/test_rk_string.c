@@ -227,19 +227,19 @@ triax_test(string, str_find) {
   triax_expect_null(s);
   // end
 
-  const char* cstr = "hello";
-  s                = str_find(cstr, "ok");
+  const char* lit_cstr = "hello";
+  s                    = str_find(lit_cstr, "ok");
   triax_expect_null(s);
-  s = str_find(cstr, "ello");
+  s = str_find(lit_cstr, "ello");
   triax_expect_nonnull(s);
-  s = str_find(cstr, 'o');
+  s = str_find(lit_cstr, 'o');
   triax_expect_nonnull(s);
-  s = str_find(cstr, c);
+  s = str_find(lit_cstr, c);
   triax_expect_null(s);
-  s = str_find(cstr, cc);
+  s = str_find(lit_cstr, cc);
   triax_expect_null(s);
 
-  char* ccstr = (char*)cstr;
+  char* ccstr = (char*)lit_cstr;
   s           = str_find(ccstr, "ok");
   triax_expect_null(s);
   s = str_find(ccstr, "ello");
@@ -534,6 +534,7 @@ triax_test(string, str_tok_all_2) {
 triax_test(string, str_tok_all_3) {
   Strv s1 = strv_from_literal("hello"), s2 = strv_from_literal("hello"),
        s3 = strv_from_literal("hell"), s4 = strv_from_literal("hollo");
+  (void)s1, (void)s2, (void)s3, (void)s4;
   // triax_expect_strv_eq(s1, s2);
   // triax_expect_strv_neq(s1, s3);
   // triax_expect_strv_neq(s1, s4);
@@ -665,12 +666,17 @@ triax_test(string, string_test_split_example) {
   size_t i = 0;
   while (v.len != STR_SPLIT_END) { buf[i++] = str_split(&v, ' '); }
   triax_assert_eq(i, 4);
+  triax_expect_true(buf[0].len == 4u && !memcmp(buf[0].str, "this", 4));
+  triax_expect_true(buf[1].len == 2u && !memcmp(buf[1].str, "is", 2));
+  triax_expect_true(buf[2].len == 1u && !memcmp(buf[2].str, "a", 1));
+  triax_expect_true(buf[3].len == 4u && !memcmp(buf[3].str, "test", 4));
   Str    s2 = {RK_ZINIT};
   Strv   v2 = s2.v;
   Strv   buf2[64];
   size_t i2 = 0;
   while (v2.len != STR_SPLIT_END) { buf2[i2++] = str_split(&v2, ' '); }
   triax_assert_eq(i2, 1);
+  triax_expect_eq(buf2[0].len, 0u);
 }
 triax_test(string, string_test_empty) {
   Str s = {RK_ZINIT};
