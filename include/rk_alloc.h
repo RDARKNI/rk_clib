@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_alloc.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_alloc Allocator Interface
 /// @brief Customizable memory allocator abstraction for C.
 ///
@@ -26,12 +26,18 @@
 #ifndef _MSC_VER
 # include <sys/mman.h>
 # include <unistd.h>
-// todo important MAP_ANONYMOUS not available without the right macros
 
 # ifndef MAP_ANONYMOUS
 #  ifdef MAP_ANON
 #   define MAP_ANONYMOUS MAP_ANON
-#  elif defined(__linux__)
+#  elif defined(__linux__)                                                                         \
+      && (defined(__x86_64__) || defined(__i386__) || defined(__arm__) || defined(__aarch64__)     \
+          || defined(__riscv) || defined(__powerpc__) || defined(__powerpc64__)                    \
+          || defined(__s390__))
+// The kernel exposes MAP_ANONYMOUS as 0x20 on these architectures (the "asm-generic" layout).
+// Some Linux architectures override it (e.g. MIPS uses 0x0800, PA-RISC/Alpha use 0x10) — do not
+// extend this list to an architecture without confirming its own uapi/asm/mman.h value; a wrong
+// hardcoded value here is a silent runtime bug, not a build failure.
 #   define MAP_ANONYMOUS 0x20
 #  else
 #   error "RK_MAP_ANONYMOUS unknown on this platform, change posix feature test macro"

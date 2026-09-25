@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_defs.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_defs Common Definitions and Compatibility Layer
 /// @brief Common definitions and platform compatibility layer for rk_clib
 ///
@@ -515,7 +515,7 @@ static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
                  static_assert(sizeof(typeof(expr)) == sizeof(to_type),                            \
                                "Types must be the same size.");                                    \
                  typeof_decayed(expr) f;                                                           \
-                 to_type               t;                                                          \
+                 to_type t;                                                                        \
                 }){(expr)}                                                                         \
                     .t,                                                                            \
                 *(to_type*)rk_memcpy(&(to_type){RK_ZINIT},                                         \
@@ -946,9 +946,9 @@ T:                                                                              
                (typeof(x))0, (typeof(y))0)
 
 #define RK__wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(rk_ensure_numclass_compatible(RK__wider_t(a1, a2), a3) +                            \
-                       sizeof(RK__wider_t(a1, a2)) >=                                               \
-                   sizeof(typeof(a3)),                                                              \
+  rk_static_if(rk_ensure_numclass_compatible(RK__wider_t(a1, a2), a3)                              \
+                       + sizeof(RK__wider_t(a1, a2))                                               \
+                   >= sizeof(typeof(a3)),                                                          \
                RK__wider_t(a1, a2), (typeof(a3))0)
 
 #define RK__twonum_macro(pref, classes, x, y)                                                      \

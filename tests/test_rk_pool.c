@@ -8,7 +8,7 @@ typedef struct PoolIntPair { int a, b; } PoolIntPair;
 
 triax_test(pool, dynamic_init_empty_state) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 8);
+  Pool(int) p = pool_init(int, 8);
   triax_expect_eq((size_t)8, pool_cap(&p));
   triax_expect_eq((size_t)0, pool_used(&p));
   triax_expect_eq((size_t)8, pool_remaining(&p));
@@ -19,7 +19,7 @@ triax_test(pool, dynamic_init_empty_state) {
 
 triax_test(pool, static_init_empty_state) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   triax_expect_eq((size_t)4, pool_cap(&p));
   triax_expect_eq((size_t)0, pool_used(&p));
   triax_expect_eq((size_t)4, pool_remaining(&p));
@@ -29,7 +29,7 @@ triax_test(pool, static_init_empty_state) {
 
 triax_test(pool, dynamic_new_single_element) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   int* x      = pool_new(&p);
   triax_expect_nonnull(x);
   *x = 1234;
@@ -43,7 +43,7 @@ triax_test(pool, dynamic_new_single_element) {
 
 triax_test(pool, static_new_single_element) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   int* x         = pool_new(&p);
   triax_expect_nonnull(x);
   *x = 55;
@@ -54,7 +54,7 @@ triax_test(pool, static_new_single_element) {
 
 triax_test(pool, dynamic_insert_copies_value) {
   POOL_DEFINE(PoolIntPair);
-  Pool(PoolIntPair) p = pool_init_dynamic(PoolIntPair, 4);
+  Pool(PoolIntPair) p = pool_init(PoolIntPair, 4);
   PoolIntPair  in     = {11, 22};
   PoolIntPair* out    = pool_put(&p, in);
   triax_expect_nonnull(out);
@@ -67,7 +67,7 @@ triax_test(pool, dynamic_insert_copies_value) {
 
 triax_test(pool, static_insert_copies_value) {
   POOL_DEFINE(PoolIntPair, 4);
-  Pool(PoolIntPair, 4) p = pool_init_static;
+  Pool(PoolIntPair, 4) p = staticpool_init;
   PoolIntPair in = {7, 9}, *out = pool_put(&p, in);
   triax_expect_nonnull(out);
   triax_expect_eq(7, out->a);
@@ -78,7 +78,7 @@ triax_test(pool, static_insert_copies_value) {
 
 triax_test(pool, dynamic_fill_to_capacity) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   int *a = pool_new(&p), *b = pool_new(&p), *c = pool_new(&p), *d = pool_new(&p);
   triax_expect_nonnull(a);
   triax_expect_nonnull(b);
@@ -93,7 +93,7 @@ triax_test(pool, dynamic_fill_to_capacity) {
 
 triax_test(pool, static_fill_to_capacity) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   int* a         = pool_new(&p);
   int* b         = pool_new(&p);
   int* c         = pool_new(&p);
@@ -109,7 +109,7 @@ triax_test(pool, static_fill_to_capacity) {
 
 triax_test(pool, dynamic_new_crash, .isolation = TRIAX_ISOLATION_ON) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
@@ -119,7 +119,7 @@ triax_test(pool, dynamic_new_crash, .isolation = TRIAX_ISOLATION_ON) {
 
 triax_test(pool, static_new_crash, .isolation = TRIAX_ISOLATION_ON) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
@@ -129,7 +129,7 @@ triax_test(pool, static_new_crash, .isolation = TRIAX_ISOLATION_ON) {
 
 triax_test(pool, dynamic_insert_crash, .isolation = TRIAX_ISOLATION_ON) {
   POOL_DEFINE(PoolIntPair);
-  Pool(PoolIntPair) p = pool_init_dynamic(PoolIntPair, 4);
+  Pool(PoolIntPair) p = pool_init(PoolIntPair, 4);
   PoolIntPair v       = {1, 2};
   triax_expect_nonnull(pool_put(&p, v));
   triax_expect_nonnull(pool_put(&p, v));
@@ -140,7 +140,7 @@ triax_test(pool, dynamic_insert_crash, .isolation = TRIAX_ISOLATION_ON) {
 
 triax_test(pool, delete_reclaims_slot_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   int* a      = pool_new(&p);
   int* b      = pool_new(&p);
   int* c      = pool_new(&p);
@@ -167,7 +167,7 @@ triax_test(pool, delete_reclaims_slot_dynamic) {
 
 triax_test(pool, delete_reclaims_slot_static) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   int* a         = pool_new(&p);
   int* b         = pool_new(&p);
   int* c         = pool_new(&p);
@@ -191,7 +191,7 @@ triax_test(pool, delete_reclaims_slot_static) {
 
 triax_test(pool, clear_resets_usage_but_preserves_capacity_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 8);
+  Pool(int) p = pool_init(int, 8);
   int* a      = pool_new(&p);
   int* b      = pool_new(&p);
   triax_expect_nonnull(a);
@@ -215,7 +215,7 @@ triax_test(pool, clear_resets_usage_but_preserves_capacity_dynamic) {
 
 triax_test(pool, clear_resets_usage_but_preserves_capacity_static) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_eq((size_t)2, pool_used(&p));
@@ -230,7 +230,7 @@ triax_test(pool, clear_resets_usage_but_preserves_capacity_static) {
 
 triax_test(pool, release_resets_dynamic_pool, .isolation = TRIAX_ISOLATION_ON) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 8);
+  Pool(int) p = pool_init(int, 8);
   int* a      = pool_new(&p);
   int* b      = pool_new(&p);
   triax_expect_nonnull(a);
@@ -248,7 +248,7 @@ triax_test(pool, release_resets_dynamic_pool, .isolation = TRIAX_ISOLATION_ON) {
 
 triax_test(pool, release_resets_static_pool_usage) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_eq((size_t)2, pool_used(&p));
@@ -264,7 +264,7 @@ triax_test(pool, release_resets_static_pool_usage) {
 
 triax_test(pool, foreach_visits_all_inserted_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 8);
+  Pool(int) p = pool_init(int, 8);
   int* a      = pool_put(&p, 3);
   int* b      = pool_put(&p, 5);
   int* c      = pool_put(&p, 7);
@@ -281,7 +281,7 @@ triax_test(pool, foreach_visits_all_inserted_dynamic) {
 
 triax_test(pool, foreach_skips_deleted_slots_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 8);
+  Pool(int) p = pool_init(int, 8);
   int* a      = pool_put(&p, 10);
   int* b      = pool_put(&p, 20);
   int* c      = pool_put(&p, 30);
@@ -302,7 +302,7 @@ triax_test(pool, foreach_skips_deleted_slots_dynamic) {
 
 triax_test(pool, foreach_allows_mutation_static) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   triax_expect_nonnull(pool_put(&p, 1));
   triax_expect_nonnull(pool_put(&p, 2));
   triax_expect_nonnull(pool_put(&p, 3));
@@ -316,7 +316,7 @@ triax_test(pool, foreach_allows_mutation_static) {
 
 triax_test(pool, foreach_empty_pool_is_noop_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   int count   = 0;
   pool_foreach(&p, it) { (void)it, ++count; }
   triax_expect_eq(0, count);
@@ -326,7 +326,7 @@ triax_test(pool, foreach_empty_pool_is_noop_dynamic) {
 
 triax_test(pool, addresses_of_distinct_live_elements_are_distinct_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   int* a      = pool_new(&p);
   int* b      = pool_new(&p);
   int* c      = pool_new(&p);
@@ -341,7 +341,7 @@ triax_test(pool, addresses_of_distinct_live_elements_are_distinct_dynamic) {
 
 triax_test(pool, addresses_of_distinct_live_elements_are_distinct_static) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   int* a         = pool_new(&p);
   int* b         = pool_new(&p);
   int* c         = pool_new(&p);
@@ -355,7 +355,7 @@ triax_test(pool, addresses_of_distinct_live_elements_are_distinct_static) {
 
 triax_test(pool, pair_values_roundtrip_through_foreach_dynamic) {
   POOL_DEFINE(PoolIntPair);
-  Pool(PoolIntPair) p = pool_init_dynamic(PoolIntPair, 4);
+  Pool(PoolIntPair) p = pool_init(PoolIntPair, 4);
   triax_expect_nonnull(pool_put(&p, ((PoolIntPair){1, 2})));
   triax_expect_nonnull(pool_put(&p, ((PoolIntPair){3, 4})));
   triax_expect_nonnull(pool_put(&p, ((PoolIntPair){5, 6})));
@@ -375,7 +375,7 @@ triax_test(pool, pair_values_roundtrip_through_foreach_dynamic) {
 
 triax_test(pool, clear_after_full_allows_refill_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 4);
+  Pool(int) p = pool_init(int, 4);
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
@@ -393,7 +393,7 @@ triax_test(pool, clear_after_full_allows_refill_dynamic) {
 
 triax_test(pool, clear_after_full_allows_refill_static) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p = pool_init_static;
+  Pool(int, 4) p = staticpool_init;
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
@@ -412,7 +412,7 @@ triax_test(pool, clear_after_full_allows_refill_static) {
 
 triax_test(pool, try_new_returns_null_when_full_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 3);
+  Pool(int) p = pool_init(int, 3);
   triax_expect_nonnull(pool_try_new(&p));
   triax_expect_nonnull(pool_try_new(&p));
   triax_expect_nonnull(pool_try_new(&p));
@@ -424,7 +424,7 @@ triax_test(pool, try_new_returns_null_when_full_dynamic) {
 
 triax_test(pool, try_new_returns_null_when_full_static) {
   POOL_DEFINE(int, 3);
-  Pool(int, 3) p = pool_init_static;
+  Pool(int, 3) p = staticpool_init;
   triax_expect_nonnull(pool_try_new(&p));
   triax_expect_nonnull(pool_try_new(&p));
   triax_expect_nonnull(pool_try_new(&p));
@@ -435,7 +435,7 @@ triax_test(pool, try_new_returns_null_when_full_static) {
 
 triax_test(pool, try_new_after_delete_succeeds_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = pool_init_dynamic(int, 2);
+  Pool(int) p = pool_init(int, 2);
   int* a      = pool_try_new(&p);
   int* b      = pool_try_new(&p);
   triax_expect_nonnull(a);
@@ -455,7 +455,7 @@ triax_test(pool, try_new_after_delete_succeeds_dynamic) {
 
 triax_test(pool, try_put_returns_null_when_full_dynamic) {
   POOL_DEFINE(PoolIntPair);
-  Pool(PoolIntPair) p = pool_init_dynamic(PoolIntPair, 2);
+  Pool(PoolIntPair) p = pool_init(PoolIntPair, 2);
   PoolIntPair v       = {1, 2};
   triax_expect_nonnull(pool_try_put(&p, v));
   triax_expect_nonnull(pool_try_put(&p, v));
@@ -467,7 +467,7 @@ triax_test(pool, try_put_returns_null_when_full_dynamic) {
 
 triax_test(pool, try_put_returns_null_when_full_static) {
   POOL_DEFINE(PoolIntPair, 2);
-  Pool(PoolIntPair, 2) p = pool_init_static;
+  Pool(PoolIntPair, 2) p = staticpool_init;
   PoolIntPair v          = {3, 4};
   triax_expect_nonnull(pool_try_put(&p, v));
   triax_expect_nonnull(pool_try_put(&p, v));
@@ -478,7 +478,7 @@ triax_test(pool, try_put_returns_null_when_full_static) {
 
 triax_test(pool, try_put_copies_value_dynamic) {
   POOL_DEFINE(PoolIntPair);
-  Pool(PoolIntPair) p = pool_init_dynamic(PoolIntPair, 4);
+  Pool(PoolIntPair) p = pool_init(PoolIntPair, 4);
   PoolIntPair* out    = pool_try_put(&p, ((PoolIntPair){99, 77}));
   triax_expect_nonnull(out);
   triax_expect_eq(out->a, 99);

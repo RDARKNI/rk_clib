@@ -125,3 +125,29 @@ jobs:
         run: cmake --build build --config RelWithDebInfo
       - name: Test
         run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+
+  # Regenerates the single-file amalgamation (single_include/rklib.h) from
+  # include/rklib.h via make_one_simple.py and commits it back to main, so
+  # there's always an up-to-date, drop-in single header available at a
+  # stable URL without needing a tagged release. Only runs on pushes to main
+  # (not PRs, which can't push back, and not other branches, to avoid
+  # amalgamation commits on in-progress work). Uses the default GITHUB_TOKEN
+  # for the commit-back push, which GitHub does not re-trigger workflow runs
+  # for, so this can't loop.
+  amalgamate:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Generate single_include/rklib.h
+        run: |
+          mkdir -p single_include
+          python3 make_one_simple.py include/rklib.h -o single_include/rklib.h
+      - name: Commit if changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: regenerate single_include/rklib.h [skip ci]"
+          file_pattern: single_include/rklib.h

@@ -1,6 +1,7 @@
 #ifndef TEST_DICT_H
 #define TEST_DICT_H
 #include "conf.h"
+#include "rk_dict.h"
 
 RK_HEADER_BEGIN
 RK__IGNWARN_CLANG_BEG("-Wunused-variable")
@@ -19,20 +20,6 @@ extern_fun int int_cmp(int a, int b) {
 
 // Instantiate the dict for int -> cstr
 DICT_DEFINE(int, cstr, int_hash, int_cmp)
-
-// dict_init_static/set_init_static must be usable as genuine constant-expression initializers for
-// static/global variables (unlike dict_init/set_init, which allocate and are therefore ordinary
-// function calls) -- declaring these at file scope is itself part of the test. The allocator must
-// be given as a literal expression here, not a separately-declared variable: referencing another
-// object's value (even a `static const` one) is not itself a constant expression in C.
-// Only meaningful under RK_CUSTOM_ALLOCATORS: with it disabled, dict_init_static takes no allocator
-// argument at all (there is no allocator field to set).
-#if RK_CUSTOM_ALLOCATORS
-static unsigned char   dict_static_storage[4096];
-static Arena           DICT_STATIC_ARENA = arena_init_static(dict_static_storage);
-static Dict(int, cstr) g_static_dict
-    = dict_init_static(int, cstr, arena_to_alloc_static(&DICT_STATIC_ARENA));
-#endif
 
 typedef const char*     cstr;
 
@@ -70,8 +57,8 @@ triax_test(dict, null) {
   triax_assert_true(dict_get_or_add(int, cstr, &d, 0, "ok", &inserted));
 }
 
-triax_test(dict, init_static) {
-  Dict(int, cstr) d = dict_init_static(int, cstr);
+triax_test(dict, zero_initialized) {
+  Dict(int, cstr) d = {RK_ZINIT};
   triax_expect_true(dict_is_empty(&d));
   triax_expect_eq(dict_count(&d), 0u);
   triax_expect_eq(dict_cap(&d), 0u);
@@ -84,26 +71,6 @@ triax_test(dict, init_static) {
   dict_release(int, cstr, &d);
   triax_expect_true(dict_is_empty(&d));
 }
-
-#if RK_CUSTOM_ALLOCATORS
-triax_test(dict, init_static_file_scope_honors_baked_in_allocator) {
-  // g_static_dict was declared at file scope via
-  // dict_init_static(int, cstr, arena_to_alloc_static(&DICT_STATIC_ARENA)) -- a genuine
-  // constant-expression initializer, not runnable code. Verify the baked-in allocator is what
-  // actually backs the first (lazy) allocation, matching dict_init's allocator-argument semantics.
-  triax_expect_eq(dict_cap(&g_static_dict), 0u);
-  triax_expect_memeq((Allocator[]){dict_allocator(&g_static_dict)},
-                     (Allocator[]){arena_to_alloc_static(&DICT_STATIC_ARENA)}, sizeof(Allocator));
-
-  triax_expect_true(dict_set(int, cstr, &g_static_dict, 1, "one"));
-  triax_expect_streq(*dict_get(int, cstr, &g_static_dict, 1), "one");
-  triax_expect_memeq((Allocator[]){dict_allocator(&g_static_dict)},
-                     (Allocator[]){arena_to_alloc_static(&DICT_STATIC_ARENA)}, sizeof(Allocator));
-  triax_expect_true(arena_used(&DICT_STATIC_ARENA) > 0);
-
-  dict_release(int, cstr, &g_static_dict);
-}
-#endif
 
 triax_test(dict, tests1) {
   // ---- basic insert/get ----
@@ -363,6 +330,44 @@ triax_test(dict, reserve_noop_when_smaller) {
   dict_release(int, cstr, &d);
 }
 
+// dict_reserve(K, V, self, n) counts live entries, not raw slots: after reserving room for n
+// entries, inserting exactly n of them must not trigger another automatic rehash.
+triax_test(dict, reserve_counts_entries_not_slots) {
+  Dict(int, cstr) d = dict_init(int, cstr, 0);
+  dict_reserve(int, cstr, &d, 100);
+  size_t reserved_cap = dict_cap(&d);
+  triax_expect_true(reserved_cap > 0u);
+  for (int i = 0; i < 100; ++i) { dict_set(int, cstr, &d, i, "v"); }
+  triax_expect_eq(dict_count(&d), 100u);
+  triax_expect_eq(dict_cap(&d), reserved_cap); // no growth should have been needed
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, shrink_to_fit) {
+  Dict(int, cstr) d = dict_init(int, cstr, 0);
+  for (int i = 0; i < 200; ++i) { dict_set(int, cstr, &d, i, "v"); }
+  size_t big_cap = dict_cap(&d);
+
+  for (int i = 0; i < 190; ++i) { dict_remove(int, cstr, &d, i); }
+  triax_expect_eq(dict_count(&d), 10u);
+
+  dict_shrink_to_fit(int, cstr, &d);
+  triax_expect_true(dict_cap(&d) < big_cap);
+  triax_expect_eq(dict_count(&d), 10u);
+  for (int i = 190; i < 200; ++i) { triax_expect_true(dict_contains(int, cstr, &d, i)); }
+
+  // shrinking an empty Dict frees the table entirely
+  for (int i = 190; i < 200; ++i) { dict_remove(int, cstr, &d, i); }
+  dict_shrink_to_fit(int, cstr, &d);
+  triax_expect_eq(dict_cap(&d), 0u);
+
+  // still usable after
+  dict_set(int, cstr, &d, 1, "one");
+  triax_expect_true(dict_contains(int, cstr, &d, 1));
+
+  dict_release(int, cstr, &d);
+}
+
 static inline int rk_set_int_cmp(int x, int y) { return x != y; }
 static inline int rk_set_int_hash(int x) { return x; }
 
@@ -387,8 +392,8 @@ triax_test(set, tests0) {
   for (int i = 0; i < 256; ++i) { set_add(uchar, &s, (uchar)i); }
   triax_assert_eq(set_count(&s), 256);
 }
-triax_test(set, init_static) {
-  Set(uchar) s = set_init_static(uchar);
+triax_test(set, zero_initialized) {
+  Set(uchar) s = {RK_ZINIT};
   triax_expect_true(set_is_empty(&s));
   triax_expect_eq(set_count(&s), 0u);
   triax_expect_eq(set_cap(&s), 0u);
@@ -400,6 +405,45 @@ triax_test(set, init_static) {
   set_release(uchar, &s);
   triax_expect_true(set_is_empty(&s));
 }
+
+// set_reserve(K, self, n) counts live entries, not raw slots: after reserving room for n entries,
+// inserting exactly n of them must not trigger another automatic rehash.
+triax_test(set, reserve_counts_entries_not_slots) {
+  Set(int) s = set_init(int, 0);
+  set_reserve(int, &s, 100);
+  size_t reserved_cap = set_cap(&s);
+  triax_expect_true(reserved_cap > 0u);
+  for (int i = 0; i < 100; ++i) { set_add(int, &s, i); }
+  triax_expect_eq(set_count(&s), 100u);
+  triax_expect_eq(set_cap(&s), reserved_cap); // no growth should have been needed
+  set_release(int, &s);
+}
+
+triax_test(set, shrink_to_fit) {
+  Set(int) s = set_init(int, 0);
+  for (int i = 0; i < 200; ++i) { set_add(int, &s, i); }
+  size_t big_cap = set_cap(&s);
+
+  for (int i = 0; i < 190; ++i) { set_remove(int, &s, i); }
+  triax_expect_eq(set_count(&s), 10u);
+
+  set_shrink_to_fit(int, &s);
+  triax_expect_true(set_cap(&s) < big_cap);
+  triax_expect_eq(set_count(&s), 10u);
+  for (int i = 190; i < 200; ++i) { triax_expect_true(set_contains(int, &s, i)); }
+
+  // shrinking an empty Set frees the table entirely
+  for (int i = 190; i < 200; ++i) { set_remove(int, &s, i); }
+  set_shrink_to_fit(int, &s);
+  triax_expect_eq(set_cap(&s), 0u);
+
+  // still usable after
+  set_add(int, &s, 1);
+  triax_expect_true(set_contains(int, &s, 1));
+
+  set_release(int, &s);
+}
+
 triax_test(arrdup, t0) {
   int  src[5] = {1, 2, 3, 4, 5};
   int* dst    = rk_arrdup(src, 5);

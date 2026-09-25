@@ -9,6 +9,8 @@
 #include "rk_alloc.h"
 #include "rk_arena.h"
 #include "rk_vec.h"
+#include "rk_heap.h"
+#include "rk_deque.h"
 #include "rk_arenastack.h"
 #include "rk_string.h"
 #include "rk_pool.h"

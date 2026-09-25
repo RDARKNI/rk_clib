@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_arenastack.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_arenastack ArenaStack Allocator Interface
 /// @brief Dynamic stack of arena allocators for growable, stack-like memory management with stable
 /// allocation addresses.
@@ -58,6 +58,12 @@ typedef struct ArenaStack {
 /// @note No-op if `self` is `NULL`.
 static_fun void        arenastack_release(ArenaStack* self);
 
+/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` is
+/// `NULL`.
+static_fun Allocator arenastack_allocator(const ArenaStack* self) {
+  return self ? vec_allocator(self->arenas) : alloc_ctx;
+}
+
 /// @brief Marks all Memory in the ArenaStack as reusable Clears all currently active arenas and
 /// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
 /// the current index are left unchanged until reused.
@@ -114,12 +120,6 @@ static_fun Allocator         arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
 
-/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` is
-/// `NULL`.
-static_fun Allocator arenastack_allocator(const ArenaStack* self) {
-  return self ? vec_allocator(self->arenas) : alloc_ctx;
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +160,8 @@ static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark
     }
     arena_clear(arena);
   }
-  rk_assert(0 && "Pointer was not allocated by this stack"), unreachable();
+  rk_assert(0 && "Pointer was not allocated by this stack");
+  unreachable();
 }
 
 static_fun ArenaStack RK__arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {

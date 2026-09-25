@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_trees.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_trees Tree Interfaces (Bst, Avl, Rbt)
 /// @brief Type-safe, generic binary search trees for C: a plain unbalanced `Bst`, a height-balanced
 /// `Avl`, and a left-leaning red-black `Rbt`. All three share the same node-walking, release, and
@@ -65,11 +65,6 @@
 #include "rk_alloc.h"
 RK_HEADER_BEGIN
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////// Public API
-/////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /// @brief Type-erased node header shared by every tree type's concrete node (`RK__BstNode`,
 /// `RK__AvlNode`, `RK__RbtNode` all start with the same `l`/`r` layout). This is the type a caller
 /// declares a traversal stack buffer as, e.g. `tree_node* stack[64];` for `bst_foreach()`.
@@ -98,20 +93,26 @@ typedef struct tree_iter {
   size_t      cap, top;
 } tree_iter;
 
+/// @brief Frees all nodes in the tree and resets it to an empty state. Identical across
+/// `Bst`/`Avl`/`Rbt` (also reachable as `bst_release`/`avl_release`/`rbt_release`) since it only
+/// ever needs to walk `l`/`r` and deallocate -- no rebalancing-specific logic applies here.
+#define tree_release(self)                                                                         \
+  RK__tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
+
 /// @brief `size_t tree_count(self)` - Returns the number of key-value pairs stored. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
 /// mutation are the only operations that differ by rebalancing strategy and therefore stay
 /// variant-prefixed.
-#define tree_count(self)    ((size_t)(self)->count)
-
-/// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
-#define tree_is_empty(self) (tree_count(self) == 0)
+#define tree_count(self) ((size_t)(self)->count)
 
 #if RK_CUSTOM_ALLOCATORS
 # define tree_allocator(self) rk_to_rvalue((self)->alloc)
 #else
 # define tree_allocator(self) ((void)(self), alloc_ctx)
 #endif
+
+/// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
+#define tree_is_empty(self) (tree_count(self) == 0)
 
 /// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
 /// Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`): the
@@ -126,13 +127,31 @@ typedef struct tree_iter {
   ((typeof((self)->root->entry)*)RK__tree_max_off((self)->_tree.root,                              \
                                                   offsetof(typeof(*(self)->root), entry)))
 
-/// @brief Frees all nodes in the tree and resets it to an empty state. Identical across
-/// `Bst`/`Avl`/`Rbt` (also reachable as `bst_release`/`avl_release`/`rbt_release`) since it only
-/// ever needs to walk `l`/`r` and deallocate -- no rebalancing-specific logic applies here.
-#define tree_release(self)                                                                         \
-  RK__tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
-
 //////////////////////////////////// Bst: unbalanced BST //////////////////////////////////////////
+
+/// @brief `BST_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific BST API for the given
+/// key/value combination.
+///
+/// Must be invoked at file scope, once per `(K, V)` combination, before any use of the
+/// corresponding `Bst(K, V)` type or its operations.
+///
+/// Generates:
+/// - `BstEntry(K, V)` — public entry struct with `K const key` and `V val`
+/// - `Bst(K, V)` — the tree struct holding the root pointer and element count
+/// - Internal implementation functions for search, insert, remove, and release
+///
+/// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
+/// @param V       Value type (same constraint as `K`)
+/// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
+/// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
+///
+/// Example:
+/// ```c
+/// typedef char* cstr;
+/// int int_cmp(int a, int b) { return a - b; }
+/// BST_DEFINE(int, cstr, int_cmp);
+/// ```
+#define BST_DEFINE(K, V, CMP_FUN)       RK__BST_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific BST struct name.
 #define Bst(K, V)                       bst_##K##_##V
@@ -147,13 +166,6 @@ typedef struct tree_iter {
 /// @return An initialised, empty `Bst(K, V)`
 #define bst_init(K, V, ...)             rk_overload(RK__bst_init, K, V, ##__VA_ARGS__)
 
-/// @brief `Bst(K, V) bst_init_static(Allocator alloc = alloc_ctx)` - Static/compile-time
-/// initializer for a BST. Suitable for global and static variables.
-/// @param K     Key type name
-/// @param V     Value type name
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
-#define bst_init_static(K, V, ...)      rk_overload(RK__bst_init_static, K, V, ##__VA_ARGS__)
-
 /// @brief `void bst_release(K, V, Bst(K, V)* self)` - Frees all nodes in the BST and resets it to
 /// an empty state. Alias for `tree_release()`.
 #define bst_release(K, V, self)         tree_release(self)
@@ -162,9 +174,29 @@ typedef struct tree_iter {
 /// BST. Alias for `tree_count()`.
 #define bst_count(self)                 tree_count(self)
 
+/// @brief Alias for `tree_allocator()`.
+#define bst_allocator(self)             tree_allocator(self)
+
 /// @brief `bool bst_is_empty(Bst(K, V)* self)` - Returns `true` iff the BST contains no elements.
 /// Alias for `tree_is_empty()`.
 #define bst_is_empty(self)              tree_is_empty(self)
+
+/// @brief `BstEntry(K, V)* bst_min(Bst(K, V)* self)` - Returns a pointer to the entry with the
+/// smallest key, or `NULL` if the BST is empty. Alias for `tree_min()`.
+#define bst_min(self)                   tree_min(self)
+
+/// @brief `BstEntry(K, V)* bst_max(Bst(K, V)* self)` - Returns a pointer to the entry with the
+/// largest key, or `NULL` if the BST is empty. Alias for `tree_max()`.
+#define bst_max(self)                   tree_max(self)
+
+/// @brief `V* bst_get(K, V, Bst(K, V)* self, K key)` - Looks up a key and returns a pointer to its
+/// associated value, or `NULL` if not found.
+/// @return Pointer to the value, or `NULL` if the key is absent
+#define bst_get(K, V, self, key)        RK__BST_PUB(K, V, get)(self, key)
+
+/// @brief `bool bst_contains(K, V, Bst(K, V)* self, K key)` - Returns `true` iff the BST contains
+/// an entry with the given key.
+#define bst_contains(K, V, self, key)   RK__BST_PUB(K, V, contains)(self, key)
 
 /// @brief `bool bst_set(K, V, Bst(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair. If `key` is already present, its value is overwritten. If not, a new node is allocated and
@@ -177,11 +209,6 @@ typedef struct tree_iter {
 /// @return Pointer to the added object, if added, or `NULL`, if not
 #define bst_add(K, V, self, key, value) RK__BST_PUB(K, V, add)(self, key, value)
 
-/// @brief `V* bst_get(K, V, Bst(K, V)* self, K key)` - Looks up a key and returns a pointer to its
-/// associated value, or `NULL` if not found.
-/// @return Pointer to the value, or `NULL` if the key is absent
-#define bst_get(K, V, self, key)        RK__BST_PUB(K, V, get)(self, key)
-
 /// @brief `V* bst_get_or_add(K, V, Bst(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
 /// Performs a single tree traversal, unlike a separate `bst_get()`/`bst_add()` pair.
@@ -192,48 +219,32 @@ typedef struct tree_iter {
 #define bst_get_or_add(K, V, self, key, default_value, inserted_out)                               \
   RK__BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
-/// @brief `bool bst_contains(K, V, Bst(K, V)* self, K key)` - Returns `true` iff the BST contains
-/// an entry with the given key.
-#define bst_contains(K, V, self, key) RK__BST_PUB(K, V, contains)(self, key)
-
-/// @brief `bool bst_extract(K, V, Bst(K, V)* self, K key, V* value_outptr)` - Removes the entry
-/// with `key` from the BST and writes its value to `value_outptr`.
-/// @param value_outptr Non-null pointer; where the removed value is written, if found
+/// @brief `bool bst_extract(K, V, Bst(K, V)* self, K key, V* out)` - Removes the entry
+/// with `key` from the BST and writes its value to `out`.
+/// @param out Non-null pointer; where the removed value is written, if found
 /// @return `true` if the key was found and removed, `false` otherwise
-#define bst_extract(K, V, self, key, value_outptr)                                                 \
-  RK__BST_PUB(K, V, extract)(self, key, value_outptr)
+#define bst_extract(K, V, self, key, out) RK__BST_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool bst_remove(K, V, Bst(K, V)* self, K key)` - Removes the entry with `key` from the
 /// BST, discarding its value.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define bst_remove(K, V, self, key) RK__BST_PUB(K, V, remove)(self, key)
-
-/// @brief `BstEntry(K, V)* bst_min(Bst(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the BST is empty. Alias for `tree_min()`.
-#define bst_min(self)               tree_min(self)
-
-/// @brief `BstEntry(K, V)* bst_max(Bst(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the BST is empty. Alias for `tree_max()`.
-#define bst_max(self)               tree_max(self)
-
-/// @brief Alias for `tree_allocator()`.
-#define bst_allocator(self)         tree_allocator(self)
+#define bst_remove(K, V, self, key)       RK__BST_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the BST in ascending key order.
 ///
-/// Performs an in-order traversal using a caller-supplied stack buffer. The loop variable `_entry`
+/// Performs an in-order traversal using a caller-supplied stack buffer. The loop variable `entry`
 /// is a `const BstEntry(K, V)*` pointing to each entry in turn.
 ///
 /// @param self          Pointer to the `Bst(K, V)` to iterate
 /// @param stack_buf     Array of `tree_node*` used as the traversal stack
-/// @param stack_buf_cap Number of elements in `stack_buf`; must be at least the number of nodes on
+/// @param stack_cap     Number of elements in `stack_buf`; must be at least the number of nodes on
 /// the tree's longest root-to-leaf path (its height, counting nodes rather than edges) to avoid
 /// writing past `stack_buf`. Checked via `rk_assert` in debug builds only; violating this in a
 /// release build is undefined behaviour, not a caught error.
-/// @param _entry        Name for the loop variable (a `const BstEntry(K, V)*`)
+/// @param entry         Name for the loop variable (a `const BstEntry(K, V)*`)
 ///
 /// @warning Do not insert or remove elements during iteration.
-/// @warning If `stack_buf_cap` is less than the tree height, an assertion fires.
+/// @warning If `stack_cap` is less than the tree height, an assertion fires.
 ///
 /// Example:
 /// ```c
@@ -242,15 +253,23 @@ typedef struct tree_iter {
 ///     printf("%d -> %s\n", e->key, e->val);
 /// }
 /// ```
-#define bst_foreach(self, stack_buf, stack_buf_cap, _entry)                                        \
-  tree_foreach(self, stack_buf, stack_buf_cap, _entry)
+#define bst_foreach(self, stack_buf, stack_cap, entry)                                             \
+  tree_foreach(self, stack_buf, stack_cap, entry)
 
 /////////////////////////////////////// Avl: AVL-balanced BST /////////////////////////////////////
 
+/// @brief `AVL_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific AVL tree API for the
+/// given key/value combination. See `BST_DEFINE()` for the shared usage pattern.
+/// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
+/// @param V       Value type (same constraint as `K`)
+/// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
+/// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
+#define AVL_DEFINE(K, V, CMP_FUN)       RK__AVL_DEFINE(K, V, CMP_FUN)
+
 /// @brief Generates a type-specific Avl struct name.
-#define Avl(K, V)                  avl_##K##_##V
+#define Avl(K, V)                       avl_##K##_##V
 /// @brief Generates a type-specific Avl entry struct name.
-#define AvlEntry(K, V)             avl_entry_##K##_##V
+#define AvlEntry(K, V)                  avl_entry_##K##_##V
 
 /// @brief `Avl(K, V) avl_init(K, V, Allocator alloc = alloc_ctx)` - Initialises and returns an
 /// empty Avl tree.
@@ -258,61 +277,22 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Avl(K, V)`
-#define avl_init(K, V, ...)        rk_overload(RK__avl_init, K, V, ##__VA_ARGS__)
-
-/// @brief `Avl(K, V) avl_init_static(Allocator alloc = alloc_ctx)` - Static/compile-time
-/// initializer for an Avl tree. Suitable for global and static variables.
-#define avl_init_static(K, V, ...) rk_overload(RK__avl_init_static, K, V, ##__VA_ARGS__)
+#define avl_init(K, V, ...)             rk_overload(RK__avl_init, K, V, ##__VA_ARGS__)
 
 /// @brief `void avl_release(K, V, Avl(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
-#define avl_release(K, V, self)    tree_release(self)
+#define avl_release(K, V, self)         tree_release(self)
 
 /// @brief `size_t avl_count(Avl(K, V)* self)` - Returns the number of key-value pairs stored.
 /// Alias for `tree_count()`.
-#define avl_count(self)            tree_count(self)
+#define avl_count(self)                 tree_count(self)
+
+/// @brief Alias for `tree_allocator()`.
+#define avl_allocator(self)             tree_allocator(self)
 
 /// @brief `bool avl_is_empty(Avl(K, V)* self)` - Returns `true` iff the tree contains no elements.
 /// Alias for `tree_is_empty()`.
-#define avl_is_empty(self)         tree_is_empty(self)
-
-/// @brief `bool avl_set(K, V, Avl(K, V)* self, K key, V value)` - Inserts or updates a key-value
-/// pair, rebalancing as needed.
-/// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define avl_set(K, V, self, k, v)  RK__AVL_PUB(K, V, set)(self, k, v)
-
-/// @brief `V* avl_add(K, V, Avl(K, V)* self, K key, V value)` - Inserts a key-value pair only if
-/// `key` is not already present. Existing values are not overwritten.
-/// @return Pointer to the added value, if added, or `NULL`, if not
-#define avl_add(K, V, self, k, v)  RK__AVL_PUB(K, V, add)(self, k, v)
-
-/// @brief `V* avl_get(K, V, Avl(K, V)* self, K key)` - Looks up a key and returns a pointer to its
-/// associated value, or `NULL` if not found.
-#define avl_get(K, V, self, k)     RK__AVL_PUB(K, V, get)(self, k)
-
-/// @brief `V* avl_get_or_add(K, V, Avl(K, V)* self, K key, V default_value, bool* inserted_out)` -
-/// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
-/// Performs a single tree traversal, unlike a separate `avl_get()`/`avl_add()` pair.
-/// @param default_value Value to insert if `key` is not present.
-/// @param inserted_out Set to `true` if a new node was inserted, `false` if the key already
-/// existed. Must not be `NULL`.
-/// @return Pointer to the value for `key` (never `NULL`).
-#define avl_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__AVL_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
-
-/// @brief `bool avl_contains(K, V, Avl(K, V)* self, K key)` - Returns `true` iff the tree contains
-/// an entry with the given key.
-#define avl_contains(K, V, self, k)     (!!avl_get(K, V, self, k))
-
-/// @brief `bool avl_remove(K, V, Avl(K, V)* self, K key)` - Removes the entry with `key`,
-/// discarding its value.
-/// @return `true` if the key was found and removed, `false` otherwise
-#define avl_remove(K, V, self, k)       RK__AVL_PUB(K, V, remove)(self, k)
-
-/// @brief `bool avl_extract(K, V, Avl(K, V)* self, K key, V* out)` - Removes the entry with `key`
-/// and writes its value to `out`.
-/// @return `true` if the key was found and removed, `false` otherwise
-#define avl_extract(K, V, self, k, out) RK__AVL_PUB(K, V, extract)(self, k, out)
+#define avl_is_empty(self)              tree_is_empty(self)
 
 /// @brief `AvlEntry(K, V)* avl_min(Avl(K, V)* self)` - Returns a pointer to the entry with the
 /// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
@@ -322,15 +302,51 @@ typedef struct tree_iter {
 /// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
 #define avl_max(self)                   tree_max(self)
 
-/// @brief Alias for `tree_allocator()`.
-#define avl_allocator(self)             tree_allocator(self)
+/// @brief `V* avl_get(K, V, Avl(K, V)* self, K key)` - See `bst_get()`.
+#define avl_get(K, V, self, key)        RK__AVL_PUB(K, V, get)(self, key)
+
+/// @brief `bool avl_contains(K, V, Avl(K, V)* self, K key)` - See `bst_contains()`.
+#define avl_contains(K, V, self, key)   (!!avl_get(K, V, self, key))
+
+/// @brief `bool avl_set(K, V, Avl(K, V)* self, K key, V value)` - Inserts or updates a key-value
+/// pair, rebalancing as needed.
+/// @return `true` if a new node was inserted, `false` if an existing value was updated
+#define avl_set(K, V, self, key, value) RK__AVL_PUB(K, V, set)(self, key, value)
+
+/// @brief `V* avl_add(K, V, Avl(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
+/// needed.
+/// @return Pointer to the added value, if added, or `NULL`, if not
+#define avl_add(K, V, self, key, value) RK__AVL_PUB(K, V, add)(self, key, value)
+
+/// @brief `V* avl_get_or_add(K, V, Avl(K, V)* self, K key, V default_value, bool* inserted_out)` -
+/// See `bst_get_or_add()`; rebalances as needed.
+/// @return Pointer to the value for `key` (never `NULL`).
+#define avl_get_or_add(K, V, self, key, default_value, inserted_out)                               \
+  RK__AVL_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+
+/// @brief `bool avl_extract(K, V, Avl(K, V)* self, K key, V* out)` - See `bst_extract()`;
+/// rebalances as needed.
+/// @return `true` if the key was found and removed, `false` otherwise
+#define avl_extract(K, V, self, key, out) RK__AVL_PUB(K, V, extract)(self, key, out)
+
+/// @brief `bool avl_remove(K, V, Avl(K, V)* self, K key)` - See `bst_remove()`; rebalances as
+/// needed.
+/// @return `true` if the key was found and removed, `false` otherwise
+#define avl_remove(K, V, self, key)       RK__AVL_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Avl tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
-#define avl_foreach(self, stack_buf, stack_cap, entry_)                                            \
-  tree_foreach(self, stack_buf, stack_cap, entry_)
+#define avl_foreach(self, stack_buf, stack_cap, entry)                                             \
+  tree_foreach(self, stack_buf, stack_cap, entry)
 
 ////////////////////////////////// Rbt: left-leaning red-black tree ///////////////////////////////
+/// @brief `RBT_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific left-leaning red-black
+/// tree API for the given key/value combination. See `BST_DEFINE()` for the shared usage pattern.
+/// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
+/// @param V       Value type (same constraint as `K`)
+/// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
+/// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
+#define RBT_DEFINE(K, V, CMP_FUN)       RK__RBT_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Rbt struct name.
 #define Rbt(K, V)                       rbt_##K##_##V
@@ -341,75 +357,65 @@ typedef struct tree_iter {
 /// empty Rbt tree.
 #define rbt_init(K, V, ...)             rk_overload(RK__rbt_init, K, V, ##__VA_ARGS__)
 
-/// @brief `Rbt(K, V) rbt_init_static(Allocator alloc = alloc_ctx)` - Static/compile-time
-/// initializer for an Rbt tree. Suitable for global and static variables.
-#define rbt_init_static(K, V, ...)      rk_overload(RK__rbt_init_static, K, V, ##__VA_ARGS__)
+/// @brief `void rbt_release(K, V, Rbt(K, V)* self)` - Frees all nodes in the tree and resets it to
+/// an empty state. Alias for `tree_release()`.
+#define rbt_release(K, V, self)         tree_release(self)
+
+/// @brief `size_t rbt_count(Rbt(K, V)* self)` - Returns the number of key-value pairs stored.
+/// Alias for `tree_count()`.
+#define rbt_count(self)                 tree_count(self)
+
+/// @brief Alias for `tree_allocator()`.
+#define rbt_allocator(self)             tree_allocator(self)
+
+/// @brief `bool rbt_is_empty(Rbt(K, V)* self)` - Returns `true` iff the tree contains no elements.
+/// Alias for `tree_is_empty()`.
+#define rbt_is_empty(self)              tree_is_empty(self)
+
+/// @brief `RbtEntry(K, V)* rbt_min(Rbt(K, V)* self)` - Returns a pointer to the entry with the
+/// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
+#define rbt_min(self)                   tree_min(self)
+
+/// @brief `RbtEntry(K, V)* rbt_max(Rbt(K, V)* self)` - Returns a pointer to the entry with the
+/// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
+#define rbt_max(self)                   tree_max(self)
+
+/// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
+#define rbt_get(K, V, self, key)        RK__RBT_F(K, V, get)(self, key)
+
+/// @brief `bool rbt_contains(K, V, Rbt(K, V)* self, K key)` - See `bst_contains()`.
+#define rbt_contains(K, V, self, key)   (!!rbt_get(K, V, self, key))
 
 /// @brief `bool rbt_set(K, V, Rbt(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
 #define rbt_set(K, V, self, key, value) RK__RBT_F(K, V, set)(self, key, value)
 
-/// @brief `V* rbt_add(K, V, Rbt(K, V)* self, K key, V value)` - Inserts a key-value pair only if
-/// `key` is not already present. Existing values are not overwritten.
+/// @brief `V* rbt_add(K, V, Rbt(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
+/// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
 #define rbt_add(K, V, self, key, value) RK__RBT_F(K, V, add)(self, key, value)
 
-/// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - Looks up a key and returns a pointer to its
-/// associated value, or `NULL` if not found.
-#define rbt_get(K, V, self, key)        RK__RBT_F(K, V, get)(self, key)
-
 /// @brief `V* rbt_get_or_add(K, V, Rbt(K, V)* self, K key, V default_value, bool* inserted_out)` -
-/// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
-/// Performs a single tree traversal, unlike a separate `rbt_get()`/`rbt_add()` pair.
-/// @param default_value Value to insert if `key` is not present.
-/// @param inserted_out Set to `true` if a new node was inserted, `false` if the key already
-/// existed. Must not be `NULL`.
+/// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define rbt_get_or_add(K, V, self, key, default_value, inserted_out)                               \
   RK__RBT_F(K, V, get_or_add)(self, key, default_value, inserted_out)
 
-/// @brief `bool rbt_contains(K, V, Rbt(K, V)* self, K key)` - Returns `true` iff the tree contains
-/// an entry with the given key.
-#define rbt_contains(K, V, self, key)     (!!rbt_get(K, V, self, key))
-
-/// @brief `bool rbt_extract(K, V, Rbt(K, V)* self, K key, V* out)` - Removes the entry with `key`
-/// and writes its value to `out`.
+/// @brief `bool rbt_extract(K, V, Rbt(K, V)* self, K key, V* out)` - See `bst_extract()`;
+/// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
 #define rbt_extract(K, V, self, key, out) RK__RBT_F(K, V, extract)(self, key, out)
 
-/// @brief `bool rbt_remove(K, V, Rbt(K, V)* self, K key)` - Removes the entry with `key`,
-/// discarding its value.
+/// @brief `bool rbt_remove(K, V, Rbt(K, V)* self, K key)` - See `bst_remove()`; rebalances as
+/// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
 #define rbt_remove(K, V, self, key)       RK__RBT_F(K, V, remove)(self, key)
 
-/// @brief `void rbt_release(K, V, Rbt(K, V)* self)` - Frees all nodes in the tree and resets it to
-/// an empty state. Alias for `tree_release()`.
-#define rbt_release(K, V, self)           tree_release(self)
-
-/// @brief `size_t rbt_count(Rbt(K, V)* self)` - Returns the number of key-value pairs stored.
-/// Alias for `tree_count()`.
-#define rbt_count(self)                   tree_count(self)
-
-/// @brief `bool rbt_is_empty(Rbt(K, V)* self)` - Returns `true` iff the tree contains no elements.
-/// Alias for `tree_is_empty()`.
-#define rbt_is_empty(self)                tree_is_empty(self)
-
-/// @brief `RbtEntry(K, V)* rbt_min(Rbt(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
-#define rbt_min(self)                     tree_min(self)
-
-/// @brief `RbtEntry(K, V)* rbt_max(Rbt(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
-#define rbt_max(self)                     tree_max(self)
-
-/// @brief Alias for `tree_allocator()`.
-#define rbt_allocator(self)               tree_allocator(self)
-
 /// @brief Iterates over all entries in the Rbt tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
-#define rbt_foreach(self, stack_buf, stack_cap, entry_)                                            \
-  tree_foreach(self, stack_buf, stack_cap, entry_)
+#define rbt_foreach(self, stack_buf, stack_cap, entry)                                             \
+  tree_foreach(self, stack_buf, stack_cap, entry)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
@@ -497,42 +503,16 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 //////////////////////////////////////////// Bst internals
 //////////////////////////////////////////////
 
-#define RK__BstEntryPriv(K, V)             RK__bst_entry_##K##_##V
-#define RK__BST_PUB(K, V, FNAME)           bstf_##FNAME##_##K##_##V
-#define RK__BST_PRI(K, V, FNAME)           RK__bst_##FNAME##_##K##_##V
-#define RK__BstNode(K, V)                  RK__bst_node_##K##_##V
+#define RK__BstEntryPriv(K, V)      RK__bst_entry_##K##_##V
+#define RK__BST_PUB(K, V, FNAME)    bstf_##FNAME##_##K##_##V
+#define RK__BST_PRI(K, V, FNAME)    RK__bst_##FNAME##_##K##_##V
+#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
 
-#define RK__bst_init_static(K, V, _Alloc)  {.count = 0, RK_IFALLOC(.alloc = _Alloc)}
-#define RK__bst_init_static3(K, V, _Alloc) rk_disable_if(RK__bst_init_static(K, V, _Alloc))
-#define RK__bst_init_static2(K, V)         RK__bst_init_static(K, V, alloc_ctx)
+#define RK__bst_init(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
+#define RK__bst_init3(K, V, _Alloc) rk_disable_if(RK__bst_init(K, V, _Alloc))
+#define RK__bst_init2(K, V)         RK__bst_init(K, V, alloc_ctx)
 
-#define RK__bst_init(K, V, _Alloc)         ((Bst(K, V))RK__bst_init_static(K, V, _Alloc))
-#define RK__bst_init3(K, V, _Alloc)        rk_disable_if(RK__bst_init(K, V, _Alloc))
-#define RK__bst_init2(K, V)                RK__bst_init(K, V, alloc_ctx)
-
-/// @brief `BST_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific BST API for the given
-/// key/value combination.
-///
-/// Must be invoked at file scope, once per `(K, V)` combination, before any use of the
-/// corresponding `Bst(K, V)` type or its operations.
-///
-/// Generates:
-/// - `BstEntry(K, V)` — public entry struct with `K const key` and `V val`
-/// - `Bst(K, V)` — the tree struct holding the root pointer and element count
-/// - Internal implementation functions for search, insert, remove, and release
-///
-/// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
-/// @param V       Value type (same constraint as `K`)
-/// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
-/// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-///
-/// Example:
-/// ```c
-/// typedef char* cstr;
-/// int int_cmp(int a, int b) { return a - b; }
-/// BST_DEFINE(int, cstr, int_cmp);
-/// ```
-#define BST_DEFINE(K, V, CMP_FUN)                                                                  \
+#define RK__BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct BstEntry(K, V) {                                                                  \
     K const key;                                                                                   \
@@ -646,24 +626,15 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RK__AvlNode(K, V)             RK__avl_node_##K##_##V
-#define RK__AVL_PUB(K, V, F)          avlf_##F##_##K##_##V
-#define RK__AVL_PRI(K, V, F)          RK__avl_##F##_##K##_##V
+#define RK__AvlNode(K, V)      RK__avl_node_##K##_##V
+#define RK__AVL_PUB(K, V, F)   avlf_##F##_##K##_##V
+#define RK__AVL_PRI(K, V, F)   RK__avl_##F##_##K##_##V
 
-#define RK__avl_init_static(K, V, A)  {.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)}
-#define RK__avl_init_static3(K, V, A) rk_disable_if(RK__avl_init_static(K, V, A))
-#define RK__avl_init_static2(K, V)    RK__avl_init_static(K, V, alloc_ctx)
-#define RK__avl_init(K, V, A)         ((Avl(K, V))RK__avl_init_static(K, V, A))
-#define RK__avl_init3(K, V, A)        rk_disable_if(RK__avl_init(K, V, A))
-#define RK__avl_init2(K, V)           RK__avl_init(K, V, alloc_ctx)
+#define RK__avl_init(K, V, A)  ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RK__avl_init3(K, V, A) rk_disable_if(RK__avl_init(K, V, A))
+#define RK__avl_init2(K, V)    RK__avl_init(K, V, alloc_ctx)
 
-/// @brief `AVL_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific AVL tree API for the
-/// given key/value combination. See `BST_DEFINE()` for the shared usage pattern.
-/// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
-/// @param V       Value type (same constraint as `K`)
-/// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
-/// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-#define AVL_DEFINE(K, V, CMP_FUN)                                                                  \
+#define RK__AVL_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct AvlEntry(K, V) {                                                                  \
     K const key;                                                                                   \
@@ -837,25 +808,17 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RK__RbtNode(K, V)             RK__rbt_node_##K##_##V
-#define RK__RBT_F(K, V, F)            rbtf_##F##_##K##_##V
-#define RK__RBT_I(K, V, F)            RK__rbt_##F##_##K##_##V
+#define RK__RbtNode(K, V)      RK__rbt_node_##K##_##V
+#define RK__RBT_F(K, V, F)     rbtf_##F##_##K##_##V
+#define RK__RBT_I(K, V, F)     RK__rbt_##F##_##K##_##V
 
-#define RK__rbt_init_static(K, V, A)  {.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)}
-#define RK__rbt_init_static3(K, V, A) rk_disable_if(RK__rbt_init_static(K, V, A))
-#define RK__rbt_init_static2(K, V)    RK__rbt_init_static(K, V, alloc_ctx)
-#define RK__rbt_init(K, V, A)         ((Rbt(K, V))RK__rbt_init_static(K, V, A))
-#define RK__rbt_init3(K, V, A)        rk_disable_if(RK__rbt_init(K, V, A))
-#define RK__rbt_init2(K, V)           RK__rbt_init(K, V, alloc_ctx)
+#define RK__rbt_init(K, V, A)  ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RK__rbt_init3(K, V, A) rk_disable_if(RK__rbt_init(K, V, A))
+#define RK__rbt_init2(K, V)    RK__rbt_init(K, V, alloc_ctx)
 
 /* Left-leaning red-black tree: red links lean left and no node has two red links in a row. */
-/// @brief `RBT_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific left-leaning red-black
-/// tree API for the given key/value combination. See `BST_DEFINE()` for the shared usage pattern.
-/// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
-/// @param V       Value type (same constraint as `K`)
-/// @param CMP     Comparison function with signature `int cmp(K a, K b)`. Must return negative if
-/// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-#define RBT_DEFINE(K, V, CMP)                                                                      \
+
+#define RK__RBT_DEFINE(K, V, CMP)                                                                  \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct RbtEntry(K, V) {                                                                  \
     K const key;                                                                                   \

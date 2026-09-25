@@ -3,7 +3,7 @@
 #include "conf.h"
 
 #define RK_IMPL
-#include "../include/rklib_includeall.h"
+#include "../include/rklib.h"
 
 RK_HEADER_BEGIN
 RK__IGNWARN_CLANG_BEG("-Wunused-variable")
@@ -172,8 +172,8 @@ triax_test(avl, avltest) {
   triax_assert_eq(avl_count(&a), 0u);
 }
 
-triax_test(avl, init_static) {
-  Avl(int, char) a = avl_init_static(int, char);
+triax_test(avl, zero_initialized) {
+  Avl(int, char) a = {0};
   triax_expect_true(avl_is_empty(&a));
   triax_expect_eq(avl_count(&a), 0u);
   triax_expect_null(avl_min(&a));

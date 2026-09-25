@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_dict.h
-/// @version 2.0
+/// @version 1.0.0
 /// @defgroup rk_dict Hash Table (Dict) and Set Interfaces
 /// @brief Header-only, type-generic open-addressing hash table and hash set, sharing a single
 /// implementation via linear probing with fingerprint-accelerated lookup.
@@ -126,22 +126,18 @@ RK_HEADER_BEGIN
 /// Dict(int, cstr) tab =  dict_init(int, cstr, 10, alloc);
 /// ```
 /// @return An initialised Dict
-#define dict_init(K, V, cap, ...)   rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
-
-/// @brief `Dict(K, V) dict_init_static(K, V, Allocator alloc = alloc_ctx)` - Static/compile-time
-/// initializer for a Dict. Suitable for global and static variables. No memory is allocated;
-/// storage is lazily allocated on first insert.
-/// @param K     Key type name
-/// @param V     Value type name
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
-#define dict_init_static(K, V, ...) rk_overload(RK__DICT_INIT_STATIC, K, V, ##__VA_ARGS__)
+#define dict_init(K, V, cap, ...) rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
 
 /// @brief `void dict_release(K, V, Dict(K, V)* self)` - Frees the underlying memory of the Dict.
-#define dict_release(K, V, self)    RK__DICT_PUB(K, V, release)(self)
+#define dict_release(K, V, self)  RK__DICT_PUB(K, V, release)(self)
 
 /// @brief `size_t dict_count(Dict(K, V)* self)` - Returns the number of live key-value pairs stored
 /// in the Dict.
-#define dict_count(self)            ((size_t)((self)->count))
+#define dict_count(self)          ((size_t)((self)->count))
+
+/// @brief `size_t dict_cap(Dict(K, V)* self)` - Returns the current slot capacity of the Dict.
+/// Always a power of two.
+#define dict_cap(self)            ((size_t)((self)->cap))
 
 #if RK_CUSTOM_ALLOCATORS
 # define dict_allocator(self) rk_to_rvalue((self)->alloc)
@@ -151,42 +147,61 @@ RK_HEADER_BEGIN
 
 /// @brief `bool dict_is_empty(Dict(K, V)* self)` - Returns `true` iff the dict contains no
 /// elements.
-#define dict_is_empty(self)               ((bool)(dict_count(self) == 0))
-
-/// @brief `size_t dict_cap(Dict(K, V)* self)` - Returns the current slot capacity of the Dict.
-/// Always a power of two.
-#define dict_cap(self)                    ((size_t)((self)->cap))
+#define dict_is_empty(self)                    ((bool)(dict_count(self) == 0))
 
 /// @brief `float dict_load_factor(Dict(K, V)* self)` - Returns the current load factor (live
 /// entries / capacity). Rehash is triggered when the combined live-and-tombstone load exceeds
 /// `RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN`.
-#define dict_load_factor(self)            ((float)RK__ds_load_factor(&(self)->hdr))
+#define dict_load_factor(self)                 ((float)RK__ds_load_factor(&(self)->hdr))
 
 /// @brief `Dict(K, V)* dict_clear(K, V, Dict(K, V)* self)` - Marks all slots in the Dict as free,
 /// allowing reuse of its memory.
 /// @return `self`, for chaining.
-#define dict_clear(K, V, self)            RK__DICT_PUB(K, V, clear)(self)
+#define dict_clear(K, V, self)                 RK__DICT_PUB(K, V, clear)(self)
 
-/// @brief `Dict(K, V)* dict_reserve(K, V, Dict(K, V)* self, size_t new_cap)` - Reserves and
-/// rehashes the Dict to ensure at least `new_cap` capacity.
+/// @brief `Dict(K, V)* dict_reserve(K, V, Dict(K, V)* self, size_t n)` - Reserves and rehashes the
+/// Dict so that it can hold at least `n` live entries without triggering another automatic rehash.
 /// @return `self`, for chaining.
-/// @note Rounds up new_cap to the next power of two
-#define dict_reserve(K, V, self, new_cap) RK__DICT_PUB(K, V, reserve)(self, new_cap)
+/// @note `n` counts live entries, not table slots — the underlying table capacity (see
+/// `dict_cap`) is sized up to account for the load factor (`RK_DICT_LOAD_NUM`/`RK_DICT_LOAD_DEN`).
+#define dict_reserve(K, V, self, n)            RK__DICT_PUB(K, V, reserve)(self, n)
+
+/// @brief `Dict(K, V)* dict_shrink_to_fit(K, V, Dict(K, V)* self)` - Rehashes the Dict down to the
+/// smallest table capacity that still keeps its live entries under the load factor threshold
+/// (`RK_DICT_LOAD_NUM`/`RK_DICT_LOAD_DEN`), also clearing any accumulated tombstones.
+/// @return `self`, for chaining.
+/// @note Frees the table entirely if the Dict is empty. A no-op if already at or below the target
+/// capacity.
+#define dict_shrink_to_fit(K, V, self)         RK__DICT_PUB(K, V, shrink_to_fit)(self)
+
+/// @brief `Dict(K, V)* dict_assign(K, V, Dict(K, V)* self, const K* keys, const V* vals, size_t n)`
+/// - Replaces the Dict's contents with `n` key-value pairs from the parallel `keys`/`vals` arrays,
+/// reusing the existing table (growing it if necessary) rather than allocating a new one.
+/// @return `self`, for chaining.
+#define dict_assign(K, V, self, keys, vals, n) RK__DICT_PUB(K, V, assign)(self, keys, vals, n)
+
+/// @brief Retrieves the value for `key`, or `NULL` if absent. Returns `V*` for a mutable Dict
+/// and `const V*` for a const Dict.
+#define dict_get(K, V, self, key)                                                                  \
+  _Generic((self),                                                                                 \
+      const Dict(K, V)*: RK__DICT_PUB(K, V, get_const),                                            \
+      default: RK__DICT_PUB(K, V, get))((self), (key))
+
+/// @brief `bool dict_contains(K, V, const Dict(K, V)* self, K key)` - Checks whether the given key
+/// is present in the Dict.
+/// @return `true` if `self` contains the key, `false` otherwise
+#define dict_contains(K, V, self, key) RK__DICT_PUB(K, V, contains)(self, key)
 
 /// @brief `bool dict_set(K, V, Dict(K, V)* self, K key, V val)` - Sets the value at `key` in the
 /// Dict to `val`, updating it if it is present or inserting a new one if not; resizes the Dict if
 /// necessary.
 /// @return `true` if inserted, `false` if updated
-#define dict_set(K, V, self, key, val)    RK__DICT_PUB(K, V, set)(self, key, val)
+#define dict_set(K, V, self, key, val) RK__DICT_PUB(K, V, set)(self, key, val)
 
 /// @brief `V* dict_add(K, V, Dict(K, V)* self, K key, V val)` - Inserts a value into the Dict only
 /// if the key is not already present; resizes the Dict if necessary.
 /// @return Pointer to the inserted value, or `NULL` if the key already existed
-#define dict_add(K, V, self, key, val)    RK__DICT_PUB(K, V, add)(self, key, val)
-
-/// @brief `V* dict_get(K, V, Dict(K, V)* self, K key)` - Retrieves a pointer to the value if the
-/// key was found or `NULL` otherwise.
-#define dict_get(K, V, self, key)         RK__DICT_PUB(K, V, get)(self, key)
+#define dict_add(K, V, self, key, val) RK__DICT_PUB(K, V, add)(self, key, val)
 
 /// @brief `V* dict_get_or_add(K, V, Dict(K, V)* self, K key, V default_value, bool* inserted_out)`
 /// - Returns a pointer to the value for `key`, inserting `default_value` first if the key is
@@ -197,11 +212,6 @@ RK_HEADER_BEGIN
 /// @return Pointer to the value for `key` (never `NULL`).
 #define dict_get_or_add(K, V, self, key, default_value, inserted_out)                              \
   RK__DICT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
-
-/// @brief `bool dict_contains(K, V, const Dict(K, V)* self, K key)` - Checks whether the given key
-/// is present in the Dict.
-/// @return `true` if `self` contains the key, `false` otherwise
-#define dict_contains(K, V, self, key)         RK__DICT_PUB(K, V, contains)(self, key)
 
 /// @brief `bool dict_extract(K, V, Dict(K, V)* self, K key, V* out_ptr)` - Removes a key from the
 /// Dict and stores the value in `out_ptr`.
@@ -216,8 +226,9 @@ RK_HEADER_BEGIN
 
 /// @brief Iterates over all key-value pairs in the Dict, skipping empty slots.
 /// @param self     Pointer to the Dict to iterate over
-/// @param key      Chosen name of the key pointer that will point to each key
-/// @param val      Chosen name of the value pointer that will point to each key
+/// @param _key     Chosen name for each key pointer (`const K*`)
+/// @param _val     Chosen name for each value pointer (`V*` for a mutable Dict, `const V*` for a
+///                 const Dict)
 ///
 /// Usage:
 /// ```c
@@ -235,9 +246,9 @@ RK_HEADER_BEGIN
                                                                     : rk_null,                     \
            *RK__ONCE          = _key;                                                              \
            RK__ONCE; RK__ONCE = 0)                                                                 \
-        for (typeof(*(RK___dict->vals))*const _val       = &(RK___dict->vals[RK___i]),             \
-                                              *RK__ONCE1 = _val;                                   \
-             RK__ONCE1; RK__ONCE1                        = 0)
+        for (typeof(*RK__DICT_VALUE_PTR(RK___dict))*const _val       = &(RK___dict->vals[RK___i]), \
+                                                          *RK__ONCE1 = _val;                       \
+             RK__ONCE1; RK__ONCE1                                    = 0)
 
 /// @brief Iterates over all keys in the Dict, skipping empty and deleted slots.
 /// @param self  Pointer to the Dict to iterate over
@@ -261,7 +272,8 @@ RK_HEADER_BEGIN
 
 /// @brief Iterates over all values in the Dict, skipping empty and deleted slots.
 /// @param self  Pointer to the Dict to iterate over
-/// @param _val  Chosen name of the value pointer (`V*`) for each iteration
+/// @param _val  Chosen name of the value pointer (`V*` for a mutable Dict, `const V*` for a const
+///              Dict) for each iteration
 ///
 /// Usage:
 /// ```c
@@ -273,7 +285,7 @@ RK_HEADER_BEGIN
 #define dict_foreach_val(self, _val)                                                               \
   for (typeof(self) RK___dict = (self); RK___dict; RK___dict = rk_null)                            \
     for (size_t RK___c = RK___dict->cap, RK___i = 0; RK___i < RK___c; ++RK___i)                    \
-      for (typeof(*(RK___dict->vals))*const _val                                                   \
+      for (typeof(*RK__DICT_VALUE_PTR(RK___dict))*const _val                                       \
            = !RK__DS_SLOT_EMPTY_OR_DELETED(RK___dict->data[RK___i]) ? &(RK___dict->vals[RK___i])   \
                                                                     : rk_null,                     \
            *RK__ONCE          = _val;                                                              \
@@ -307,18 +319,15 @@ RK_HEADER_BEGIN
 /// @return An initialised Set
 #define set_init(K, cap, ...)            rk_overload(RK__SET_INIT, K, cap, ##__VA_ARGS__)
 
-/// @brief `Set(K) set_init_static(K, Allocator alloc = alloc_ctx)` - Static/compile-time
-/// initializer for a Set. Suitable for global and static variables. No memory is allocated;
-/// storage is lazily allocated on first insert.
-/// @param K     Key type name
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
-#define set_init_static(K, ...)          rk_overload(RK__SET_INIT_STATIC, K, ##__VA_ARGS__)
-
 /// @brief `void set_release(K, Set(K)* self)` - Frees the underlying memory of the Set.
 #define set_release(K, self)             RK__SET_PUB(K, release)(self)
 
 /// @brief `size_t set_count(Set(K)* self)` - Returns the number of live keys in the Set.
 #define set_count(self)                  ((size_t)((self)->count))
+
+/// @brief `size_t set_cap(Set(K)* self)` - Returns the current slot capacity of the Set. Always a
+/// power of two.
+#define set_cap(self)                    ((size_t)((self)->cap))
 
 #if RK_CUSTOM_ALLOCATORS
 # define set_allocator(self) rk_to_rvalue((self)->alloc)
@@ -327,41 +336,48 @@ RK_HEADER_BEGIN
 #endif
 
 /// @brief `bool set_is_empty(Set(K)* self)` - Returns `true` iff the set contains no elements.
-#define set_is_empty(self)            ((bool)(set_count(self) == 0))
-
-/// @brief `size_t set_cap(Set(K)* self)` - Returns the current slot capacity of the Set. Always a
-/// power of two.
-#define set_cap(self)                 ((size_t)((self)->cap))
+#define set_is_empty(self)           ((bool)(set_count(self) == 0))
 
 /// @brief `float set_load_factor(Set(K)* self)` - Returns the current load factor (live entries /
-/// capacity). Rehash is triggered when the combined live-and-tombstone load exceeds
-/// `RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN`.
-#define set_load_factor(self)         ((float)RK__ds_load_factor(&(self)->hdr))
+/// capacity). See `dict_load_factor()`.
+#define set_load_factor(self)        ((float)RK__ds_load_factor(&(self)->hdr))
 
 /// @brief `Set(K)* set_clear(K, Set(K)* self)` - Marks all slots in the Set as free, allowing reuse
 /// of its memory.
 /// @return `self`, for chaining.
-#define set_clear(K, self)            RK__SET_PUB(K, clear)(self)
+#define set_clear(K, self)           RK__SET_PUB(K, clear)(self)
 
-/// @brief `Set(K)* set_reserve(K, Set(K)* self, size_t new_cap)` - Reserves and rehashes the Set to
-/// ensure at least `new_cap` capacity.
+/// @brief `Set(K)* set_reserve(K, Set(K)* self, size_t n)` - Reserves and rehashes the Set so that
+/// it can hold at least `n` live entries without triggering another automatic rehash. See
+/// `dict_reserve()`.
 /// @return `self`, for chaining.
-/// @note Rounds up new_cap to the next power of two
-#define set_reserve(K, self, new_cap) RK__SET_PUB(K, reserve)(self, new_cap)
+#define set_reserve(K, self, n)      RK__SET_PUB(K, reserve)(self, n)
 
-/// @brief `bool set_add(K, Set(K)* self, K key)` - Ensures a key is present in a set; resizes the
-/// Set if necessary.
-/// @return `true` if the key was inserted, `false` if it was already present.
-#define set_add(K, self, key)         RK__SET_PUB(K, add)(self, key)
+/// @brief `Set(K)* set_shrink_to_fit(K, Set(K)* self)` - Rehashes the Set down to the smallest
+/// table capacity that still keeps its live entries under the load factor threshold. See
+/// `dict_shrink_to_fit()`.
+/// @return `self`, for chaining.
+#define set_shrink_to_fit(K, self)   RK__SET_PUB(K, shrink_to_fit)(self)
+
+/// @brief `Set(K)* set_assign(K, Set(K)* self, const K* keys, size_t n)` - Replaces the Set's
+/// contents with `n` keys from `keys`, reusing the existing table (growing it if necessary) rather
+/// than allocating a new one.
+/// @return `self`, for chaining.
+#define set_assign(K, self, keys, n) RK__SET_PUB(K, assign)(self, keys, n)
 
 /// @brief `bool set_contains(K, const Set(K)* self, K key)`
 /// - Checks whether the given key is present in the Set.
 /// @return `true` if `self` contains the key, `false` otherwise
-#define set_contains(K, self, key)    RK__SET_PUB(K, contains)(self, key)
+#define set_contains(K, self, key)   RK__SET_PUB(K, contains)(self, key)
+
+/// @brief `bool set_add(K, Set(K)* self, K key)` - Ensures a key is present in a set; resizes the
+/// Set if necessary.
+/// @return `true` if the key was inserted, `false` if it was already present.
+#define set_add(K, self, key)        RK__SET_PUB(K, add)(self, key)
 
 /// @brief `bool set_remove(K, Set(K)* self, K key)` - Removes a key from the Set if it is present.
 /// @return `true` if the value was found and removed, `false` otherwise
-#define set_remove(K, self, key)      RK__SET_PUB(K, remove)(self, key)
+#define set_remove(K, self, key)     RK__SET_PUB(K, remove)(self, key)
 
 /// @brief Iterates over all keys in the Set, skipping empty slots.
 /// @param self     Pointer to the Set to iterate over
@@ -375,19 +391,19 @@ RK_HEADER_BEGIN
 /// ```
 /// @warning Adding or removing keys via this macro leads to incorrect iteration.
 /// @note Iteration skips empty slots in the underlying storage.
-#define set_foreach(self, key)                                                                     \
-  for (typeof(self) RK___set = (self); RK___set; RK___set = rk_null)                               \
-    for (size_t RK___c = RK___set->cap, RK___i = 0; RK___i < RK___c; ++RK___i)                     \
-      for (const typeof(*(RK___set->keys))*const key                                               \
-           = !RK__DS_SLOT_EMPTY_OR_DELETED(RK___set->data[RK___i]) ? &(RK___set->keys[RK___i])     \
-                                                                   : rk_null,                      \
-           *RK__ONCE          = key;                                                               \
-           RK__ONCE; RK__ONCE = 0)
+#define set_foreach(self, key)       dict_foreach_key(self, key)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+
+// `vals` remains a mutable pointer when the Dict object is const. Propagate the
+// container's constness to the pointers exposed during iteration.
+#define RK__DICT_VALUE_PTR(self)                                                                   \
+  _Generic((self),                                                                                 \
+      const typeof(*(self))*: (const typeof((self)->vals[0])*)0,                                   \
+      default: (typeof((self)->vals))0)
 
 typedef struct RK__ds_header { size_t cap, count, ndeleted; } RK__ds_header;
 
@@ -430,14 +446,6 @@ typedef size_t RK__hashprobe_t;
 #define RK__SET_INIT3(K, init_cap, alloc)     rk_disable_if(RK__SET_INIT(K, init_cap, alloc))
 #define RK__SET_INIT2(K, init_cap)            RK__SET_INIT(K, init_cap, alloc_ctx)
 
-#define RK__DS_INIT_STATIC(_Alloc)            {.cap = 0, RK_IFALLOC(.alloc = (_Alloc))}
-
-#define RK__DICT_INIT_STATIC2(K, V)           RK__DS_INIT_STATIC(alloc_ctx)
-#define RK__DICT_INIT_STATIC3(K, V, _Alloc)   rk_disable_if(RK__DS_INIT_STATIC(_Alloc))
-
-#define RK__SET_INIT_STATIC1(K)               RK__DS_INIT_STATIC(alloc_ctx)
-#define RK__SET_INIT_STATIC2(K, _Alloc)       rk_disable_if(RK__DS_INIT_STATIC(_Alloc))
-
 #define RK__SET_PUB(K, FNAME)                 setf_##FNAME##_##K
 #define RK__SET_PRI(K, FNAME)                 RK__set##_##K##_##FNAME
 
@@ -449,105 +457,118 @@ typedef size_t RK__hashprobe_t;
   RK__DS_DEF(key_t, val_t, hash_f, cmp_f, RK__EXPAND, RK__IGNORE, Dict, RK__DICT_PUB, RK__DICT_PRI)
 #define RK__SET_DEF(key_t, hash_f, cmp_f)                                                          \
   RK__DS_DEF(key_t, , hash_f, cmp_f, RK__IGNORE, RK__EXPAND, RK__SET, RK__SET_PUB_I, RK__SET_PRI_I)
-#define RK__DS_DEF(K, V, hash_f, cmp_f, IF_DICT, IF_SET, DSTYPE, PUBF, PRIF)                       \
-  RK_EXTERNC_BEG                                                                                   \
-  typedef struct DSTYPE(K, V) {                                                                    \
-    union {                                                                                        \
-      RK__ds_header hdr;                                                                           \
-      struct { size_t cap, count, ndeleted; };                                                     \
-    };                                                                                             \
-    u8* data;                                                                                      \
-    K*  keys;                                                                                      \
-    IF_DICT(V* vals;)                                                                              \
-    RK_IFALLOC(Allocator alloc;)                                                                   \
-  } DSTYPE(K, V);                                                                                  \
-  static_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {             \
-    rk_assert_allocator_valid(alloc);                                                              \
-    cap = stdc_bit_ceil(rk_MAX(16u, cap));                                                         \
-    return (DSTYPE(K, V)){.hdr  = {.cap = cap, .count = 0, .ndeleted = 0},                         \
-                          .data = (u8*)memset(alloc_allocate(cap, align_max RK_IFALLOC(, alloc)),  \
-                                              RK__DS_SLOT_EMPTY, cap),                             \
-                          .keys = alloc_new(K, cap RK_IFALLOC(, alloc)),                           \
-                          IF_DICT(.vals = alloc_new(V, cap RK_IFALLOC(, alloc)), )                 \
-                              RK_IFALLOC(.alloc = alloc)};                                         \
-  }                                                                                                \
-  static_fun void PUBF(K, V, release)(DSTYPE(K, V) * self) {                                       \
-    if rk_unlikely (!self->cap) { return; }                                                        \
-    alloc_deallocate(self->data, self->cap, align_max RK_IFALLOC(, self->alloc));                  \
-    self->data = rk_null;                                                                          \
-    alloc_delete(self->keys, self->cap RK_IFALLOC(, self->alloc));                                 \
-    self->keys = rk_null;                                                                          \
-    IF_DICT(alloc_delete(self->vals, self->cap RK_IFALLOC(, self->alloc)), self->vals = rk_null;)  \
-    self->cap = self->count = self->ndeleted = 0;                                                  \
-  }                                                                                                \
-  static_fun void PRIF(K, V, grow)(DSTYPE(K, V) * self, size_t new_cap) {                          \
-    const DSTYPE(K, V) old_self = *self;                                                           \
-    DSTYPE(K, V)                                                                                   \
-    new_self                                                                                       \
-        = {.hdr  = {.cap = new_cap, .count = old_self.count, .ndeleted = 0},                       \
-           .data = (u8*)memset(alloc_allocate(new_cap, align_max RK_IFALLOC(, old_self.alloc)),    \
-                               RK__DS_SLOT_EMPTY, new_cap),                                        \
-           .keys = alloc_new(K, new_cap RK_IFALLOC(, old_self.alloc)),                             \
-           IF_DICT(.vals = alloc_new(V, new_cap RK_IFALLOC(, old_self.alloc)), )                   \
-               RK_IFALLOC(.alloc = old_self.alloc)};                                               \
-    const size_t mask = new_self.cap - 1;                                                          \
-    for (size_t oldcap = old_self.cap, i = 0; i < oldcap; ++i) {                                   \
-      if (RK__DS_SLOT_EMPTY_OR_DELETED(old_self.data[i])) { continue; }                            \
-      K      key  = old_self.keys[i];                                                              \
-      u64    hash = (u64)hash_f(key);                                                              \
-      size_t j    = RK__DS_home(mask, hash);                                                       \
-      for (; new_self.data[j] != RK__DS_SLOT_EMPTY; j = RK__DS_next(mask, j));                     \
-      new_self.data[j] = RK__DS_fp(hash);                                                          \
-      new_self.keys[j] = key;                                                                      \
-      IF_DICT(new_self.vals[j] = old_self.vals[i];)                                                \
-    }                                                                                              \
-    PUBF(K, V, release)(self);                                                                     \
-    *self = new_self;                                                                              \
-  }                                                                                                \
-  static_fun void PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                    \
-    if (!self->cap) {                                                                              \
-      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                              \
-      *self = PUBF(K, V, init)(16u RK_IFALLOC(, self->alloc));                                     \
-    };                                                                                             \
-    if (RK__ds_needs_rehash(&self->hdr)) {                                                         \
-      PRIF(K, V, grow)(self,                                                                       \
-                       (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap); \
-    }                                                                                              \
-  }                                                                                                \
-  static_fun RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,         \
-                                                 u64 hash) {                                       \
-    u8           fp   = RK__DS_fp(hash);                                                           \
-    const size_t mask = self->cap - 1;                                                             \
-    size_t       i = RK__DS_home(mask, hash), fd = RK_DS_NOTIN;                                    \
-    u8* const restrict data = self->data;                                                          \
-    K* const restrict keys  = self->keys;                                                          \
-    for (; data[i] != RK__DS_SLOT_EMPTY; i = RK__DS_next(mask, i)) {                               \
-      if (data[i] == RK__DS_SLOT_DELETED) {                                                        \
-        if (fd == RK_DS_NOTIN) { fd = i; }                                                         \
-      } else if (data[i] == fp && !cmp_f(key, keys[i])) {                                          \
-        return RK__PROBE_MAKE(1, 0, i);                                                            \
-      }                                                                                            \
-    }                                                                                              \
-    return (fd != RK_DS_NOTIN) ? RK__PROBE_MAKE(0, 1, fd) : RK__PROBE_MAKE(0, 0, i);               \
-  }                                                                                                \
-  static_fun bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {                 \
-    if rk_unlikely (!self->cap) { return false; }                                                  \
-    return RK__PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                      \
-  }                                                                                                \
-  static_fun DSTYPE(K, V) * PUBF(K, V, clear)(DSTYPE(K, V)* restrict self) {                       \
-    rk_memset(self->data, RK__DS_SLOT_EMPTY, self->cap);                                           \
-    self->count = self->ndeleted = 0;                                                              \
-    return self;                                                                                   \
-  }                                                                                                \
-  static_fun DSTYPE(K, V) * PUBF(K, V, reserve)(DSTYPE(K, V)* restrict self, size_t cap) {         \
-    if (!self->cap && cap) {                                                                       \
-      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                              \
-      *self = PUBF(K, V, init)(cap RK_IFALLOC(, self->alloc));                                     \
-    } else if (cap > self->cap) {                                                                  \
-      PRIF(K, V, grow)(self, stdc_bit_ceil(rk_MAX(16u, cap)));                                     \
-    }                                                                                              \
-    return self;                                                                                   \
-  }                                                                                                \
+#define RK__DS_DEF(K, V, hash_f, cmp_f, IF_DICT, IF_SET, DSTYPE, PUBF, PRIF)                         \
+  RK_EXTERNC_BEG                                                                                     \
+  typedef struct DSTYPE(K, V) {                                                                      \
+    union {                                                                                          \
+      RK__ds_header hdr;                                                                             \
+      struct { size_t cap, count, ndeleted; };                                                       \
+    };                                                                                               \
+    u8* data;                                                                                        \
+    K*  keys;                                                                                        \
+    IF_DICT(V* vals;)                                                                                \
+    RK_IFALLOC(Allocator alloc;)                                                                     \
+  } DSTYPE(K, V);                                                                                    \
+  static_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {               \
+    rk_assert_allocator_valid(alloc);                                                                \
+    cap = stdc_bit_ceil(rk_MAX(16u, cap));                                                           \
+    return (DSTYPE(K, V)){.hdr  = {.cap = cap, .count = 0, .ndeleted = 0},                           \
+                          .data = (u8*)memset(alloc_allocate(cap, align_max RK_IFALLOC(, alloc)),    \
+                                              RK__DS_SLOT_EMPTY, cap),                               \
+                          .keys = alloc_new(K, cap RK_IFALLOC(, alloc)),                             \
+                          IF_DICT(.vals = alloc_new(V, cap RK_IFALLOC(, alloc)), )                   \
+                              RK_IFALLOC(.alloc = alloc)};                                           \
+  }                                                                                                  \
+  static_fun void PUBF(K, V, release)(DSTYPE(K, V) * self) {                                         \
+    if rk_unlikely (!self->cap) { return; }                                                          \
+    alloc_deallocate(self->data, self->cap, align_max RK_IFALLOC(, self->alloc));                    \
+    self->data = rk_null;                                                                            \
+    alloc_delete(self->keys, self->cap RK_IFALLOC(, self->alloc));                                   \
+    self->keys = rk_null;                                                                            \
+    IF_DICT(alloc_delete(self->vals, self->cap RK_IFALLOC(, self->alloc)), self->vals = rk_null;)    \
+    self->cap = self->count = self->ndeleted = 0;                                                    \
+  }                                                                                                  \
+  static_fun void PRIF(K, V, grow)(DSTYPE(K, V) * self, size_t new_cap) {                            \
+    const DSTYPE(K, V) old_self = *self;                                                             \
+    DSTYPE(K, V)                                                                                     \
+    new_self                                                                                         \
+        = {.hdr  = {.cap = new_cap, .count = old_self.count, .ndeleted = 0},                         \
+           .data = (u8*)memset(alloc_allocate(new_cap, align_max RK_IFALLOC(, old_self.alloc)),      \
+                               RK__DS_SLOT_EMPTY, new_cap),                                          \
+           .keys = alloc_new(K, new_cap RK_IFALLOC(, old_self.alloc)),                               \
+           IF_DICT(.vals = alloc_new(V, new_cap RK_IFALLOC(, old_self.alloc)), )                     \
+               RK_IFALLOC(.alloc = old_self.alloc)};                                                 \
+    const size_t mask = new_self.cap - 1;                                                            \
+    for (size_t oldcap = old_self.cap, i = 0; i < oldcap; ++i) {                                     \
+      if (RK__DS_SLOT_EMPTY_OR_DELETED(old_self.data[i])) { continue; }                              \
+      K      key  = old_self.keys[i];                                                                \
+      u64    hash = (u64)hash_f(key);                                                                \
+      size_t j    = RK__DS_home(mask, hash);                                                         \
+      for (; new_self.data[j] != RK__DS_SLOT_EMPTY; j = RK__DS_next(mask, j));                       \
+      new_self.data[j] = RK__DS_fp(hash);                                                            \
+      new_self.keys[j] = key;                                                                        \
+      IF_DICT(new_self.vals[j] = old_self.vals[i];)                                                  \
+    }                                                                                                \
+    PUBF(K, V, release)(self);                                                                       \
+    *self = new_self;                                                                                \
+  }                                                                                                  \
+  static_fun void PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                      \
+    if (!self->cap) {                                                                                \
+      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
+      *self = PUBF(K, V, init)(16u RK_IFALLOC(, self->alloc));                                       \
+    };                                                                                               \
+    if (RK__ds_needs_rehash(&self->hdr)) {                                                           \
+      PRIF(K, V, grow)(self,                                                                         \
+                       (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap);   \
+    }                                                                                                \
+  }                                                                                                  \
+  static_fun RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,           \
+                                                 u64 hash) {                                         \
+    u8           fp   = RK__DS_fp(hash);                                                             \
+    const size_t mask = self->cap - 1;                                                               \
+    size_t       i = RK__DS_home(mask, hash), fd = RK_DS_NOTIN;                                      \
+    u8* const restrict data = self->data;                                                            \
+    K* const restrict keys  = self->keys;                                                            \
+    for (; data[i] != RK__DS_SLOT_EMPTY; i = RK__DS_next(mask, i)) {                                 \
+      if (data[i] == RK__DS_SLOT_DELETED) {                                                          \
+        if (fd == RK_DS_NOTIN) { fd = i; }                                                           \
+      } else if (data[i] == fp && !cmp_f(key, keys[i])) {                                            \
+        return RK__PROBE_MAKE(1, 0, i);                                                              \
+      }                                                                                              \
+    }                                                                                                \
+    return (fd != RK_DS_NOTIN) ? RK__PROBE_MAKE(0, 1, fd) : RK__PROBE_MAKE(0, 0, i);                 \
+  }                                                                                                  \
+  static_fun bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {                   \
+    if rk_unlikely (!self->cap) { return false; }                                                    \
+    return RK__PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                        \
+  }                                                                                                  \
+  static_fun DSTYPE(K, V) * PUBF(K, V, clear)(DSTYPE(K, V)* restrict self) {                         \
+    rk_memset(self->data, RK__DS_SLOT_EMPTY, self->cap);                                             \
+    self->count = self->ndeleted = 0;                                                                \
+    return self;                                                                                     \
+  }                                                                                                  \
+  static_fun DSTYPE(K, V) * PUBF(K, V, reserve)(DSTYPE(K, V)* restrict self, size_t n) {             \
+    if (!n) { return self; }                                                                         \
+    size_t cap = stdc_bit_ceil(                                                                      \
+        rk_MAX(16u, (n * RK_DICT_LOAD_DEN + RK_DICT_LOAD_NUM - 1) / RK_DICT_LOAD_NUM));              \
+    if (!self->cap) {                                                                                \
+      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
+      *self = PUBF(K, V, init)(cap RK_IFALLOC(, self->alloc));                                       \
+    } else if (cap > self->cap) {                                                                    \
+      PRIF(K, V, grow)(self, cap);                                                                   \
+    }                                                                                                \
+    return self;                                                                                     \
+  }                                                                                                  \
+  static_fun DSTYPE(K, V) * PUBF(K, V, shrink_to_fit)(DSTYPE(K, V)* restrict self) {                 \
+    if (!self->count) {                                                                              \
+      PUBF(K, V, release)(self);                                                                     \
+      return self;                                                                                   \
+    }                                                                                                \
+    size_t target = stdc_bit_ceil(                                                                   \
+        rk_MAX(16u, (self->count * RK_DICT_LOAD_DEN + RK_DICT_LOAD_NUM - 1) / RK_DICT_LOAD_NUM));    \
+    if (target < self->cap) { PRIF(K, V, grow)(self, target); }                                      \
+    return self;                                                                                     \
+  }                                                                                                  \
   IF_DICT(                                                                                         \
       static_fun void PRIF(K, V, insert_f)(DSTYPE(K, V)* restrict self, K key, V val, u8 fp,       \
                                            bool used_tombstone, size_t i) {                        \
@@ -595,10 +616,13 @@ typedef size_t RK__hashprobe_t;
         }                                                                                          \
         return &self->vals[RK__PROBE_IDX(r)];                                                      \
       } /*                                                           */                            \
-      static_fun V* PUBF(K, V, get)(const DSTYPE(K, V)* restrict self, K key) {                    \
+      static_fun const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {        \
         if rk_unlikely (!self->cap) { return rk_null; }                                            \
         RK__hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
         return RK__PROBE_FOUND(r) ? &self->vals[RK__PROBE_IDX(r)] : rk_null;                       \
+      } /*                                                           */                            \
+      static_fun V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                          \
+        return (V*)PUBF(K, V, get_const)(self, key);                                               \
       } /*                                                           */                            \
       static_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V * out_ptr) {       \
         rk_assert_ptr_nonnull(out_ptr);                                                            \
@@ -614,7 +638,13 @@ typedef size_t RK__hashprobe_t;
       static_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                     \
         V _;                                                                                       \
         return PUBF(K, V, extract)(self, key, &_);                                                 \
-      })                                                                                           \
+      } /*                                                           */                            \
+      static_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,     \
+                                                    const V* vals, size_t n) {                      \
+        PUBF(K, V, clear)(self);                                                                   \
+        for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                 \
+        return self;                                                                               \
+      }) \
   IF_SET(                                                                                          \
       static_fun bool PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key) {                        \
         PRIF(K, V, ensure_cap)(self);                                                              \
@@ -637,7 +667,13 @@ typedef size_t RK__hashprobe_t;
         ++self->ndeleted;                                                                          \
         self->data[RK__PROBE_IDX(r)] = RK__DS_SLOT_DELETED;                                        \
         return true;                                                                               \
-      })                                                                                           \
+      } /*                                                           */                            \
+      static_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,     \
+                                                    size_t n) {                                     \
+        PUBF(K, V, clear)(self);                                                                   \
+        for (size_t i = 0; i < n; ++i) { PUBF(K, V, add)(self, keys[i]); }                          \
+        return self;                                                                               \
+      }) \
   RK_EXTERNC_END
 
 /// @endcond

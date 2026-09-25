@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_config.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_config rklib Configuration Macros
 /// @brief Configuration macros for rklib. All options relating to a non-included header are
 /// ignored.
@@ -51,11 +51,11 @@
 ///   memory; higher values do the opposite. Applies globally to all `Dict` instances.
 ///
 /// - **rk_mult**(`x, y`) default: `((x) * (y))` Multiplication used internally for `size_t`
-///   size/count computations (`sizeof_n`, `Vec`/`Pool` capacity sizing, etc.). The default is a raw,
-///   unchecked multiply: an overflowing `count * sizeof(T)` silently wraps to a small value, so a
-///   too-large `count` can lead to a successful but undersized allocation. Define as `rk_mult_safe`
-///   (declared in `rk_defs.h`) to `abort()` on overflow instead, at the cost of a runtime check
-///   (a branch and, on the overflowing path, a division) on every multiplication.
+///   size/count computations (`sizeof_n`, `Vec`/`Pool` capacity sizing, etc.). The default is a
+///   raw, unchecked multiply: an overflowing `count * sizeof(T)` silently wraps to a small value,
+///   so a too-large `count` can lead to a successful but undersized allocation. Define as
+///   `rk_mult_safe` (declared in `rk_defs.h`) to `abort()` on overflow instead, at the cost of a
+///   runtime check (a branch and, on the overflowing path, a division) on every multiplication.
 /// @{
 
 #ifndef RK_CONFIG_H

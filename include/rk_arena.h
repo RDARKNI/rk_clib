@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_arena.h
-/// @version 2.0
+/// @version 1.0.0
 /// @defgroup rk_arena Arena Allocator Interface
 /// @brief Arena Allocator Implementation
 ///
@@ -31,6 +31,15 @@ typedef struct Arena {
   unsigned char* end; ///< End of arena memory block
 } Arena;
 
+/// @brief Initialises an Arena from an array as storage at runtime. Allows for any memory to use
+/// the arena allocator and the more general allocator interface.
+/// @param arr The byte array to serve as the arena's backing memory
+/// @param len The length of `arr`, in bytes
+/// @return New Arena using the array as backing storage
+static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
+  return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
+}
+
 /// @brief `Arena arena_init_static(unsigned char arr[])` Initialises an Arena from an array as
 /// storage at compile time. This macro allows for non-dynamically allocated memory to use the arena
 /// allocator and the more general allocator interface.
@@ -40,14 +49,9 @@ typedef struct Arena {
 #define arena_init_static(array_non_compound_literal)                                              \
   RK__arena_init_static(array_non_compound_literal)
 
-/// @brief Initialises an Arena from an array as storage at runtime. Allows for any memory to use
-/// the arena allocator and the more general allocator interface.
-/// @param arr The byte array to serve as the arena's backing memory
-/// @param len The length of `arr`, in bytes
-/// @return New Arena using the array as backing storage
-static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
-  return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
-}
+/// @brief Resets the arena, marking all of its allocations as free.
+/// @return `self`, for chaining
+static_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
 /// @brief Returns the number of bytes an Arena can allocate in total.
 static_fun rk_pure size_t arena_cap(const Arena* self) {
@@ -59,19 +63,15 @@ static_fun rk_pure size_t arena_used(const Arena* self) {
   return rk_likely(self && self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena can allocate.
+/// @brief Returns the number of bytes an Arena can still allocate before running out of space.
 static_fun rk_pure size_t arena_remaining(const Arena* self) {
   return rk_likely(self && self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
-/// @brief Returns whether the arena has not allocated any memory.
+/// @brief Returns whether the arena has no allocations.
 static_fun rk_pure bool arena_is_empty(const Arena* self) {
   return rk_likely(self && self->beg) ? self->cur == self->beg : true;
 }
-
-/// @brief Resets the arena, marking all of its allocations as free.
-/// @return `self`, for chaining
-static_fun Arena*        arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
 typedef struct ArenaMark ArenaMark;
 
@@ -131,6 +131,10 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @return T* Pointer to the allocated memory
 #define arena_new(T, count, arena)                RK__arena_NEW(T, count, arena)
 
+/// @brief `T* arena_try_new(T, size_t count, Arena* arena)` - Like `arena_new()`, but returns
+/// `NULL` if the arena does not have enough space instead of invoking the failure handler.
+#define arena_try_new(T, count, arena)            arena_try_new_aligned(T, count, alignof(T), arena)
+
 /// @brief `T* arena_new_aligned(T, size_t count, size_t alignment, Arena* arena)` - Creates a new
 /// allocation in the arena for a given type T and count with a given alignment independent of type.
 /// @param T      The type to allocate
@@ -140,6 +144,12 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @return Pointer to the allocated memory.
 /// @note Alignment must be a power of two.
 #define arena_new_aligned(T, count, align, arena) RK__arena_ALIGNED_NEW(T, count, align, arena)
+
+/// @brief `T* arena_try_new_aligned(T, size_t count, size_t align, Arena* arena)` like
+/// `arena_new_aligned()`, but returns `NULL` if the arena does not have enough space instead of
+/// invoking the failure handler.
+#define arena_try_new_aligned(T, count, align, arena)                                              \
+  (rk_assert_valid_align(T, align), (T*)arena_try_allocate(sizeof_n(T, count), align, arena))
 
 /// @brief `T* arena_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Resizes the
 /// most recent allocation from `old_count` to `new_count` elements. Aborts on failure via
@@ -152,16 +162,6 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 #define arena_extend(ptr, old_count, new_count, arena)                                             \
   ((typeof(ptr))RK__arena_extend(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
                                  arena))
-
-/// @brief `T* arena_try_new(T, size_t count, Arena* arena)` - Like `arena_new()`, but returns
-/// `NULL` if the arena does not have enough space instead of invoking the failure handler.
-#define arena_try_new(T, count, arena) arena_try_new_aligned(T, count, alignof(T), arena)
-
-/// @brief `T* arena_try_new_aligned(T, size_t count, size_t align, Arena* arena)` like
-/// `arena_new_aligned()`, but returns `NULL` if the arena does not have enough space instead of
-/// invoking the failure handler.
-#define arena_try_new_aligned(T, count, align, arena)                                              \
-  (rk_assert_valid_align(T, align), (T*)arena_try_allocate(sizeof_n(T, count), align, arena))
 
 /// @brief `T* arena_try_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Like
 /// `arena_extend()` but returns `NULL` if the arena does not have enough space instead of invoking
@@ -177,6 +177,7 @@ static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena
                                                           .realloc_f = RK__arena_reallocate,
                                                           .dealloc_f = RK__arena_deallocate};
 
+// todo important fix
 /// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
 /// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
 /// be used for static initialisation.
@@ -184,8 +185,7 @@ static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena
 /// it stays a single, comma-safe expression when passed as an argument to another macro (e.g.
 /// `dict_init_static(K, V, arena_to_alloc_static(&my_arena))`) -- a bare `{...}`'s internal comma
 /// would otherwise be miscounted as an argument separator by the enclosing macro.
-#define arena_to_alloc_static(arena)                                                              \
-  ((Allocator){.vtab = &arena_allocator_vtable, .ctx = (arena)})
+#define arena_to_alloc_static(arena) ((Allocator){.vtab = &arena_allocator_vtable, .ctx = (arena)})
 
 /// @brief Creates an Allocator from an Arena at runtime, allowing it to serve as backing allocator
 /// for other rk_clib types.

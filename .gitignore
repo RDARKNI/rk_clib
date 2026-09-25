@@ -2,6 +2,11 @@
 .DS_Store
 .vscode/
 .claude/
+.clangd
+
+# Scratch / local artifacts
+c.cpp
+include.zip
 
 # Tooling
 .cache/

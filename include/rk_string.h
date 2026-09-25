@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_string.h
-/// @version 2.0
+/// @version 1.0.0
 /// @defgroup rk_string String Library Interface
 /// @brief A small custom header-only String library for working with dynamically allocated Strings
 /// and String views. This library provides functionality to create, manipulate, and manage custom
@@ -72,9 +72,9 @@ typedef struct Str {
 /// - `char*`
 /// - `const char*` These are implicitly converted to `Strv` via internal macros.
 
-// --------------------------------
-// Section: Strlike Basic Accessors
-// --------------------------------
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name Strlike Basic Accessors
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns the string data ([const] char*) or any Stringlike.
 #define str_dat(strlike)        RK__str_dat(strlike)
@@ -97,9 +97,9 @@ typedef struct Str {
 /// @note behaviour undefined for empty strings
 #define str_back(strlike)       (*RK__qcharptr(strlike, RK__str_back_ptr(strv_from(strlike))))
 
-// ----------------------------------------
-// Section: String Lifetime/Ownership
-// ----------------------------------------
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name String Lifetime/Ownership
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief `Str str_init(size_t init_cap, Allocator alloc = alloc_ctx)` - Constructs a Str with a
 /// given initial capacity.
@@ -143,9 +143,9 @@ static_fun void str_release(Str* restrict self) {
 #define str_join_strv_n(svs, count, sep, ...)                                                      \
   rk_overload(RK__STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
 
-// ----------------------------------------
-// Section: String Accessors
-// ----------------------------------------
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name String Accessors
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns whether the String is null-terminated.
 static_fun bool str_is_null_terminated(const Str* self) {
@@ -168,6 +168,9 @@ static_fun const char* str_cstr(const Str* self) {
   return str_is_null_terminated(self) ? self->str : "";
 }
 
+/// @brief Returns the current capacity of `self`, in bytes, or 0 if `self` is NULL.
+static_fun rk_pure size_t str_cap(const Str* self) { return self ? self->cap : 0; }
+
 static_fun rk_pure Allocator str_allocator(const Str* self) {
 #if RK_CUSTOM_ALLOCATORS
   return self ? self->alloc : alloc_ctx;
@@ -176,31 +179,39 @@ static_fun rk_pure Allocator str_allocator(const Str* self) {
 #endif
 }
 
-// ----------------------------------------
-// Section: String Capacity
-// ----------------------------------------
+/// @brief Clears the contents of `self`, setting its length to zero and null-terminating it, if it
+/// owns an allocation.
+static_fun Str* str_clear(Str* restrict self) {
+  if (self->str) { self->str[self->len = 0] = '\0'; }
+  return self;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name String Capacity
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`, reallocating, if
 /// necessary.
-static_fun Str* str_reserve(Str* restrict self, size_t new_cap);
+static_fun Str*           str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
 /// null-terminating it.
-static_fun Str* str_resize(Str* restrict self, size_t new_len);
+static_fun Str*           str_resize(Str* restrict self, size_t new_len);
 
 /// @brief Resizes a Str's capacity to the next power of two larger than its length,
 /// null-terminating it (matching `vec_shrink_to_fit()`'s convention). Leaves some slack to reduce
 /// reallocation on subsequent growth.
 /// @note Use `str_shrink_to_fit_exact()` for an exact-capacity shrink.
-static_fun Str* str_shrink_to_fit(Str* restrict self);
+static_fun Str*           str_shrink_to_fit(Str* restrict self);
 
 /// @brief Resizes a Str's capacity to exactly its length + 1 (matching
 /// `vec_shrink_to_fit_exact()`'s convention).
-static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
+static_fun Str*           str_shrink_to_fit_exact(Str* restrict self);
 
-// ----------------------------------------
-// Section: String Mutators
-// ----------------------------------------
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name String Mutators
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// @brief Assigns a new value to a `Str` from a Stringlike, overriding its contents. The Str is
 /// resized if necessary to fit the new data.
 /// @param self A pointer to the destination `Str`
@@ -321,13 +332,6 @@ static_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
     RK__STR->str[RK__STR->len] = '\0';                                                             \
   } while (0)
 
-/// @brief Clears the contents of `self`, setting its length to zero and null-terminating it, if it
-/// owns an allocation.
-static_fun Str* str_clear(Str* restrict self) {
-  if (self->str) { self->str[self->len = 0] = '\0'; }
-  return self;
-}
-
 /// @brief Replaces all instances of `oldc` in `self` with `newc`.
 static_fun Str* str_replace(Str* restrict self, char oldc, char newc);
 
@@ -348,9 +352,10 @@ static_fun Str* str_to_lower(Str* restrict self);
 /// @brief Reverses `self` in place.
 static_fun Str* str_reverse(Str* restrict self);
 
-// ----------------------------------------
-// Section: Strv Construction and View
-// ----------------------------------------
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name Strv Construction and View
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// @brief Constructs a Strv from a string literal.
 #define strv_from_literal(strlit) {.str = strlit, .len = lenof(strlit)}
 
@@ -425,9 +430,9 @@ static_fun Strv strv_from_cstrn(const char* str, size_t len) {
 /// characters, leaving leading space untouched.
 #define str_trimmed_right(strlike)      str_trimmed_right_strv(strv_from(strlike))
 
-// ----------------------------------------
-// Section: Strlike Query/Search Functions
-// ----------------------------------------
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name Strlike Query/Search Functions
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Compares two Stringlikes lexicographically.
 /// @param strlike1 The first Stringlike, by value

@@ -65,6 +65,24 @@ triax_test(string, str_init_and_from_literal) {
   str_release(&s2), str_release(&s3);
 }
 
+triax_test(string, str_cap) {
+  Str s = str_init(4);
+  triax_expect_eq(str_cap(&s), s.cap);
+  triax_expect_true(str_cap(&s) >= 4u);
+
+  size_t before = str_cap(&s);
+  str_reserve(&s, 100);
+  triax_expect_true(str_cap(&s) >= 100u);
+  triax_expect_true(str_cap(&s) > before);
+  triax_expect_eq(str_cap(&s), s.cap);
+
+  str_release(&s);
+  triax_expect_eq(str_cap(&s), 0u);
+
+  Str z = {0};
+  triax_expect_eq(str_cap(&z), 0u);
+}
+
 triax_test(string, str_clone_and_assign) {
   Str s  = str_from_literal("abc");
   Str s2 = str_from(s);

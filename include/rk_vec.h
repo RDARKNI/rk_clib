@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_vec.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_vec Vec (Dynamic Array) Interface
 /// @brief Header file for a heap-allocated dynamic array (vec) implementation inspired by Sean
 /// Barrett's stretchy buffer.
@@ -68,6 +68,73 @@ typedef struct VecHeader {
   alignas_max unsigned char data[]; ///< Vec Data
 } VecHeader;
 
+/// @brief `Vec(T) vec_init(T, size_t cap, Allocator alloc = alloc_ctx)`
+/// - Initialises a Vec from an initial capacity and an optional Allocator.
+/// @param T           The desired type of the Vec's elements
+/// @param init_cap    The initial capacity of the Vec (in elements)
+/// @param allocator   Optional allocator; defaults to `alloc_ctx`.
+/// @return Vec(T) the vec
+/// @note Zero-Capacity vecs are always uninitialised
+///
+/// Usage:
+/// ```c
+/// Vec(int) v1  = vec_init(int, 10);           // create an int-Vec with 10 cap
+///                                                using alloc_ctx
+/// Vec(int) v2 = vec_init(int, 2, my_alloc);   // creates an int Vec with 2 cap
+///                                             // using my_alloc as allocator
+/// Vec(int) v3 = vec_init(int, 0);             // does nothing (0 cap)
+/// ```
+#define vec_init(T, init_cap, ...)                                                                 \
+  ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
+                                     "Over-aligned Types not supported."),                         \
+            rk_overload(RK__vec_init, T, init_cap, ##__VA_ARGS__)))
+
+/// @brief `Vec(T) vec_init_list(T, Allocator alloc = alloc_ctx, T... values)` - Initialises a Vec
+/// from a list of values.
+/// @param T    The Type
+/// @param alloc Allocator optional, defaults to alloc_ctx
+/// @param values T, ... the values to initialise the Vec with
+/// @return Vec(T) a new Vec, initialised with the values
+///
+/// Usage:
+/// ```c
+/// Vec(int) vec = vec_init_list(int, 1, 2, 3, 4, 5); /* uses alloc_ctx */
+/// Vec(int) vec2 = vec_init_list(int, my_alloc, 1, 2, 3); /* uses my_alloc */
+///
+/// // Compound literals must be wrapped in parens
+/// typedef struct Pair{ int x, y; } Pair;
+/// Vec(struct Pair) vec3 = vec_init_list(Pair, ((Pair){1, 2}), ((Pair){3, 4}));
+/// ```
+#define vec_init_list(T, ...)                                                                      \
+  ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
+                                     "Over-aligned Types not supported."),                         \
+            RK__vec_init_list(T, ##__VA_ARGS__)))
+
+/// @brief `Vec(T) vec_from(T* arr, size_t count, Allocator alloc = alloc_ctx)` - Constructs a new
+/// Vec by copying `count` elements from `arr`.
+/// @param arr   Source array of `count` elements; its element type becomes the new Vec's element
+/// type (via `typeof(*arr)`)
+/// @param count Number of elements to copy
+/// @param alloc Allocator Optional, defaults to `alloc_ctx`
+/// @return A Vec containing a copy of `arr`'s first `count` elements, or `NULL` if `count == 0`
+/// @note To clone an existing Vec while preserving its own allocator, pass it directly along with
+/// its own count/allocator: `vec_from(v, vec_count(v), vec_allocator(v))`. Unlike a Vec, a plain
+/// array has no allocator of its own to default to, so `vec_from()` always defaults to `alloc_ctx`
+/// when no allocator is given.
+///
+/// Usage:
+/// ```c
+/// int arr[] = {1, 2, 3};
+/// Vec(int) v = vec_from(arr, 3);            // uses alloc_ctx
+/// Vec(int) v2 = vec_from(arr, 3, my_alloc);  // uses my_alloc
+/// ```
+#define vec_from(arr, count, ...)                                                                  \
+  ((typeof(*(arr))*)rk_overload(RK__vec_from, arr, count, ##__VA_ARGS__))
+
+/// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
+/// NULL.
+#define vec_release(self) ((void)RK__vec_release(self))
+
 /// @defgroup rk_vec_accessors_u Unchecked Vec Accessors
 /// @ingroup rk_vec
 /// @brief Unchecked Accessor functions and macros for Vec metadata. These macros do not perform
@@ -96,63 +163,6 @@ typedef struct VecHeader {
 
 /// @}
 
-#define rk_ensure_vec_align(T)                                                                     \
-  (void)static_assert_expr(alignof(T) <= align_max, "Over-aligned Types not supported.")
-
-/// @brief `Vec(T) vec_init(T, size_t cap, Allocator alloc = alloc_ctx)`
-/// - Initialises a Vec from an initial capacity and an optional Allocator.
-/// @param T           The desired type of the Vec's elements
-/// @param init_cap    The initial capacity of the Vec (in elements)
-/// @param allocator   Optional allocator; defaults to `alloc_ctx`.
-/// @return Vec(T) the vec
-/// @note Zero-Capacity vecs are always uninitialised
-///
-/// Usage:
-/// ```c
-/// Vec(int) v1  = vec_init(int, 10);           // create an int-Vec with 10 cap
-///                                                using alloc_ctx
-/// Vec(int) v2 = vec_init(int, 2, my_alloc);   // creates an int Vec with 2 cap
-///                                             // using my_alloc as allocator
-/// Vec(int) v3 = vec_init(int, 0);             // does nothing (0 cap)
-/// ```
-#define vec_init(T, init_cap, ...)                                                                 \
-  ((Vec(T))(rk_ensure_vec_align(T), rk_overload(RK__vec_init, T, init_cap, ##__VA_ARGS__)))
-
-/// @brief `Vec(T) vec_init_list(T, Allocator alloc = alloc_ctx, T... values)` - Initialises a Vec
-/// from a list of values.
-/// @param T    The Type
-/// @param alloc Allocator optional, defaults to alloc_ctx
-/// @param values T, ... the values to initialise the Vec with
-/// @return Vec(T) a new Vec, initialised with the values
-///
-/// Usage:
-/// ```c
-/// Vec(int) vec = vec_init_list(int, 1, 2, 3, 4, 5); /* uses alloc_ctx */
-/// Vec(int) vec2 = vec_init_list(int, my_alloc, 1, 2, 3); /* uses my_alloc */
-///
-/// // Compound literals must be wrapped in parens
-/// typedef struct Pair{ int x, y; } Pair;
-/// Vec(struct Pair) vec3 = vec_init_list(Pair, ((Pair){1, 2}), ((Pair){3, 4}));
-/// ```
-#define vec_init_list(T, ...)                                                                      \
-  ((Vec(T))(rk_ensure_vec_align(T), RK__vec_init_list(T, ##__VA_ARGS__)))
-
-/// @brief `Vec(T) vec_copy(Vec(T) vec, Allocator alloc = alloc_ctx)` - Clones `vec`, copying its
-/// contents. This macro creates a new Vec by copying the contents, allocating memory using either a
-/// provided allocator or the first Vec's original allocator. The new Vec will have the same length,
-/// and will contain copies of the elements currently in use.
-/// @param vec       The Vec to copy
-/// @param alloc     Allocator Optional, defaults to allocator of vec
-/// @return A Vec containing a copy of the contents of vec, NULL if Vec is NULL
-/// @note The new vec might have a different capacity than the original, but will have the same
-/// length.
-#define vec_copy(vec, ...) ((typeof(vec))rk_overload(RK__vec_copy, vec, ##__VA_ARGS__))
-// todo copy semantics for allocators
-
-/// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
-/// NULL.
-#define vec_release(self)  ((void)RK__vec_release(self))
-
 /// @defgroup rk_vec_accessors_c Checked Vec Accessors
 /// @ingroup rk_vec
 /// @brief Checked Accessor functions and macros for Vec metadata. These macros check for
@@ -166,6 +176,15 @@ static_fun rk_const VecHeader* vec_header(const Vec(void) self) {
   return self ? vec_HEADER(self) : rk_null;
 }
 
+/// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
+static_fun rk_pure size_t    vec_count(const Vec(void) self) { return self ? vec_COUNT(self) : 0; }
+
+/// @brief Alias for `vec_count()`
+static_fun rk_pure size_t    vec_len(const Vec(void) self) { return vec_count(self); }
+
+/// @brief Returns the current capacity of the Vec, 0 iff `self` is NULL.
+static_fun rk_pure size_t    vec_cap(const Vec(void) self) { return self ? vec_CAP(self) : 0; }
+
 /// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`.
 static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
 #if RK_CUSTOM_ALLOCATORS
@@ -175,14 +194,13 @@ static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
 #endif
 }
 
-/// @brief Returns the current capacity of the Vec, 0 iff `self` is NULL.
-static_fun rk_pure size_t vec_cap(const Vec(void) self) { return self ? vec_CAP(self) : 0; }
+/// @brief Returns whether the count of a Vec is zero.
+static_fun rk_pure bool vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
 
-/// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
-static_fun rk_pure size_t vec_count(const Vec(void) self) { return self ? vec_COUNT(self) : 0; }
-
-/// @brief Alias for `vec_count()`
-static_fun rk_pure size_t vec_len(const Vec(void) self) { return vec_count(self); }
+/// @brief Clears the contents of `self` by setting its count to 0.
+static_fun void vec_clear(Vec(void) self) {
+  if (self) { vec_COUNT(self) = 0; }
+}
 
 /// @brief `size_t vec_allocation_size(Vec(T) self)` - Returns the total size of memory allocated
 /// for the Vec in bytes, including. its header, 0 iff `self` is NULL.
@@ -193,59 +211,10 @@ static_fun rk_pure size_t vec_remaining(const Vec(void) self) {
   return self ? vec_CAP(self) - vec_COUNT(self) : 0;
 }
 
-/// @brief Returns whether the count of a Vec is zero.
-static_fun rk_pure bool vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
-
 /// @brief Returns whether an index is within the range of a Vec.
-static_fun bool         vec_index_in_range(const Vec(void) self, size_t idx) {
+static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
   return idx < vec_count(self);
 }
-
-/// @brief Clears the contents of `self` by setting its count to 0.
-static_fun void vec_clear(Vec(void) self) {
-  if (self) { vec_COUNT(self) = 0; }
-}
-
-/// @brief `void vec_push(Vec(T)& self, T obj)` - Pushes a value onto the Vec, resising the
-/// allocation, if necessary.
-/// @attention **`obj` must not modify the vec due to sequencing issues**
-/// @note Reassigns `self`, if necessary
-#define vec_push(self, obj)           ((void)RK__vec_push(self, obj)) // NOLINT
-
-/// @brief `void vec_push_n(Vec(T)& self, T* arr, size_t count)` - Copies `count` values of `arr`
-/// onto `self`. `arr` must be a pointer variable of type `T*`.
-/// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Reassigns `self`, if necessary
-#define vec_push_n(self, arr, count)  ((void)RK__vec_push_arr(self, arr, count))
-
-/// @brief `void vec_push_unchecked(Vec(T)& self, T obj)` - Pushes a value onto the Vec, not
-/// checking for capacity.
-/// @attention **`obj` must not modify the vec due to sequencing issues**
-#define vec_push_unchecked(self, obj) ((void)(RK__vec_push_u(self, obj)))
-
-/// @brief `T vec_pop(Vec(T)& self)` - Pops the last value off the Vec and decreases its length.
-/// @return The popped value
-/// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of empty or uninitialised Vec is undefined
-#define vec_pop(self)                 ((self)[--vec_COUNT(RK__check_vec_pop(self))])
-
-/// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
-/// its length.
-/// @return A pointer to the popped memory region, to copy away from
-/// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of `count >= vec_count(self)` undefined
-#define vec_pop_n(self, count)        (typeof(self))RK__vec_pop_n(sizeof(*(self)), self, count)
-
-/// @brief `T& vec_front(Vec(T) self)` - Returns an Lvalue reference to the first element of the
-/// Vec.
-/// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour undefined for empty or uninitialised vec
-#define vec_front(self)               (((typeof(self))RK__vec_check_front(self))[0])
-
-/// @brief `T& vec_back(Vec(T) self)` - Returns an Lvalue reference to the last element of the Vec.
-/// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour undefined for empty or uninitialised vec
-#define vec_back(self)                (*((typeof(self))RK__vec_check_back(sizeof(*(self)), self)))
 
 /// @brief `void vec_reserve(Vec(T)& self, size_t new_cap)` - Grows the Vec to be able to hold at
 /// least `new_cap` elements.
@@ -276,8 +245,55 @@ static_fun void vec_clear(Vec(void) self) {
 /// @brief `void vec_assign(Vec(T)& self, T* arr, size_t count)` - Assigns `count` objects of `arr`
 /// to the Vec, overriding its contents and expanding `self`, if necessary.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @attention `arr[0..count)` must not overlap the Vec's own backing allocation: if growth is
+/// triggered, the old buffer is freed before the copy from `arr` happens, turning an `arr` that
+/// points into it into a use-after-free; even without growth, the underlying copy is a plain
+/// `memcpy`, which is undefined for overlapping source and destination.
 /// @note Reassigns `self`, if necessary.
 #define vec_assign(self, arr, count)  ((void)RK__vec_assign(self, arr, count))
+
+/// @brief `T& vec_front(Vec(T) self)` - Returns an Lvalue reference to the first element of the
+/// Vec.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Behaviour undefined for empty or uninitialised vec
+#define vec_front(self)               (((typeof(self))RK__vec_check_front(self))[0])
+
+/// @brief `T& vec_back(Vec(T) self)` - Returns an Lvalue reference to the last element of the Vec.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Behaviour undefined for empty or uninitialised vec
+#define vec_back(self)                (*((typeof(self))RK__vec_check_back(sizeof(*(self)), self)))
+
+/// @brief `void vec_push(Vec(T)& self, T obj)` - Pushes a value onto the Vec, resising the
+/// allocation, if necessary.
+/// @attention **`obj` must not modify the vec due to sequencing issues**
+/// @note Reassigns `self`, if necessary
+#define vec_push(self, obj)           ((void)RK__vec_push(self, obj)) // NOLINT
+
+/// @brief `void vec_push_n(Vec(T)& self, T* arr, size_t count)` - Copies `count` values of `arr`
+/// onto `self`. `arr` must be a pointer variable of type `T*`.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @attention `arr[0..count)` must not overlap the Vec's own backing allocation, for the same
+/// reasons documented on `vec_assign()`.
+/// @note Reassigns `self`, if necessary
+#define vec_push_n(self, arr, count)  ((void)RK__vec_push_arr(self, arr, count))
+
+/// @brief `void vec_push_unchecked(Vec(T)& self, T obj)` - Pushes a value onto the Vec, not
+/// checking for capacity.
+/// @attention **`obj` must not modify the vec due to sequencing issues**
+#define vec_push_unchecked(self, obj) ((void)(RK__vec_push_u(self, obj)))
+
+/// @brief `T vec_pop(Vec(T)& self)` - Pops the last value off the Vec and decreases its length.
+/// @return The popped value
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Behaviour in case of empty or uninitialised Vec is undefined
+#define vec_pop(self)                 ((self)[--vec_COUNT(RK__check_vec_pop(self))])
+
+/// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
+/// its length.
+/// @return A pointer to the popped memory region, to copy away from
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Behaviour in case of `count >= vec_count(self)` undefined
+#define vec_pop_n(self, count)        (typeof(self))RK__vec_pop_n(sizeof(*(self)), self, count)
 
 /// @brief `void vec_insert_at(Vec(T)& self, size_t idx, T obj)` - Inserts an object at index `idx`,
 /// shifting subsequent elements back and expanding `self`, if necessary.
@@ -294,8 +310,10 @@ static_fun void vec_clear(Vec(void) self) {
 #define vec_insert_at_unordered(self, idx, obj) ((void)RK__vec_insert_at_unordered(self, idx, obj))
 
 /// @brief `void vec_insert_arr_at(Vec(T)& self, size_t idx, T* obj, size_t count)` - Batched
-/// `vec_insert()`, faster when adding multiple elements at once. TODO SELF INSERTION
+/// `vec_insert()`, faster when adding multiple elements at once.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @attention `ptr[0..count)` must not overlap the Vec's own backing allocation, for the same
+/// reasons documented on `vec_assign()`.
 /// @param self  The Vec (must be an lvalue)
 /// @param idx   The Index of the Vec to store in
 /// @param ptr   A pointer to the array of objects to insert
@@ -448,19 +466,17 @@ static_fun rk_forceinline rk_pure size_t RK__vec_allocation_size(const Vec(void)
   return self ? RK__VECSIZE_UT(elsize, vec_CAP(self)) : 0;
 }
 
-static_fun rk_forceinline VecHeader* rk_alloc_size(3)
-    RK__vec_init_f(size_t elsize, size_t init_cap, size_t total_size rk_unused,
+static_fun rk_forceinline VecHeader* rk_alloc_size(2)
+    RK__vec_init_f(size_t init_cap, size_t total_size,
                    size_t init_count RK_IFALLOC(, Allocator alloc)) {
   rk_assert_allocator_valid(alloc);
-  (void)elsize; // todo
   VecHeader* v = (VecHeader*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
   v->cap = init_cap, v->count = init_count;
   RK_IFALLOC(v->alloc = alloc;)
   return v;
 }
 #define RK__VEC_NEW_NONZERO(T, cap, count, alloc)                                                  \
-  ((typeof(T)*)(void*)(RK__vec_init_f(sizeof(T), cap,                                              \
-                                      offsetof(VecHeader, data) + sizeof_n(T, cap),                \
+  ((typeof(T)*)(void*)(RK__vec_init_f(cap, offsetof(VecHeader, data) + sizeof_n(T, cap),           \
                                       count RK_IFALLOC(, alloc))                                   \
                            ->data))
 #define RK__VEC_NEW(T, cap, count, alloc)                                                          \
@@ -473,11 +489,11 @@ static_fun rk_forceinline VecHeader* rk_alloc_size(3)
 #define RK__vec_init3(T, C, A)       rk_disable_if(RK__vec_init(T, C, A))
 #define RK__vec_init2(T, C)          RK__vec_init(T, C, alloc_ctx)
 
-#define RK__vec_copy(V, A)                                                                         \
-  ((V) ? rk_copy(RK__VEC_NEW(*(V), vec_COUNT(V), vec_COUNT(V), (A)), (V), vec_COUNT(V)) : rk_null)
+#define RK__vec_from(arr, count, alloc)                                                            \
+  ((count) ? rk_copy(RK__VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count)) : rk_null)
 
-#define RK__vec_copy2(V, A) rk_disable_if(RK__vec_copy(V, A))
-#define RK__vec_copy1(V)    RK__vec_copy(V, vec_ALLOCATOR(V))
+#define RK__vec_from3(arr, count, alloc) rk_disable_if(RK__vec_from(arr, count, alloc))
+#define RK__vec_from2(arr, count)        RK__vec_from(arr, count, alloc_ctx)
 
 #define RK__vec_release(V)                                                                         \
   ((V)                                                                                             \

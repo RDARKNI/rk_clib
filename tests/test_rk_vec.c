@@ -77,21 +77,53 @@ triax_test(vec, init_list) {
   }
 }
 
-triax_test(vec, vec_copy) {
+triax_test(vec, vec_from) {
+  // constructing from a plain array, default alloc_ctx
+  {
+    int      arr[] = {1, 2, 3, 4, 5};
+    Vec(int) v     = vec_from(arr, 5);
+    triax_expect_nonnull(v);
+    triax_expect_eq(vec_count(v), 5u);
+    triax_expect_memeq(v, arr, sizeof(arr));
+    RK_IFALLOC(triax_expect_memeq((Allocator[]){vec_allocator(v)}, &alloc_ctx, sizeof(alloc_ctx));)
+    vec_release(v);
+  }
+
+  // count == 0 yields an empty (NULL) Vec, without touching arr
+  {
+    Vec(int) v = vec_from((int*)rk_null, 0);
+    triax_expect_null(v);
+  }
+
+  // constructing from a plain array with an explicit allocator
   rk_unused Allocator used_alloc = alloc_ctx;
-  Vec(int)  v;
   {
 #if RK_CUSTOM_ALLOCATORS
     used_alloc = glob_arena_alloc;
 #endif
-    v           = vec_init_list(int, RK_IFALLOC(used_alloc, ) 0, 1, 2, 3, 4, 5);
-    Vec(int) v2 = vec_copy(v);
+    int      arr[] = {10, 20, 30};
+    Vec(int) v     = vec_from(arr, 3 RK_IFALLOC(, used_alloc));
+    triax_expect_nonnull(v);
+    triax_expect_eq(vec_count(v), 3u);
+    triax_expect_memeq(v, arr, sizeof(arr));
+    RK_IFALLOC(
+        triax_expect_memeq((Allocator[]){vec_allocator(v)}, &used_alloc, sizeof(used_alloc));)
+    vec_release(v);
+  }
+
+  // cloning an existing Vec while preserving its own allocator: since
+  // vec_from() has no source Vec to default from (arr is just a pointer),
+  // the caller passes vec_count()/vec_allocator() explicitly.
+  {
+    Vec(int) v = vec_init_list(int, RK_IFALLOC(used_alloc, ) 0, 1, 2, 3, 4, 5);
+    Vec(int) v2 = vec_from(v, vec_count(v) RK_IFALLOC(, vec_allocator(v)));
     triax_expect_eq(vec_count(v2), vec_count(v));
     triax_expect_memeq(v, v2, vec_count(v2) * sizeof(int));
+    RK_IFALLOC(
+        triax_expect_memeq((Allocator[]){vec_allocator(v2)}, &used_alloc, sizeof(used_alloc));)
     vec_release(v2);
     vec_release(v);
   }
-  // todo copy semantics allocators
 }
 
 triax_test(vec, vec_push_pop) {

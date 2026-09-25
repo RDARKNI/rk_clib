@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_pool.h
-/// @version 2.0
+/// @version 1.0.0
 /// @defgroup rk_pool Pool Allocator Interface
 /// @brief Type-safe generic pool allocator for C
 ///
@@ -24,78 +24,83 @@ RK_HEADER_BEGIN
 
 /// @brief Defines a pool type and associated functions for type `T` Depending on the arguments,
 /// this macro defines either a dynamic pool (`Pool(T)`) or a static/fixed pool (`Pool(T, C)`).
-///  @param T Type of elements stored in the pool
-///  @param C Capacity of the pool if static
-#define POOL_DEFINE(T, ...)             RK__STATOVERLOAD(RK__POOL_DEFINE, T, ##__VA_ARGS__)
+/// @param T Type of elements stored in the pool
+/// @param C Capacity of the pool if static
+#define POOL_DEFINE(T, ...)     RK__STATOVERLOAD(RK__POOL_DEFINE, T, ##__VA_ARGS__)
 
 /// @brief Alias for the pool type (dynamic or static).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
 /// @note Static Pools take a second capacity parameter
-#define Pool(T, ...)                    RK__STATOVERLOAD__(RK__POOL, T, ##__VA_ARGS__)
-#define StaticPool(T, CAP)              Pool_static_##T##_##CAP
-#define DynPool(T)                      Pool_dynamic_##T
+#define Pool(T, ...)            RK__STATOVERLOAD__(RK__POOL, T, ##__VA_ARGS__)
+#define StaticPool(T, CAP)      Pool_static_##T##_##CAP
+#define DynPool(T)              Pool_dynamic_##T
 
-/// @brief `Pool(T)* pool_init_dynamic(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a
-/// dynamic pool with given capacity.
+/// @brief `Pool(T)* pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
+/// pool with given capacity.
 /// @param T Element type
 /// @param cap Desired capacity
 /// @param alloc Optional allocator
 /// @return Initialized pool struct
-#define pool_init_dynamic(T, _cap, ...) rk_overload(RK__DPOOL_INIT, T, _cap, ##__VA_ARGS__)
+#define pool_init(T, _cap, ...) rk_overload(RK__DPOOL_INIT, T, _cap, ##__VA_ARGS__)
 
-/// @brief Static/compile-time zero-initializer for a `Pool(T, C)`. Suitable for global and static
-/// variables. No memory is allocated.
-#define pool_init_static                {RK_ZINIT}
+/// @brief Compile-time zero-initializer for a `Pool(T, C)` (`StaticPool`). Suitable for global and
+/// static variables. No memory is allocated.
+/// @note Named after `StaticPool`, the type it initializes — not to be confused with the (removed)
+/// `_init_static` convention other containers used for static-storage-duration-safe initializers.
+#define staticpool_init         {RK_ZINIT}
 
 /// @brief `void pool_release(Pool(T, ...)* self)` - Releases the associated resources of the pool
 /// (if the pool is dynamic) and resets its members. For static pools, this resets the allocation
 /// bitset but does not modify the underlying element storage.
-#define pool_release(self)              ((void)RK__pool_release(self))
+#define pool_release(self)      ((void)RK__pool_release(self))
 
 /// @brief `size_t pool_cap(Pool(T, ...)* self)` - Returns the total capacity of the pool.
-#define pool_cap(self)                  ((size_t)RK__pool_cap(self))
+#define pool_cap(self)          ((size_t)RK__pool_cap(self))
+
+#if RK_CUSTOM_ALLOCATORS
+/// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns the Allocator the (dynamic) pool was
+/// constructed with.
+# define pool_allocator(self) rk_to_rvalue((self)->_pool.alloc)
+#else
+/// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns `alloc_ctx` (allocators disabled).
+# define pool_allocator(self) ((void)(self), alloc_ctx)
+#endif
 
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
-#define pool_used(self)                 ((size_t)RK__pool_used(self))
+#define pool_used(self)        ((size_t)RK__pool_used(self))
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
-#define pool_remaining(self)            ((size_t)RK__pool_remaining(self))
+#define pool_remaining(self)   ((size_t)RK__pool_remaining(self))
 
 /// @brief Returns `true` iff the pool is empty.
-#define pool_is_empty(self)             ((bool)(pool_used(self) == 0))
+#define pool_is_empty(self)    ((bool)(pool_used(self) == 0))
 
 /// @brief Returns `true` iff the pool is full.
-#define pool_is_full(self)              ((bool)(pool_remaining(self) == 0))
+#define pool_is_full(self)     ((bool)(pool_remaining(self) == 0))
 
 /// @brief `Pool(T)* pool_clear(Pool(T)* self)` - Marks all elements in the pool as reusable.
 /// @return `self`, for chaining
-#define pool_clear(self)                ((typeof(self))RK__pool_clear(self))
+#define pool_clear(self)       ((typeof(self))RK__pool_clear(self))
 
 /// @brief `T* pool_new(Pool(T)* self)` - Allocates a new element in the pool.
 /// @return Pointer to the newly allocated element
-#define pool_new(self)                  ((RK__poolT(self)*)RK__pool_new(self))
+#define pool_new(self)         ((RK__poolT(self)*)RK__pool_new(self))
 
 /// @brief `T* pool_try_new(Pool(T)* self)` - Like `pool_new()`, but returns `NULL` if full instead
 /// of running `RK_POOL_FAIL()`.
-#define pool_try_new(self)              ((RK__poolT(self)*)RK__pool_try_new(self))
+#define pool_try_new(self)     ((RK__poolT(self)*)RK__pool_try_new(self))
 
 /// @brief `T* pool_put(Pool(T)* self, T el)` - Allocates a new element and stores a copy of the
 /// value.
 /// @return Pointer to the inserted element
-#define pool_put(self, el)              ((RK__poolT(self)*)RK__pool_put(self, el))
+#define pool_put(self, el)     ((RK__poolT(self)*)RK__pool_put(self, el))
 
 /// @brief `T* pool_try_put(Pool(T)* self, T el)` - Like `pool_put()`, but returns `NULL` if full
 /// instead of running `RK_POOL_FAIL()`.
-#define pool_try_put(self, el)          ((RK__poolT(self)*)RK__pool_try_put(self, el))
-
-#if RK_CUSTOM_ALLOCATORS
-# define pool_allocator(self) rk_to_rvalue((self)->_pool.alloc)
-#else
-# define pool_allocator(self) ((void)(self), alloc_ctx)
-#endif
+#define pool_try_put(self, el) ((RK__poolT(self)*)RK__pool_try_put(self, el))
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.
 #define pool_delete(self, ptr) ((void)RK__pool_delete(self, ptr))

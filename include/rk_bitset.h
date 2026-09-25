@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @file rk_bitset.h
-/// @version 1.0
+/// @version 1.0.0
 /// @defgroup rk_bitset Bitset Utilities
 /// @brief Bitset utilities.
 ///

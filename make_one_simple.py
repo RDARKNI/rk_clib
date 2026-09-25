@@ -18,18 +18,17 @@ Resolution strategy for quoted includes:
 This helps when projects use nested relative include layouts.
 
 Usage:
-    python flatten_c_includes.py input.c > flattened.c
+    python make_one_simple.py input.c > flattened.c
 
 Optional:
-    python flatten_c_includes.py input.c -o flattened.c
-    python flatten_c_includes.py input.c --keep-pragma-once
-
-python3 mkgod.py  "./tests/actual_tests.c" > fl.c
+    python make_one_simple.py input.c -o flattened.c
+    python make_one_simple.py input.c --keep-pragma-once
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -93,6 +92,17 @@ def resolve_quoted_include(
     return None
 
 
+def display_path(p: Path) -> str:
+    """Path for provenance comments: relative to cwd when possible, so the
+    output doesn't bake in absolute build-machine paths (e.g. CI runner
+    workspace dirs), falling back to the absolute path if there's no common
+    root (e.g. different drives on Windows)."""
+    try:
+        return str(os.path.relpath(p, Path.cwd()))
+    except ValueError:
+        return str(p)
+
+
 def flatten_file(
     file_path: Path,
     root_file: Path,
@@ -104,9 +114,10 @@ def flatten_file(
     Files are included once by resolved absolute path.
     """
     resolved = file_path.resolve()
+    shown = display_path(resolved)
 
     if resolved in visited:
-        return f'/* skipped already-included: "{resolved}" */\n'
+        return f'/* skipped already-included: "{shown}" */\n'
 
     visited.add(resolved)
 
@@ -116,12 +127,12 @@ def flatten_file(
         text = resolved.read_text(encoding="latin-1")
 
     out: list[str] = []
-    out.append(f'/* BEGIN INLINE: {resolved} */\n')
+    out.append(f'/* BEGIN INLINE: {shown} */\n')
 
     for line_no, line in enumerate(text.splitlines(keepends=True), start=1):
         if not keep_pragma_once and PRAGMA_ONCE_RE.match(line):
             out.append(
-                f"/* removed #pragma once from {resolved}:{line_no} */\n")
+                f"/* removed #pragma once from {shown}:{line_no} */\n")
             continue
 
         m = INCLUDE_RE.match(line)
@@ -135,16 +146,16 @@ def flatten_file(
         if included is None:
             raise FileNotFoundError(
                 f'Could not resolve #include "{include_name}" '
-                f'in {resolved}:{line_no}'
+                f'in {shown}:{line_no}'
             )
 
         out.append(
-            f'/* inlined from {resolved}:{line_no}: #include "{include_name}" */\n'
+            f'/* inlined from {shown}:{line_no}: #include "{include_name}" */\n'
         )
         out.append(flatten_file(included, root_file,
                    visited, keep_pragma_once))
 
-    out.append(f'/* END INLINE: {resolved} */\n')
+    out.append(f'/* END INLINE: {shown} */\n')
     return "".join(out)
 
 
