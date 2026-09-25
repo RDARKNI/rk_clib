@@ -7,8 +7,7 @@ RK__IGNWARN_CLANG_BEG("-Wunused-variable")
 #define ARENA_SIZE 1024
 
 static unsigned char arena_buf[ARENA_SIZE];
-static Arena         glob_a                     = arena_init_static(arena_buf);
-Allocator            glob_arena_allocator_arena = arena_to_alloc_static(&glob_a);
+static Arena         glob_a = arena_init_static(arena_buf);
 static void          fill_ints(int* p, int n, int base) {
   for (int i = 0; i < n; ++i) { p[i] = base + i; }
 }

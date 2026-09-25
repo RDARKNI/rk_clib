@@ -475,10 +475,12 @@ triax_test(deque, large_randomized_stress) {
         for (int i = 0; i < n; ++i) { ref[start + i] = arr[i]; }
         len += n;
       }
-      triax_assert_eq(deque_count(&q), (size_t)len);
+      size_t len_u = (size_t)len;
+      triax_assert_eq(deque_count(&q), len_u);
     }
 
-    triax_assert_eq(deque_count(&q), (size_t)len);
+    size_t len_u = (size_t)len;
+    triax_assert_eq(deque_count(&q), len_u);
     for (int i = 0; i < len; ++i) {
       int* p = deque_at(int, &q, (size_t)i);
       triax_assert_nonnull(p);
@@ -489,7 +491,7 @@ triax_test(deque, large_randomized_stress) {
       triax_assert_eq(*it, ref[start + (int)fi]);
       ++fi;
     }
-    triax_assert_eq(fi, (size_t)len);
+    triax_assert_eq(fi, len_u);
 
     deque_release(int, &q);
   }

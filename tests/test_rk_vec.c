@@ -5,8 +5,7 @@
 RK__IGNWARN_CLANG_BEG("-Wunused-variable")
 
 static unsigned char vec_storage[102400];
-static Arena         MYARENA          = arena_init_static(vec_storage);
-rk_unused static Allocator glob_arena_alloc = arena_to_alloc_static(&MYARENA);
+rk_unused static Arena MYARENA = arena_init_static(vec_storage);
 
 triax_test(vec, vec_init) {
   rk_unused Allocator used_alloc = alloc_ctx;
@@ -28,7 +27,7 @@ triax_test(vec, vec_init) {
   }
   {
 #if RK_CUSTOM_ALLOCATORS
-    used_alloc = glob_arena_alloc;
+    used_alloc = arena_to_alloc(&MYARENA);
 #endif
     v = vec_init(int, 4 RK_IFALLOC(, used_alloc));
     triax_expect_nonnull(v);
@@ -63,7 +62,7 @@ triax_test(vec, init_list) {
   }
   {
 #if RK_CUSTOM_ALLOCATORS
-    used_alloc = glob_arena_alloc;
+    used_alloc = arena_to_alloc(&MYARENA);
 #endif
     v = vec_init_list(int, RK_IFALLOC(used_alloc, ) 0, 1, 2, 3, 4, 5);
     triax_expect_nonnull(v);
@@ -99,7 +98,7 @@ triax_test(vec, vec_from) {
   rk_unused Allocator used_alloc = alloc_ctx;
   {
 #if RK_CUSTOM_ALLOCATORS
-    used_alloc = glob_arena_alloc;
+    used_alloc = arena_to_alloc(&MYARENA);
 #endif
     int      arr[] = {10, 20, 30};
     Vec(int) v     = vec_from(arr, 3 RK_IFALLOC(, used_alloc));
