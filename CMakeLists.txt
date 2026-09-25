@@ -130,7 +130,7 @@ if(BUILD_TESTING)
                     # type-check both branches even though only one is ever
                     # selected -- on MSVC this synthesizes a compiler-internal
                     # temporary for the unselected branch at every one of the
-                    # hundreds of call sites across rk_pool.h/rk_bst.h/
+                    # hundreds of call sites across rk_pool.h/rk_trees.h/
                     # rk_dict.h, and MSVC flags each as unreferenced. Same
                     # false-positive class as -Wcast-align above, just
                     # surfacing as a different diagnostic on this compiler.

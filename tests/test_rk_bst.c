@@ -89,7 +89,7 @@ triax_test(bst, bsttest) {
   /* foreach: sorted in-order traversal                                       */
   /* ------------------------------------------------------------------------ */
   {
-    bst_node* stack[4];
+    tree_node* stack[4];
     int       keys[4] = {0};
     char      vals[4] = {0};
     int       i       = 0;
@@ -220,7 +220,7 @@ triax_test(bst, get_or_add) {
 
 triax_test(bst, foreach_empty) {
   Bst(int, char) b = bst_init(int, char);
-  bst_node* stack[4];
+  tree_node* stack[4];
   int       visited = 0;
   bst_foreach(&b, stack, 4, e) {
     (void)e;
@@ -265,7 +265,7 @@ triax_test(bst, remove_two_children) {
   triax_expect_eq(*bst_get(int, char, &b, 8), 'h');
 
   // BST property: in-order traversal must still be sorted
-  bst_node* stack[8];
+  tree_node* stack[8];
   int       keys[5];
   int       i = 0;
   bst_foreach(&b, stack, 8, e) { keys[i++] = e->key; }
@@ -285,7 +285,7 @@ triax_test(bst, large_sorted_order) {
   triax_expect_eq(bst_max(&b)->key, 32);
 
   // In-order traversal must produce strictly ascending keys
-  bst_node* stack[32];
+  tree_node* stack[32];
   int       prev = -1, count = 0;
   bst_foreach(&b, stack, 32, e) {
     triax_expect_true(e->key > prev);

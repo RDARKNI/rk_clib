@@ -13,7 +13,9 @@ extern_fun unsigned int int_hash(int key) {
   return (unsigned int)key * 2654435761u;
 }
 
-extern_fun int int_cmp(int a, int b) { return a != b; }
+extern_fun int int_cmp(int a, int b) {
+  return a != b; // returns 0 if equal
+}
 
 // Instantiate the dict for int -> cstr
 DICT_DEFINE(int, cstr, int_hash, int_cmp)

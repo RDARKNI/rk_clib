@@ -4,7 +4,7 @@
 // clang-format off
 #include "rk_config.h"
 #include "rk_defs.h"
-#include "rk_bst.h"
+#include "rk_trees.h"
 #include "rk_bitset.h"
 #include "rk_alloc.h"
 #include "rk_arena.h"

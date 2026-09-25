@@ -31,10 +31,12 @@ static Allocator alloc_cpy;
 // clang-format off
 # include "test_rk_arena.c"
 # include "test_rk_arenastack.c"
+# include "test_rk_avl.c"
 # include "test_rk_bitset.c"
 # include "test_rk_bst.c"
 # include "test_rk_dict.c"
 # include "test_rk_pool.c"
+# include "test_rk_rbt.c"
 # include "test_rk_string.c"
 # include "test_rk_vec.c"
 #else
