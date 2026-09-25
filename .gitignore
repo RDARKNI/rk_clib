@@ -28,3 +28,5 @@ tests/seq2.tap
 tests/sleeper
 tests/outputs/
 tests/outputs_isolation/
+/outputs/
+/outputs_isolation/
