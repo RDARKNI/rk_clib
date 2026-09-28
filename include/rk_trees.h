@@ -103,16 +103,15 @@ typedef struct tree_iter {
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
 /// mutation are the only operations that differ by rebalancing strategy and therefore stay
 /// variant-prefixed.
-#define tree_count(self) ((size_t)(self)->count)
+#define tree_count(self)     ((size_t)(self)->count)
 
-#if RK_CUSTOM_ALLOCATORS
-# define tree_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-# define tree_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// @brief `Allocator tree_allocator(self)` - Returns the Allocator the tree was constructed with,
+/// or `alloc_ctx` if the tree was never initialized or custom allocators are disabled. Identical
+/// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_allocator`/`avl_allocator`/`rbt_allocator`).
+#define tree_allocator(self) RK__allocatorof(self)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
-#define tree_is_empty(self) (tree_count(self) == 0)
+#define tree_is_empty(self)  (tree_count(self) == 0)
 
 /// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
 /// Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`): the
@@ -154,7 +153,7 @@ typedef struct tree_iter {
 #define BST_DEFINE(K, V, CMP_FUN)       RK__BST_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific BST struct name.
-#define Bst(K, V)                       bst_##K##_##V
+#define Bst(K, V)                       Bst_##K##_##V
 /// @brief Generates a type-specific BST entry struct name.
 #define BstEntry(K, V)                  bst_entry_##K##_##V
 
@@ -213,8 +212,8 @@ typedef struct tree_iter {
 /// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
 /// Performs a single tree traversal, unlike a separate `bst_get()`/`bst_add()` pair.
 /// @param default_value Value to insert if `key` is not present.
-/// @param inserted_out Set to `true` if a new node was inserted, `false` if the key already
-/// existed. Must not be `NULL`.
+/// @param inserted_out Optional output pointer. If non-`NULL`, set to `true` if a new node was
+/// inserted and `false` if the key already existed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define bst_get_or_add(K, V, self, key, default_value, inserted_out)                               \
   RK__BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
@@ -267,7 +266,7 @@ typedef struct tree_iter {
 #define AVL_DEFINE(K, V, CMP_FUN)       RK__AVL_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Avl struct name.
-#define Avl(K, V)                       avl_##K##_##V
+#define Avl(K, V)                       Avl_##K##_##V
 /// @brief Generates a type-specific Avl entry struct name.
 #define AvlEntry(K, V)                  avl_entry_##K##_##V
 
@@ -340,6 +339,7 @@ typedef struct tree_iter {
   tree_foreach(self, stack_buf, stack_cap, entry)
 
 ////////////////////////////////// Rbt: left-leaning red-black tree ///////////////////////////////
+
 /// @brief `RBT_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific left-leaning red-black
 /// tree API for the given key/value combination. See `BST_DEFINE()` for the shared usage pattern.
 /// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
@@ -349,7 +349,7 @@ typedef struct tree_iter {
 #define RBT_DEFINE(K, V, CMP_FUN)       RK__RBT_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Rbt struct name.
-#define Rbt(K, V)                       rbt_##K##_##V
+#define Rbt(K, V)                       Rbt_##K##_##V
 /// @brief Generates a type-specific Rbt entry struct name.
 #define RbtEntry(K, V)                  rbt_entry_##K##_##V
 
@@ -381,7 +381,7 @@ typedef struct tree_iter {
 #define rbt_max(self)                   tree_max(self)
 
 /// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
-#define rbt_get(K, V, self, key)        RK__RBT_F(K, V, get)(self, key)
+#define rbt_get(K, V, self, key)        RK__RBT_PUB(K, V, get)(self, key)
 
 /// @brief `bool rbt_contains(K, V, Rbt(K, V)* self, K key)` - See `bst_contains()`.
 #define rbt_contains(K, V, self, key)   (!!rbt_get(K, V, self, key))
@@ -389,28 +389,28 @@ typedef struct tree_iter {
 /// @brief `bool rbt_set(K, V, Rbt(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define rbt_set(K, V, self, key, value) RK__RBT_F(K, V, set)(self, key, value)
+#define rbt_set(K, V, self, key, value) RK__RBT_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* rbt_add(K, V, Rbt(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
 /// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
-#define rbt_add(K, V, self, key, value) RK__RBT_F(K, V, add)(self, key, value)
+#define rbt_add(K, V, self, key, value) RK__RBT_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* rbt_get_or_add(K, V, Rbt(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define rbt_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__RBT_F(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RK__RBT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool rbt_extract(K, V, Rbt(K, V)* self, K key, V* out)` - See `bst_extract()`;
 /// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_extract(K, V, self, key, out) RK__RBT_F(K, V, extract)(self, key, out)
+#define rbt_extract(K, V, self, key, out) RK__RBT_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool rbt_remove(K, V, Rbt(K, V)* self, K key)` - See `bst_remove()`; rebalances as
 /// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_remove(K, V, self, key)       RK__RBT_F(K, V, remove)(self, key)
+#define rbt_remove(K, V, self, key)       RK__RBT_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Rbt tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
@@ -457,14 +457,14 @@ static_fun void RK__tree_release(size_t nodesize, size_t nodealign, tree_data* s
 /// node. Passing the real offset (rather than assuming entry data sits right after `l`/`r`, as a
 /// bare `tree_node*` would) is what makes this safe to reuse for node types that carry extra
 /// bookkeeping (e.g. an AVL height or a red-black color bit) between the pointers and the entry.
-static_fun void* RK__tree_min_off(tree_node* node, size_t entry_off) {
+static_fun rk_pure void* RK__tree_min_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->l) { node = node->l; }
   return (char*)node + entry_off;
 }
 
 /// @brief Like `RK__tree_min_off()`, but for the rightmost (maximum) node.
-static_fun void* RK__tree_max_off(tree_node* node, size_t entry_off) {
+static_fun rk_pure void* RK__tree_max_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
@@ -504,13 +504,14 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 //////////////////////////////////////////////
 
 #define RK__BstEntryPriv(K, V)      RK__bst_entry_##K##_##V
-#define RK__BST_PUB(K, V, FNAME)    bstf_##FNAME##_##K##_##V
-#define RK__BST_PRI(K, V, FNAME)    RK__bst_##FNAME##_##K##_##V
-#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
 
 #define RK__bst_init(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
 #define RK__bst_init3(K, V, _Alloc) rk_disable_if(RK__bst_init(K, V, _Alloc))
 #define RK__bst_init2(K, V)         RK__bst_init(K, V, alloc_ctx)
+
+#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
+#define RK__BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
+#define RK__BST_PRI(K, V, FNAME)    RK__bst_##K##_##V##_##FNAME
 
 #define RK__BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
@@ -539,7 +540,20 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       };                                                                                           \
     };                                                                                             \
   } Bst(K, V);                                                                                     \
-  static_fun struct RK__BstNode(K, V) * *RK__BST_PUB(K, V, search_ptr)(Bst(K, V) * self, K key) {  \
+  /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
+  /* address, cross-container generic dispatch); bst_count()/bst_is_empty()/bst_allocator() */     \
+  /* remain the untyped macros meant for everyday use. */                                          \
+  static_fun rk_pure size_t RK__BST_PUB(K, V, count)(const Bst(K, V) * self) {                     \
+    return tree_count(self);                                                                       \
+  }                                                                                                \
+  static_fun rk_pure bool RK__BST_PUB(K, V, is_empty)(const Bst(K, V) * self) {                    \
+    return tree_is_empty(self);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__BST_PUB(K, V, allocator)(const Bst(K, V) * self) {              \
+    return tree_allocator(self);                                                                   \
+  }                                                                                                \
+  static_fun rk_pure struct RK__BstNode(K, V)                                                      \
+      * *RK__BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
     node_t** curr = &self->root;                                                                   \
     for (; *curr;) {                                                                               \
@@ -549,18 +563,18 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return curr;                                                                                   \
   }                                                                                                \
-  static_fun V* RK__BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                                  \
+  static_fun rk_pure V* RK__BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                          \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** node = RK__BST_PUB(K, V, search_ptr)(self, key);                                      \
+    node_t** node = RK__BST_PRI(K, V, search_ptr)(self, key);                                      \
     return *node ? &((*node)->entry.val) : rk_null;                                                \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                           \
-    return !!(*RK__BST_PUB(K, V, search_ptr)(self, key));                                          \
+  static_fun rk_pure bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                   \
+    return !!(*RK__BST_PRI(K, V, search_ptr)(self, key));                                          \
   }                                                                                                \
   static_fun V* RK__BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,      \
                                            V val) {                                                \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
       if (always_insert) { (*lnk)->entry.val = val; }                                              \
       return rk_null;                                                                              \
@@ -581,11 +595,10 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
   }                                                                                                \
   static_fun V* RK__BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                      \
                                               bool* restrict inserted_out) {                       \
-    rk_assert_ptr_nonnull(inserted_out);                                                           \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
-      *inserted_out = false;                                                                       \
+      if (inserted_out) { *inserted_out = false; }                                                 \
       return &((*lnk)->entry_mod.val);                                                             \
     }                                                                                              \
     rk_set_alloc_fallback(self->alloc);                                                            \
@@ -594,13 +607,13 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
     *lnk         = n;                                                                              \
     ++self->count;                                                                                 \
-    *inserted_out = true;                                                                          \
+    if (inserted_out) { *inserted_out = true; }                                                    \
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
   static_fun bool RK__BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {               \
     rk_assert_ptr_nonnull(val_out);                                                                \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (!*lnk) { return false; }                                                                   \
     --self->count;                                                                                 \
     node_t* curr = *lnk;                                                                           \
@@ -626,13 +639,13 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RK__AvlNode(K, V)      RK__avl_node_##K##_##V
-#define RK__AVL_PUB(K, V, F)   avlf_##F##_##K##_##V
-#define RK__AVL_PRI(K, V, F)   RK__avl_##F##_##K##_##V
+#define RK__avl_init(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RK__avl_init3(K, V, A)   rk_disable_if(RK__avl_init(K, V, A))
+#define RK__avl_init2(K, V)      RK__avl_init(K, V, alloc_ctx)
 
-#define RK__avl_init(K, V, A)  ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__avl_init3(K, V, A) rk_disable_if(RK__avl_init(K, V, A))
-#define RK__avl_init2(K, V)    RK__avl_init(K, V, alloc_ctx)
+#define RK__AvlNode(K, V)        RK__avl_node_##K##_##V
+#define RK__AVL_PUB(K, V, FNAME) avl_##K##_##V##_##FNAME
+#define RK__AVL_PRI(K, V, FNAME) RK__avl_##K##_##V##_##FNAME
 
 #define RK__AVL_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
@@ -662,8 +675,20 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       };                                                                                           \
     };                                                                                             \
   } Avl(K, V);                                                                                     \
-  static_fun int  RK__AVL_PRI(K, V, h)(RK__AvlNode(K, V) * n) { return n ? n->height : 0; }        \
-  static_fun void RK__AVL_PRI(K, V, fixh)(RK__AvlNode(K, V) * n) {                                 \
+  /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
+  /* address, cross-container generic dispatch); avl_count()/avl_is_empty()/avl_allocator() */     \
+  /* remain the untyped macros meant for everyday use. */                                          \
+  static_fun rk_pure size_t RK__AVL_PUB(K, V, count)(const Avl(K, V) * self) {                     \
+    return tree_count(self);                                                                       \
+  }                                                                                                \
+  static_fun rk_pure bool RK__AVL_PUB(K, V, is_empty)(const Avl(K, V) * self) {                    \
+    return tree_is_empty(self);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__AVL_PUB(K, V, allocator)(const Avl(K, V) * self) {              \
+    return tree_allocator(self);                                                                   \
+  }                                                                                                \
+  static_fun rk_pure int RK__AVL_PRI(K, V, h)(RK__AvlNode(K, V) * n) { return n ? n->height : 0; } \
+  static_fun void        RK__AVL_PRI(K, V, fixh)(RK__AvlNode(K, V) * n) {                          \
     int a = RK__AVL_PRI(K, V, h)(n->l), b = RK__AVL_PRI(K, V, h)(n->r);                            \
     n->height = 1 + (a > b ? a : b);                                                               \
   }                                                                                                \
@@ -726,7 +751,7 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return RK__AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
-  static_fun V* RK__AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                                  \
+  static_fun rk_pure V* RK__AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                          \
     RK__AvlNode(K, V)* n = self->root;                                                             \
     while (n) {                                                                                    \
       int c = CMP_FUN(key, n->entry.key);                                                          \
@@ -755,8 +780,9 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
   }                                                                                                \
   static_fun V* RK__AVL_PUB(K, V, get_or_add)(Avl(K, V) * self, K key, V val,                      \
                                               bool* restrict inserted_out) {                       \
-    rk_assert_ptr_nonnull(inserted_out);                                                           \
-    return RK__AVL_PRI(K, V, setadd)(self, key, val, false, inserted_out);                         \
+    bool ignored;                                                                                  \
+    return RK__AVL_PRI(K, V, setadd)(self, key, val, false,                                        \
+                                     inserted_out ? inserted_out : &ignored);                      \
   }                                                                                                \
   static_fun RK__AvlNode(K, V)                                                                     \
       * RK__AVL_PRI(K, V, detach_min)(RK__AvlNode(K, V) * n, RK__AvlNode(K, V) * *out) {           \
@@ -808,15 +834,15 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RK__RbtNode(K, V)      RK__rbt_node_##K##_##V
-#define RK__RBT_F(K, V, F)     rbtf_##F##_##K##_##V
-#define RK__RBT_I(K, V, F)     RK__rbt_##F##_##K##_##V
-
-#define RK__rbt_init(K, V, A)  ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__rbt_init3(K, V, A) rk_disable_if(RK__rbt_init(K, V, A))
-#define RK__rbt_init2(K, V)    RK__rbt_init(K, V, alloc_ctx)
+#define RK__rbt_init(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RK__rbt_init3(K, V, A)   rk_disable_if(RK__rbt_init(K, V, A))
+#define RK__rbt_init2(K, V)      RK__rbt_init(K, V, alloc_ctx)
 
 /* Left-leaning red-black tree: red links lean left and no node has two red links in a row. */
+
+#define RK__RbtNode(K, V)        RK__rbt_node_##K##_##V
+#define RK__RBT_PUB(K, V, FNAME) rbt_##K##_##V##_##FNAME
+#define RK__RBT_PRI(K, V, FNAME) RK__rbt_##K##_##V##_##FNAME
 
 #define RK__RBT_DEFINE(K, V, CMP)                                                                  \
   RK_EXTERNC_BEG                                                                                   \
@@ -824,15 +850,15 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     K const key;                                                                                   \
     V       val;                                                                                   \
   } RbtEntry(K, V);                                                                                \
-  typedef struct RK__RBT_I(K, V, E) {                                                              \
+  typedef struct RK__RBT_PRI(K, V, E) {                                                            \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__RBT_I(K, V, E);                                                                            \
+  } RK__RBT_PRI(K, V, E);                                                                          \
   typedef struct RK__RbtNode(K, V) {                                                               \
     struct RK__RbtNode(K, V) * l, *r;                                                              \
     bool red;                                                                                      \
     union {                                                                                        \
-      RK__RBT_I(K, V, E) entry_mod;                                                                \
+      RK__RBT_PRI(K, V, E) entry_mod;                                                              \
       RbtEntry(K, V) entry;                                                                        \
     };                                                                                             \
   } RK__RbtNode(K, V);                                                                             \
@@ -846,8 +872,20 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       };                                                                                           \
     };                                                                                             \
   } Rbt(K, V);                                                                                     \
-  static_fun bool RK__RBT_I(K, V, red)(RK__RbtNode(K, V) * n) { return n && n->red; }              \
-  static_fun      RK__RbtNode(K, V) * RK__RBT_I(K, V, rl)(RK__RbtNode(K, V) * h) {                 \
+  /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
+  /* address, cross-container generic dispatch); rbt_count()/rbt_is_empty()/rbt_allocator() */     \
+  /* remain the untyped macros meant for everyday use. */                                          \
+  static_fun rk_pure size_t RK__RBT_PUB(K, V, count)(const Rbt(K, V) * self) {                     \
+    return tree_count(self);                                                                       \
+  }                                                                                                \
+  static_fun rk_pure bool RK__RBT_PUB(K, V, is_empty)(const Rbt(K, V) * self) {                    \
+    return tree_is_empty(self);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__RBT_PUB(K, V, allocator)(const Rbt(K, V) * self) {              \
+    return tree_allocator(self);                                                                   \
+  }                                                                                                \
+  static_fun rk_pure bool RK__RBT_PRI(K, V, red)(RK__RbtNode(K, V) * n) { return n && n->red; }    \
+  static_fun              RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rl)(RK__RbtNode(K, V) * h) {       \
     RK__RbtNode(K, V)* x = h->r;                                                                   \
     h->r                 = x->l;                                                                   \
     x->l                 = h;                                                                      \
@@ -855,7 +893,7 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, rr)(RK__RbtNode(K, V) * h) {                      \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rr)(RK__RbtNode(K, V) * h) {                    \
     RK__RbtNode(K, V)* x = h->l;                                                                   \
     h->l                 = x->r;                                                                   \
     x->r                 = h;                                                                      \
@@ -863,39 +901,41 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun void RK__RBT_I(K, V, flip)(RK__RbtNode(K, V) * h) {                                   \
+  static_fun void RK__RBT_PRI(K, V, flip)(RK__RbtNode(K, V) * h) {                                 \
     h->red    = !h->red;                                                                           \
     h->l->red = !h->l->red;                                                                        \
     h->r->red = !h->r->red;                                                                        \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, fix)(RK__RbtNode(K, V) * h) {                     \
-    if (RK__RBT_I(K, V, red)(h->r)) { h = RK__RBT_I(K, V, rl)(h); }                                \
-    if (RK__RBT_I(K, V, red)(h->l) && RK__RBT_I(K, V, red)(h->l->l)) {                             \
-      h = RK__RBT_I(K, V, rr)(h);                                                                  \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, fix)(RK__RbtNode(K, V) * h) {                   \
+    if (RK__RBT_PRI(K, V, red)(h->r)) { h = RK__RBT_PRI(K, V, rl)(h); }                            \
+    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->l->l)) {                         \
+      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
     }                                                                                              \
-    if (RK__RBT_I(K, V, red)(h->l) && RK__RBT_I(K, V, red)(h->r)) { RK__RBT_I(K, V, flip)(h); }    \
-    return h;                                                                                      \
-  }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, ml)(RK__RbtNode(K, V) * h) {                      \
-    RK__RBT_I(K, V, flip)(h);                                                                      \
-    if (RK__RBT_I(K, V, red)(h->r->l)) {                                                           \
-      h->r = RK__RBT_I(K, V, rr)(h->r);                                                            \
-      h    = RK__RBT_I(K, V, rl)(h);                                                               \
-      RK__RBT_I(K, V, flip)(h);                                                                    \
+    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->r)) {                            \
+      RK__RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, mr)(RK__RbtNode(K, V) * h) {                      \
-    RK__RBT_I(K, V, flip)(h);                                                                      \
-    if (RK__RBT_I(K, V, red)(h->l->l)) {                                                           \
-      h = RK__RBT_I(K, V, rr)(h);                                                                  \
-      RK__RBT_I(K, V, flip)(h);                                                                    \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, ml)(RK__RbtNode(K, V) * h) {                    \
+    RK__RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RK__RBT_PRI(K, V, red)(h->r->l)) {                                                         \
+      h->r = RK__RBT_PRI(K, V, rr)(h->r);                                                          \
+      h    = RK__RBT_PRI(K, V, rl)(h);                                                             \
+      RK__RBT_PRI(K, V, flip)(h);                                                                  \
+    }                                                                                              \
+    return h;                                                                                      \
+  }                                                                                                \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mr)(RK__RbtNode(K, V) * h) {                    \
+    RK__RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RK__RBT_PRI(K, V, red)(h->l->l)) {                                                         \
+      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
+      RK__RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
   static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_I(K, V, put)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V v, bool ow, V** out,     \
-                             bool* added) {                                                        \
+      * RK__RBT_PRI(K, V, put)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
+                               bool* added) {                                                      \
     if (!h) {                                                                                      \
       rk_set_alloc_fallback(s->alloc);                                                             \
       h    = alloc_new(RK__RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
@@ -908,16 +948,16 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     int c = CMP(k, h->entry.key);                                                                  \
     if (c < 0) {                                                                                   \
-      h->l = RK__RBT_I(K, V, put)(s, h->l, k, v, ow, out, added);                                  \
+      h->l = RK__RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
     } else if (c > 0) {                                                                            \
-      h->r = RK__RBT_I(K, V, put)(s, h->r, k, v, ow, out, added);                                  \
+      h->r = RK__RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
     } else {                                                                                       \
       if (ow) { h->entry_mod.val = v; }                                                            \
       *out = &h->entry_mod.val;                                                                    \
     }                                                                                              \
-    return RK__RBT_I(K, V, fix)(h);                                                                \
+    return RK__RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun V* RK__RBT_F(K, V, get)(Rbt(K, V) * s, K k) {                                         \
+  static_fun rk_pure V* RK__RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                               \
     RK__RbtNode(K, V)* n = s->root;                                                                \
     while (n) {                                                                                    \
       int c = CMP(k, n->entry.key);                                                                \
@@ -926,55 +966,55 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
-  static_fun V* RK__RBT_I(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {           \
+  static_fun V* RK__RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {         \
     V* out       = rk_null;                                                                        \
     *added       = false;                                                                          \
-    s->root      = RK__RBT_I(K, V, put)(s, s->root, k, v, ow, &out, added);                        \
+    s->root      = RK__RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
     s->root->red = false;                                                                          \
     if (*added) { ++s->count; }                                                                    \
     return out;                                                                                    \
   }                                                                                                \
-  static_fun bool RK__RBT_F(K, V, set)(Rbt(K, V) * s, K k, V v) {                                  \
+  static_fun bool RK__RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                \
     bool a;                                                                                        \
-    (void)RK__RBT_I(K, V, insert)(s, k, v, true, &a);                                              \
+    (void)RK__RBT_PRI(K, V, insert)(s, k, v, true, &a);                                            \
     return a;                                                                                      \
   }                                                                                                \
-  static_fun V* RK__RBT_F(K, V, add)(Rbt(K, V) * s, K k, V v) {                                    \
+  static_fun V* RK__RBT_PUB(K, V, add)(Rbt(K, V) * s, K k, V v) {                                  \
     bool a;                                                                                        \
-    V*   p = RK__RBT_I(K, V, insert)(s, k, v, false, &a);                                          \
+    V*   p = RK__RBT_PRI(K, V, insert)(s, k, v, false, &a);                                        \
     return a ? p : rk_null;                                                                        \
   }                                                                                                \
-  static_fun V* RK__RBT_F(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                               \
-                                            bool* restrict inserted_out) {                         \
-    rk_assert_ptr_nonnull(inserted_out);                                                           \
-    return RK__RBT_I(K, V, insert)(s, k, v, false, inserted_out);                                  \
+  static_fun V* RK__RBT_PUB(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                             \
+                                              bool* restrict inserted_out) {                       \
+    bool ignored;                                                                                  \
+    return RK__RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, mn)(RK__RbtNode(K, V) * h) {                      \
+  static_fun rk_pure RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mn)(RK__RbtNode(K, V) * h) {            \
     while (h->l) { h = h->l; }                                                                     \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, dm)(Rbt(K, V) * s, RK__RbtNode(K, V) * h) {       \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, dm)(Rbt(K, V) * s, RK__RbtNode(K, V) * h) {     \
     if (!h->l) {                                                                                   \
       alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                   \
       return rk_null;                                                                              \
     }                                                                                              \
-    if (!RK__RBT_I(K, V, red)(h->l) && !RK__RBT_I(K, V, red)(h->l->l)) {                           \
-      h = RK__RBT_I(K, V, ml)(h);                                                                  \
+    if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                       \
+      h = RK__RBT_PRI(K, V, ml)(h);                                                                \
     }                                                                                              \
-    h->l = RK__RBT_I(K, V, dm)(s, h->l);                                                           \
-    return RK__RBT_I(K, V, fix)(h);                                                                \
+    h->l = RK__RBT_PRI(K, V, dm)(s, h->l);                                                         \
+    return RK__RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
   static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_I(K, V, del)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V * out, bool* gone) {     \
+      * RK__RBT_PRI(K, V, del)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
     if (CMP(k, h->entry.key) < 0) {                                                                \
       if (h->l) {                                                                                  \
-        if (!RK__RBT_I(K, V, red)(h->l) && !RK__RBT_I(K, V, red)(h->l->l)) {                       \
-          h = RK__RBT_I(K, V, ml)(h);                                                              \
+        if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                   \
+          h = RK__RBT_PRI(K, V, ml)(h);                                                            \
         }                                                                                          \
-        h->l = RK__RBT_I(K, V, del)(s, h->l, k, out, gone);                                        \
+        h->l = RK__RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
       }                                                                                            \
     } else {                                                                                       \
-      if (RK__RBT_I(K, V, red)(h->l)) { h = RK__RBT_I(K, V, rr)(h); }                              \
+      if (RK__RBT_PRI(K, V, red)(h->l)) { h = RK__RBT_PRI(K, V, rr)(h); }                          \
       int c = CMP(k, h->entry.key);                                                                \
       if (!c && !h->r) {                                                                           \
         *out  = h->entry_mod.val;                                                                  \
@@ -983,38 +1023,38 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
         return rk_null;                                                                            \
       }                                                                                            \
       if (h->r) {                                                                                  \
-        if (!RK__RBT_I(K, V, red)(h->r) && !RK__RBT_I(K, V, red)(h->r->l)) {                       \
-          h = RK__RBT_I(K, V, mr)(h);                                                              \
+        if (!RK__RBT_PRI(K, V, red)(h->r) && !RK__RBT_PRI(K, V, red)(h->r->l)) {                   \
+          h = RK__RBT_PRI(K, V, mr)(h);                                                            \
         }                                                                                          \
         c = CMP(k, h->entry.key);                                                                  \
         if (!c) {                                                                                  \
-          RK__RbtNode(K, V)* m = RK__RBT_I(K, V, mn)(h->r);                                        \
+          RK__RbtNode(K, V)* m = RK__RBT_PRI(K, V, mn)(h->r);                                      \
           *out                 = h->entry_mod.val;                                                 \
           *gone                = true;                                                             \
           h->entry_mod         = m->entry_mod;                                                     \
-          h->r                 = RK__RBT_I(K, V, dm)(s, h->r);                                     \
+          h->r                 = RK__RBT_PRI(K, V, dm)(s, h->r);                                   \
         } else {                                                                                   \
-          h->r = RK__RBT_I(K, V, del)(s, h->r, k, out, gone);                                      \
+          h->r = RK__RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
         }                                                                                          \
       }                                                                                            \
     }                                                                                              \
-    return RK__RBT_I(K, V, fix)(h);                                                                \
+    return RK__RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun bool RK__RBT_F(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                          \
+  static_fun bool RK__RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                        \
     rk_assert_ptr_nonnull(out);                                                                    \
-    if (!s->root || !RK__RBT_F(K, V, get)(s, k)) { return false; }                                 \
+    if (!s->root || !RK__RBT_PUB(K, V, get)(s, k)) { return false; }                               \
     bool gone = false;                                                                             \
-    if (!RK__RBT_I(K, V, red)(s->root->l) && !RK__RBT_I(K, V, red)(s->root->r)) {                  \
+    if (!RK__RBT_PRI(K, V, red)(s->root->l) && !RK__RBT_PRI(K, V, red)(s->root->r)) {              \
       s->root->red = true;                                                                         \
     }                                                                                              \
-    s->root = RK__RBT_I(K, V, del)(s, s->root, k, out, &gone);                                     \
+    s->root = RK__RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
     if (s->root) { s->root->red = false; }                                                         \
     if (gone) { --s->count; }                                                                      \
     return gone;                                                                                   \
   }                                                                                                \
-  static_fun bool RK__RBT_F(K, V, remove)(Rbt(K, V) * s, K k) {                                    \
+  static_fun bool RK__RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                  \
     V x;                                                                                           \
-    return RK__RBT_F(K, V, extract)(s, k, &x);                                                     \
+    return RK__RBT_PUB(K, V, extract)(s, k, &x);                                                   \
   }                                                                                                \
   RK_EXTERNC_END
 

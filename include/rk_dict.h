@@ -110,7 +110,7 @@ RK_HEADER_BEGIN
 #define DICT_DEFINE(key_t, val_t, hash_f, cmp_f) RK__DICT_DEF(key_t, val_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific dict struct name.
-#define Dict(K, V)                               Dict##_##K##_##V
+#define Dict(K, V)                               Dict_##K##_##V
 
 /// @brief `Dict(K, V) dict_init(K, V, size_t cap, Allocator alloc = alloc_ctx)` - Convenience Macro
 /// to create a Dict.
@@ -126,24 +126,23 @@ RK_HEADER_BEGIN
 /// Dict(int, cstr) tab =  dict_init(int, cstr, 10, alloc);
 /// ```
 /// @return An initialised Dict
-#define dict_init(K, V, cap, ...) rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
+#define dict_init(K, V, cap, ...)              rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
 
 /// @brief `void dict_release(K, V, Dict(K, V)* self)` - Frees the underlying memory of the Dict.
-#define dict_release(K, V, self)  RK__DICT_PUB(K, V, release)(self)
+#define dict_release(K, V, self)               RK__DICT_PUB(K, V, release)(self)
 
 /// @brief `size_t dict_count(Dict(K, V)* self)` - Returns the number of live key-value pairs stored
 /// in the Dict.
-#define dict_count(self)          ((size_t)((self)->count))
+#define dict_count(self)                       ((size_t)((self)->count))
 
 /// @brief `size_t dict_cap(Dict(K, V)* self)` - Returns the current slot capacity of the Dict.
 /// Always a power of two.
-#define dict_cap(self)            ((size_t)((self)->cap))
+#define dict_cap(self)                         ((size_t)((self)->cap))
 
-#if RK_CUSTOM_ALLOCATORS
-# define dict_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-# define dict_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// @brief `Allocator dict_allocator(Dict(K, V)* self)` - Returns the Allocator the Dict was
+/// constructed with, or `alloc_ctx` if the Dict was never initialized or custom allocators are
+/// disabled.
+#define dict_allocator(self)                   RK__allocatorof(self)
 
 /// @brief `bool dict_is_empty(Dict(K, V)* self)` - Returns `true` iff the dict contains no
 /// elements.
@@ -204,18 +203,18 @@ RK_HEADER_BEGIN
 #define dict_add(K, V, self, key, val) RK__DICT_PUB(K, V, add)(self, key, val)
 
 /// @brief `V* dict_get_or_add(K, V, Dict(K, V)* self, K key, V default_value, bool* inserted_out)`
-/// - Returns a pointer to the value for `key`, inserting `default_value` first if the key is
-/// absent; resizes the Dict if necessary.
-/// @param default_value Value to insert if `key` is not present.
-/// @param inserted_out Set to `true` if a new entry was inserted, `false` if the key already
-/// existed. Must not be `NULL`.
-/// @return Pointer to the value for `key` (never `NULL`).
+/// - Returns a pointer to the value associated with `key`, inserting `default_value` first if the
+/// key is absent. Resizes the Dict if necessary.
+/// @param default_value Value to insert if `key` is absent.
+/// @param inserted_out Optional output set to `true` if a new entry was inserted or `false` if the
+/// key already existed. May be `NULL` if this information is not needed.
+/// @return Pointer to the value associated with `key`; never `NULL`.
 #define dict_get_or_add(K, V, self, key, default_value, inserted_out)                              \
   RK__DICT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool dict_extract(K, V, Dict(K, V)* self, K key, V* out_ptr)` - Removes a key from the
 /// Dict and stores the value in `out_ptr`.
-/// @param out_ptr Pointer to where the removed value should be written if found.
+/// @param out_ptr Non-null pointer; where the removed value should be written if found.
 /// @return `true` if key was found and removed, `false` otherwise
 #define dict_extract(K, V, self, key, out_ptr) RK__DICT_PUB(K, V, extract)(self, key, out_ptr)
 
@@ -303,7 +302,7 @@ RK_HEADER_BEGIN
 #define SET_DEFINE(key_t, hash_f, cmp_f) RK__SET_DEF(key_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific set struct name.
-#define Set(K)                           Set##_##K
+#define Set(K)                           Set_##K
 
 /// @brief `Set(K) set_init(K, size_t cap, Allocator alloc = alloc_ctx)` - Creates a Set.
 /// @param K           Name of the key Type
@@ -329,55 +328,53 @@ RK_HEADER_BEGIN
 /// power of two.
 #define set_cap(self)                    ((size_t)((self)->cap))
 
-#if RK_CUSTOM_ALLOCATORS
-# define set_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-# define set_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// @brief `Allocator set_allocator(Set(K)* self)` - Returns the Allocator the Set was constructed
+/// with, or `alloc_ctx` if the Set was never initialized or custom allocators are disabled.
+#define set_allocator(self)              RK__allocatorof(self)
 
 /// @brief `bool set_is_empty(Set(K)* self)` - Returns `true` iff the set contains no elements.
-#define set_is_empty(self)           ((bool)(set_count(self) == 0))
+#define set_is_empty(self)               ((bool)(set_count(self) == 0))
 
 /// @brief `float set_load_factor(Set(K)* self)` - Returns the current load factor (live entries /
 /// capacity). See `dict_load_factor()`.
-#define set_load_factor(self)        ((float)RK__ds_load_factor(&(self)->hdr))
+#define set_load_factor(self)            ((float)RK__ds_load_factor(&(self)->hdr))
 
 /// @brief `Set(K)* set_clear(K, Set(K)* self)` - Marks all slots in the Set as free, allowing reuse
 /// of its memory.
 /// @return `self`, for chaining.
-#define set_clear(K, self)           RK__SET_PUB(K, clear)(self)
+#define set_clear(K, self)               RK__SET_PUB(K, clear)(self)
 
 /// @brief `Set(K)* set_reserve(K, Set(K)* self, size_t n)` - Reserves and rehashes the Set so that
 /// it can hold at least `n` live entries without triggering another automatic rehash. See
 /// `dict_reserve()`.
 /// @return `self`, for chaining.
-#define set_reserve(K, self, n)      RK__SET_PUB(K, reserve)(self, n)
+#define set_reserve(K, self, n)          RK__SET_PUB(K, reserve)(self, n)
 
 /// @brief `Set(K)* set_shrink_to_fit(K, Set(K)* self)` - Rehashes the Set down to the smallest
 /// table capacity that still keeps its live entries under the load factor threshold. See
 /// `dict_shrink_to_fit()`.
 /// @return `self`, for chaining.
-#define set_shrink_to_fit(K, self)   RK__SET_PUB(K, shrink_to_fit)(self)
+#define set_shrink_to_fit(K, self)       RK__SET_PUB(K, shrink_to_fit)(self)
 
 /// @brief `Set(K)* set_assign(K, Set(K)* self, const K* keys, size_t n)` - Replaces the Set's
 /// contents with `n` keys from `keys`, reusing the existing table (growing it if necessary) rather
 /// than allocating a new one.
 /// @return `self`, for chaining.
-#define set_assign(K, self, keys, n) RK__SET_PUB(K, assign)(self, keys, n)
+#define set_assign(K, self, keys, n)     RK__SET_PUB(K, assign)(self, keys, n)
 
 /// @brief `bool set_contains(K, const Set(K)* self, K key)`
 /// - Checks whether the given key is present in the Set.
 /// @return `true` if `self` contains the key, `false` otherwise
-#define set_contains(K, self, key)   RK__SET_PUB(K, contains)(self, key)
+#define set_contains(K, self, key)       RK__SET_PUB(K, contains)(self, key)
 
 /// @brief `bool set_add(K, Set(K)* self, K key)` - Ensures a key is present in a set; resizes the
 /// Set if necessary.
 /// @return `true` if the key was inserted, `false` if it was already present.
-#define set_add(K, self, key)        RK__SET_PUB(K, add)(self, key)
+#define set_add(K, self, key)            RK__SET_PUB(K, add)(self, key)
 
 /// @brief `bool set_remove(K, Set(K)* self, K key)` - Removes a key from the Set if it is present.
 /// @return `true` if the value was found and removed, `false` otherwise
-#define set_remove(K, self, key)     RK__SET_PUB(K, remove)(self, key)
+#define set_remove(K, self, key)         RK__SET_PUB(K, remove)(self, key)
 
 /// @brief Iterates over all keys in the Set, skipping empty slots.
 /// @param self     Pointer to the Set to iterate over
@@ -391,7 +388,7 @@ RK_HEADER_BEGIN
 /// ```
 /// @warning Adding or removing keys via this macro leads to incorrect iteration.
 /// @note Iteration skips empty slots in the underlying storage.
-#define set_foreach(self, key)       dict_foreach_key(self, key)
+#define set_foreach(self, key)           dict_foreach_key(self, key)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
@@ -435,8 +432,8 @@ typedef size_t RK__hashprobe_t;
 #define RK__DS_SLOT_DELETED                   ((u8)0xFE)
 #define RK__DS_SLOT_EMPTY_OR_DELETED(x)       ((x) & 0x80)
 
-#define RK__DICT_PUB(K, V, FNAME)             dictf_##FNAME##_##K##_##V
-#define RK__DICT_PRI(K, V, FNAME)             RK__dict##_##K##_##V##_##FNAME
+#define RK__DICT_PUB(K, V, FNAME)             dict_##K##_##V##_##FNAME
+#define RK__DICT_PRI(K, V, FNAME)             RK__dict_##K##_##V##_##FNAME
 
 #define RK__DICT_INIT(K, V, init_cap, alloc)  RK__DICT_PUB(K, V, init)(init_cap RK_IFALLOC(, alloc))
 #define RK__DICT_INIT4(K, V, init_cap, alloc) rk_disable_if(RK__DICT_INIT(K, V, init_cap, alloc))
@@ -446,8 +443,8 @@ typedef size_t RK__hashprobe_t;
 #define RK__SET_INIT3(K, init_cap, alloc)     rk_disable_if(RK__SET_INIT(K, init_cap, alloc))
 #define RK__SET_INIT2(K, init_cap)            RK__SET_INIT(K, init_cap, alloc_ctx)
 
-#define RK__SET_PUB(K, FNAME)                 setf_##FNAME##_##K
-#define RK__SET_PRI(K, FNAME)                 RK__set##_##K##_##FNAME
+#define RK__SET_PUB(K, FNAME)                 set_##K##_##FNAME
+#define RK__SET_PRI(K, FNAME)                 RK__set_##K##_##FNAME
 
 #define RK__SET_PUB_I(K, V, FNAME)            RK__SET_PUB(K, FNAME)
 #define RK__SET_PRI_I(K, V, FNAME)            RK__SET_PRI(K, FNAME)
@@ -469,6 +466,15 @@ typedef size_t RK__hashprobe_t;
     IF_DICT(V* vals;)                                                                                \
     RK_IFALLOC(Allocator alloc;)                                                                     \
   } DSTYPE(K, V);                                                                                    \
+  static_fun rk_pure size_t    PUBF(K, V, count)(const DSTYPE(K, V) * self) { return self->count; }  \
+  static_fun rk_pure size_t    PUBF(K, V, cap)(const DSTYPE(K, V) * self) { return self->cap; }      \
+  static_fun rk_pure Allocator PUBF(K, V, allocator)(const DSTYPE(K, V) * self) {                    \
+    return RK__allocatorof(self);                                                                    \
+  }                                                                                                  \
+  static_fun rk_pure bool  PUBF(K, V, is_empty)(const DSTYPE(K, V) * self) { return !self->count; }  \
+  static_fun rk_pure float PUBF(K, V, load_factor)(const DSTYPE(K, V) * self) {                      \
+    return RK__ds_load_factor(&self->hdr);                                                           \
+  }                                                                                                  \
   static_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {               \
     rk_assert_allocator_valid(alloc);                                                                \
     cap = stdc_bit_ceil(rk_MAX(16u, cap));                                                           \
@@ -522,8 +528,8 @@ typedef size_t RK__hashprobe_t;
                        (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap);   \
     }                                                                                                \
   }                                                                                                  \
-  static_fun RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,           \
-                                                 u64 hash) {                                         \
+  static_fun rk_pure RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,   \
+                                                         u64 hash) {                                 \
     u8           fp   = RK__DS_fp(hash);                                                             \
     const size_t mask = self->cap - 1;                                                               \
     size_t       i = RK__DS_home(mask, hash), fd = RK_DS_NOTIN;                                      \
@@ -538,7 +544,7 @@ typedef size_t RK__hashprobe_t;
     }                                                                                                \
     return (fd != RK_DS_NOTIN) ? RK__PROBE_MAKE(0, 1, fd) : RK__PROBE_MAKE(0, 0, i);                 \
   }                                                                                                  \
-  static_fun bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {                   \
+  static_fun rk_pure bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {           \
     if rk_unlikely (!self->cap) { return false; }                                                    \
     return RK__PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                        \
   }                                                                                                  \
@@ -603,25 +609,24 @@ typedef size_t RK__hashprobe_t;
       } /*                                                           */                            \
       static_fun V* PUBF(K, V, get_or_add)(DSTYPE(K, V)* restrict self, K key, V val,              \
                                            bool* restrict inserted_out) {                          \
-        rk_assert_ptr_nonnull(inserted_out);                                                       \
         PRIF(K, V, ensure_cap)(self);                                                              \
         u64             hash = (u64)hash_f(key);                                                   \
         RK__hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
         if (!RK__PROBE_FOUND(r)) {                                                                 \
           PRIF(K, V, insert_f)(self, key, val, RK__DS_fp(hash), RK__PROBE_TOMBSTONE(r),            \
                                RK__PROBE_IDX(r));                                                  \
-          *inserted_out = true;                                                                    \
+          if(inserted_out){ *inserted_out = true; }                                                \
         } else {                                                                                   \
-          *inserted_out = false;                                                                   \
+          if(inserted_out){ *inserted_out = false; }                                               \
         }                                                                                          \
         return &self->vals[RK__PROBE_IDX(r)];                                                      \
       } /*                                                           */                            \
-      static_fun const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {        \
+      static_fun rk_pure const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {\
         if rk_unlikely (!self->cap) { return rk_null; }                                            \
         RK__hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
         return RK__PROBE_FOUND(r) ? &self->vals[RK__PROBE_IDX(r)] : rk_null;                       \
       } /*                                                           */                            \
-      static_fun V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                          \
+      static_fun rk_pure V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                  \
         return (V*)PUBF(K, V, get_const)(self, key);                                               \
       } /*                                                           */                            \
       static_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V * out_ptr) {       \
@@ -640,9 +645,9 @@ typedef size_t RK__hashprobe_t;
         return PUBF(K, V, extract)(self, key, &_);                                                 \
       } /*                                                           */                            \
       static_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,     \
-                                                    const V* vals, size_t n) {                      \
+                                                    const V* vals, size_t n) {                     \
         PUBF(K, V, clear)(self);                                                                   \
-        for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                 \
+        for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                \
         return self;                                                                               \
       }) \
   IF_SET(                                                                                          \
@@ -679,7 +684,6 @@ typedef size_t RK__hashprobe_t;
 /// @endcond
 
 static_fun rk_pure float RK__ds_load_factor(const RK__ds_header* hdr) {
-  rk_assert(hdr && "hdr must not be null");
   return hdr->cap ? (float)hdr->count / (float)hdr->cap : 0.0f;
 }
 static_fun rk_pure bool RK__ds_needs_rehash(const RK__ds_header* hdr) {

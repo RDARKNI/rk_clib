@@ -36,7 +36,7 @@ typedef struct Arena {
 /// @param arr The byte array to serve as the arena's backing memory
 /// @param len The length of `arr`, in bytes
 /// @return New Arena using the array as backing storage
-static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
+static_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
   return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
 }
 
@@ -53,45 +53,48 @@ static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
 /// @return `self`, for chaining
 static_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
-/// @brief Returns the number of bytes an Arena can allocate in total.
+/// @brief Returns the number of bytes an Arena can allocate in total, or 0 if `self` was never
+/// initialized.
 static_fun rk_pure size_t arena_cap(const Arena* self) {
-  return rk_likely(self && self->beg) ? (size_t)(self->end - self->beg) : 0;
+  return rk_likely(self->beg) ? (size_t)(self->end - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena has allocated.
+/// @brief Returns the number of bytes an Arena has allocated, or 0 if `self` was never initialized.
 static_fun rk_pure size_t arena_used(const Arena* self) {
-  return rk_likely(self && self->beg) ? (size_t)(self->cur - self->beg) : 0;
+  return rk_likely(self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena can still allocate before running out of space.
+/// @brief Returns the number of bytes an Arena can still allocate before running out of space, or 0
+/// if `self` was never initialized.
 static_fun rk_pure size_t arena_remaining(const Arena* self) {
-  return rk_likely(self && self->beg) ? (size_t)(self->end - self->cur) : 0;
+  return rk_likely(self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
-/// @brief Returns whether the arena has no allocations.
+/// @brief Returns whether the arena has no allocations. Returns `true` if `self` was never
+/// initialized.
 static_fun rk_pure bool arena_is_empty(const Arena* self) {
-  return rk_likely(self && self->beg) ? self->cur == self->beg : true;
+  return rk_likely(self->beg) ? self->cur == self->beg : true;
 }
 
-typedef struct ArenaMark ArenaMark;
+typedef struct ArenaMark     ArenaMark;
 
 /// @brief Returns the current position of the arena as an opaque marker. Pass to `arena_rewind_to`
 /// to restore the arena to this state.
 /// @return Pointer to the current position in the arena
-static_fun ArenaMark     arena_mark(const Arena* self);
+static_fun rk_pure ArenaMark arena_mark(const Arena* self);
 
 /// @brief Rewinds the arena's current pointer to `mark`, marking memory starting from `mark` as
 /// free.
 /// @return `self`, for chaining
 /// @attention Behavior is undefined if `mark` was not allocated by the arena.
-static_fun Arena*        arena_rewind_to(Arena* self, ArenaMark mark);
+static_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
 
 /// @brief Returns whether `ptr` is the most recently made allocation of the given `size`, i.e.
 /// whether it ends exactly at the arena's current position.
 /// @param ptr The allocation to check. Must be an allocation made by the arena.
 /// @param size Size of the allocation in bytes
 /// @return `true` if `ptr` is the top allocation, `false` otherwise
-static_fun bool          arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
+static_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
   return (const unsigned char*)ptr + size == self->cur;
 }
 
@@ -177,19 +180,16 @@ static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena
                                                           .realloc_f = RK__arena_reallocate,
                                                           .dealloc_f = RK__arena_deallocate};
 
-// todo important fix
 /// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
 /// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
 /// be used for static initialisation.
-/// @note Expands to a fully parenthesized compound literal (not a bare brace-list) specifically so
-/// it stays a single, comma-safe expression when passed as an argument to another macro (e.g.
-/// `dict_init_static(K, V, arena_to_alloc_static(&my_arena))`) -- a bare `{...}`'s internal comma
-/// would otherwise be miscounted as an argument separator by the enclosing macro.
-#define arena_to_alloc_static(arena) ((Allocator){.vtab = &arena_allocator_vtable, .ctx = (arena)})
+#define arena_to_alloc_static(arena) {.vtab = &arena_allocator_vtable, .ctx = (arena)}
 
 /// @brief Creates an Allocator from an Arena at runtime, allowing it to serve as backing allocator
 /// for other rk_clib types.
-static_fun Allocator arena_to_alloc(Arena* arena) { return arena_to_alloc_static(arena); }
+static_fun rk_const Allocator arena_to_alloc(Arena* arena) {
+  return (Allocator)arena_to_alloc_static(arena);
+}
 
 /// @brief Type of an Allocator object managing an array of size `size` using an Arena to manage its
 /// memory.
@@ -236,7 +236,7 @@ static_fun Allocator arena_to_alloc(Arena* arena) { return arena_to_alloc_static
 
 typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
 
-static_fun ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
+static_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
 
 #define rk_assert_ptr_in_arena(arena, ptr)                                                         \
   rk_assert(rk_ptr_in_range(ptr, (arena)->beg, (arena)->cur)                                       \

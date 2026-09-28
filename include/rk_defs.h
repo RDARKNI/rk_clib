@@ -600,7 +600,7 @@ static_fun rk_forceinline void* rk_memmove(void* dst, const void* src, size_t nb
 static_fun rk_forceinline void* rk_memset(void* dst, int value, size_t nbytes) {
   return nbytes ? memset(dst, value, nbytes) : dst;
 }
-static_fun rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
+static_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
   return nbytes ? memcmp(a, b, nbytes) : 0;
 }
 
@@ -1271,6 +1271,7 @@ static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   rk_assert_align_pow2(align);
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
+
 RK_HEADER_END
 
 #ifdef __cplusplus

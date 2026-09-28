@@ -107,7 +107,7 @@ static_fun bitset bitset_copy(bitset restrict dst, size_t nbits, cbitset restric
 /// @param idx Bit index (0-based)
 /// @return `true` if bit `idx` is 1, otherwise `false`.
 /// @pre `idx < nbits`.
-static_fun bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
+static_fun rk_pure bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   return (bs[bitset_word_index(idx)] & bitset_word_mask(idx)) != 0;
 }
@@ -252,7 +252,7 @@ static_fun bitset bitset_flip_all(bitset bs, size_t nbits) {
 /// @return A **1-based** position of the first leading one, or 0 if none.
 /// @note This matches the “1-based with 0 sentinel” convention used by C23 `<stdbit.h>` query
 /// functions and several compiler builtins.
-static_fun size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
@@ -270,7 +270,7 @@ static_fun size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first leading zero, or 0 if none.
 /// @note If all valid bits are 1, returns 0.
-static_fun size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
@@ -289,7 +289,7 @@ static_fun size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first trailing one, or 0 if none.
-static_fun size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     size_t pos = stdc_first_trailing_one(bs[w]);
@@ -302,7 +302,7 @@ static_fun size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first trailing zero, or 0 if none.
 /// @note Padding bits are treated as 1 (not eligible as “zero” results).
-static_fun size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = 0, pos;
   for (size_t words = bitset_words(nbits); w < words - (rest != 0); ++w) {
@@ -320,7 +320,7 @@ static_fun size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
 /// @brief Counts leading zeros (from MSB toward LSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive zero bits starting at the MSB.
-static_fun size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_leading_one(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -328,7 +328,7 @@ static_fun size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
 /// @brief Counts leading ones (from MSB toward LSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive one bits starting at the MSB.
-static_fun size_t bitset_leading_ones(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_leading_ones(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_leading_zero(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -336,7 +336,7 @@ static_fun size_t bitset_leading_ones(cbitset bs, size_t nbits) {
 /// @brief Counts trailing zeros (from LSB toward MSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive zero bits starting at the LSB.
-static_fun size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_trailing_one(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -344,7 +344,7 @@ static_fun size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
 /// @brief Counts trailing ones (from LSB toward MSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive one bits starting at the LSB.
-static_fun size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_trailing_zero(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -352,7 +352,7 @@ static_fun size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
 /// @brief Counts the number of 1 bits.
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of set bits.
-static_fun size_t bitset_count_ones(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_count_ones(cbitset bs, size_t nbits) {
   size_t words = bitset_words(nbits), count = 0;
   for (size_t w = 0; w < words; ++w) { count += stdc_count_ones(bs[w]); }
   return count;
@@ -361,14 +361,14 @@ static_fun size_t bitset_count_ones(cbitset bs, size_t nbits) {
 /// @brief Counts the number of 0 bits.
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of zero bits.
-static_fun size_t bitset_count_zeros(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_count_zeros(cbitset bs, size_t nbits) {
   return nbits - bitset_count_ones(bs, nbits);
 }
 
 /// @brief Returns whether any bit is set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if at least one valid bit is 1, else `false`.
-static_fun bool bitset_any(cbitset bs, size_t nbits) {
+static_fun rk_pure bool bitset_any(cbitset bs, size_t nbits) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     if (bs[w]) { return true; }
   }
@@ -378,12 +378,12 @@ static_fun bool bitset_any(cbitset bs, size_t nbits) {
 /// @brief Returns whether no bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 0, else `false`.
-static_fun bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
+static_fun rk_pure bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
 
 /// @brief Returns whether all bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 1, else `false`.
-static_fun bool bitset_all(cbitset bs, size_t nbits) {
+static_fun rk_pure bool bitset_all(cbitset bs, size_t nbits) {
   size_t rest = nbits % bitset_word_bits, w = 0;
   for (size_t words = bitset_words(nbits); w < words - (rest != 0); ++w) {
     if (bs[w] != ((bitset_word)~0)) { return false; }
@@ -395,7 +395,7 @@ static_fun bool bitset_all(cbitset bs, size_t nbits) {
 /// @brief Returns whether exactly one bit is set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if exactly one valid bit is 1, else `false`.
-static_fun bool bitset_has_single_bit(cbitset bs, size_t nbits) {
+static_fun rk_pure bool bitset_has_single_bit(cbitset bs, size_t nbits) {
   size_t count = 0;
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     if ((count += stdc_count_ones(bs[w])) > 1) { return false; }
@@ -408,7 +408,7 @@ static_fun bool bitset_has_single_bit(cbitset bs, size_t nbits) {
 /// @param nbits Logical size of both bitsets
 /// @param b Second bitset
 /// @return `true` if all valid bits match, else `false`.
-static_fun bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
+static_fun rk_pure bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
   return rk_memcmp(a, b, sizeof_n(*a, bitset_words(nbits))) == 0;
 }
 
@@ -551,7 +551,7 @@ static_fun bitset bitset_shift_right(bitset bs, size_t nbits, size_t sh) {
 /// }
 /// // prints: 1, 5, 64
 /// ```
-static_fun size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
+static_fun rk_pure size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (++cur >= nbits) { return BITSET_NPOS; }
   size_t res, w = bitset_word_index(cur);
@@ -568,7 +568,7 @@ static_fun size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
 /// @param cur Previously visited bit index, or `BITSET_NPOS` to start from the beginning.
 /// @return The index (0-based) of the first zero bit with index `> cur`, or `BITSET_NPOS` if no
 /// such bit exists.
-static_fun size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
+static_fun rk_pure size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (++cur >= nbits) { return BITSET_NPOS; }
   size_t      res, rest = nbits % W, w = bitset_word_index(cur);
@@ -589,7 +589,7 @@ static_fun size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
 /// @param cur Current bit index, or `nbits` to start from the end.
 /// @return The index (0-based) of the last set bit with index `< cur`, or `BITSET_NPOS` if no such
 /// bit exists.
-static_fun size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
+static_fun rk_pure size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (!cur) { return BITSET_NPOS; }
   --cur;
@@ -607,7 +607,7 @@ static_fun size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_
 /// @param cur Current bit index, or `nbits` to start from the end.
 /// @return The index (0-based) of the last zero bit with index `< cur`, or `BITSET_NPOS` if no such
 /// bit exists.
-static_fun size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
+static_fun rk_pure size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (!cur) { return BITSET_NPOS; }
   --cur;
@@ -625,28 +625,28 @@ static_fun size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the first set bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_first_set(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_first_set(cbitset bs, size_t nbits) {
   return bitset_find_next_set(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the first zero bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the first zero bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
   return bitset_find_next_clear(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the last set bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the last set bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_last_set(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_last_set(cbitset bs, size_t nbits) {
   return bitset_find_prev_set(bs, nbits, nbits);
 }
 
 /// @brief Finds the last zero bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the last zero bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
   return bitset_find_prev_clear(bs, nbits, nbits);
 }
 

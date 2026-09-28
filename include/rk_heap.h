@@ -58,7 +58,7 @@ RK_HEADER_BEGIN
 
 /// @brief Macro to indicate that an object is a Heap.
 /// @param T The type of elements stored in the Heap
-#define Heap(T)                          rk_heap_##T
+#define Heap(T)                          Heap_##T
 
 /// @brief `Heap(T) heap_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initialises and
 /// returns an empty Heap.
@@ -85,23 +85,25 @@ RK_HEADER_BEGIN
 /// @return A `Heap(T)` wrapping `vec`'s own storage, now in heap order
 /// @attention `vec` is consumed: its storage now belongs to the returned Heap. Do not read, mutate,
 /// or `vec_release()` the original `vec` variable afterwards; release the Heap instead.
-#define heap_adopt(T, vec)               RK__HEAP_F(T, adopt)(vec)
+#define heap_adopt(T, vec)               RK__HEAP_PUB(T, adopt)(vec)
 
 /// @brief `void heap_release(Heap(T)* self)` - Frees the backing Vec and resets the Heap to an
 /// empty state.
 #define heap_release(self)               vec_release((self)->data)
 
-/// @brief `size_t heap_count(Heap(T)* self)` - Returns the number of elements stored in the Heap.
+/// @brief `size_t heap_count(const Heap(T)* self)` - Returns the number of elements in the Heap.
 #define heap_count(self)                 vec_count((self)->data)
 
-/// @brief `size_t heap_cap(Heap(T)* self)` - Returns the current capacity of the backing Vec.
+/// @brief `size_t heap_cap(const Heap(T)* self)` - Returns the current capacity of the backing Vec.
 #define heap_cap(self)                   vec_cap((self)->data)
 
-/// @brief `Allocator heap_allocator(Heap(T)* self)` - Returns the Allocator the Heap's backing Vec
-/// was constructed with.
+/// @brief `Allocator heap_allocator(const Heap(T)* self)` - Returns the Allocator the Heap's
+/// backing Vec was constructed with, or `alloc_ctx` if the Heap was never initialized or custom
+/// allocators are disabled.
 #define heap_allocator(self)             vec_allocator((self)->data)
 
-/// @brief `bool heap_is_empty(Heap(T)* self)` - Returns `true` iff the Heap contains no elements.
+/// @brief `bool heap_is_empty(const Heap(T)* self)` - Returns `true` iff the Heap contains no
+/// elements.
 #define heap_is_empty(self)              (heap_count(self) == 0)
 
 /// @brief `void heap_clear(Heap(T)* self)` - Removes all elements without freeing the backing Vec.
@@ -130,33 +132,33 @@ RK_HEADER_BEGIN
 /// triggered, the old buffer is freed before the copy from `arr` happens, turning an `arr` that
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination.
-#define heap_assign(T, self, arr, n)     RK__HEAP_F(T, assign)((self), (arr), (n))
+#define heap_assign(T, self, arr, n)     RK__HEAP_PUB(T, assign)(self, arr, n)
 
 /// @brief `const T* heap_peek(T, const Heap(T)* self)` - Returns a pointer to the minimum element
 /// without removing it.
 /// @param T Element type
 /// @return Pointer to the minimum element, or `NULL` if the Heap is empty
 /// @note Invalidated by any later mutation of the Heap.
-#define heap_peek(T, self)               RK__HEAP_F(T, peek)(self)
+#define heap_peek(T, self)               RK__HEAP_PUB(T, peek)(self)
 
 /// @brief `void heap_push(T, Heap(T)* self, T value)` - Inserts `value` into the Heap.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note A push may reallocate the backing Vec, invalidating prior pointers into it.
-#define heap_push(T, self, value)        RK__HEAP_F(T, push)(self, value)
+#define heap_push(T, self, value)        RK__HEAP_PUB(T, push)(self, value)
 
 /// @brief `T heap_pop(T, Heap(T)* self)` - Removes and returns the minimum element.
 /// @param T Element type
 /// @return The (former) minimum element
 /// @attention Requires a nonempty Heap.
-#define heap_pop(T, self)                RK__HEAP_F(T, pop)(self)
+#define heap_pop(T, self)                RK__HEAP_PUB(T, pop)(self)
 
 /// @brief `bool heap_try_pop(T, Heap(T)* self, T* out)` - Removes the minimum element and writes
 /// it to `*out`, if the Heap is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Heap is empty.
 /// @return `true` if an element was removed, `false` if the Heap was empty
-#define heap_try_pop(T, self, out)       RK__HEAP_F(T, try_pop)(self, out)
+#define heap_try_pop(T, self, out)       RK__HEAP_PUB(T, try_pop)(self, out)
 
 /// @brief `T heap_replace_top(T, Heap(T)* self, T value)` - Removes the minimum element and
 /// inserts `value`, in a single sift-down.
@@ -166,7 +168,7 @@ RK_HEADER_BEGIN
 /// @attention Requires a nonempty Heap.
 /// @note Equivalent to, but cheaper than, `heap_pop()` followed by `heap_push()`: it never shrinks
 /// or reallocates the backing Vec.
-#define heap_replace_top(T, self, value) RK__HEAP_F(T, replace_top)(self, value)
+#define heap_replace_top(T, self, value) RK__HEAP_PUB(T, replace_top)(self, value)
 
 /// @brief `void heap_extend(T, Heap(T)* self, const T* arr, size_t n)` - Appends `arr`'s first `n`
 /// values to the Heap's existing contents, then re-heapifies the combined set in O(count + n).
@@ -178,22 +180,43 @@ RK_HEADER_BEGIN
 /// `heap_push()` (O(n log count)) stays cheaper than re-heapifying everything (O(count + n)).
 /// @attention `arr[0..n)` must not overlap the Heap's own backing allocation, for the same reasons
 /// documented on `heap_assign()`.
-#define heap_extend(T, self, arr, n)     RK__HEAP_F(T, extend)((self), (arr), (n))
+#define heap_extend(T, self, arr, n)     RK__HEAP_PUB(T, extend)(self, arr, n)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__HEAP_F(T, NAME)              rk_heapf_##NAME##_##T
+#define RK__HEAP_PUB(T, FNAME)           heap_##T##_##FNAME
+#define RK__HEAP_PRI(T, FNAME)           RK__heap_##T##_##FNAME
 
 #define RK__HEAP_DEFINE(T, CMP_FUN)                                                                \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct Heap(T) { Vec(T) data; } Heap(T);                                                 \
-  static_fun const T* RK__HEAP_F(T, peek)(const Heap(T) * self) {                                  \
+  static_fun rk_pure size_t RK__HEAP_PUB(T, count)(const Heap(T) * self) {                         \
+    return vec_count(self->data);                                                                  \
+  }                                                                                                \
+  static_fun rk_pure size_t RK__HEAP_PUB(T, cap)(const Heap(T) * self) {                           \
+    return vec_cap(self->data);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure bool RK__HEAP_PUB(T, is_empty)(const Heap(T) * self) {                        \
+    return vec_count(self->data) == 0;                                                             \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__HEAP_PUB(T, allocator)(const Heap(T) * self) {                  \
+    return vec_allocator(self->data);                                                              \
+  }                                                                                                \
+  static_fun rk_pure const T* RK__HEAP_PUB(T, peek)(const Heap(T) * self) {                        \
     return vec_count(self->data) ? &self->data[0] : rk_null;                                       \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, sift_down)(Heap(T) * self, size_t i, T value, size_t n) {          \
+  static_fun void RK__HEAP_PUB(T, release)(Heap(T) * self) { vec_release(self->data); }            \
+  static_fun void RK__HEAP_PUB(T, clear)(Heap(T) * self) { vec_clear(self->data); }                \
+  static_fun void RK__HEAP_PUB(T, reserve)(Heap(T) * self, size_t cap) {                           \
+    vec_reserve(self->data, cap);                                                                  \
+  }                                                                                                \
+  static_fun void RK__HEAP_PUB(T, shrink_to_fit)(Heap(T) * self) {                                 \
+    vec_shrink_to_fit(self->data);                                                                 \
+  }                                                                                                \
+  static_fun void RK__HEAP_PRI(T, sift_down)(Heap(T) * self, size_t i, T value, size_t n) {        \
     while (i < n / 2) {                                                                            \
       size_t child = 2 * i + 1;                                                                    \
       if (child + 1 < n && CMP_FUN(self->data[child + 1], self->data[child]) < 0) { ++child; }     \
@@ -203,33 +226,33 @@ RK_HEADER_BEGIN
     }                                                                                              \
     self->data[i] = value;                                                                         \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, heapify)(Heap(T) * self) {                                         \
+  static_fun void RK__HEAP_PRI(T, heapify)(Heap(T) * self) {                                       \
     const size_t n = vec_count(self->data);                                                        \
     for (size_t i = n / 2; i > 0;) {                                                               \
       --i;                                                                                         \
-      RK__HEAP_F(T, sift_down)(self, i, self->data[i], n);                                         \
+      RK__HEAP_PRI(T, sift_down)(self, i, self->data[i], n);                                       \
     }                                                                                              \
   }                                                                                                \
-  static_fun Heap(T) RK__HEAP_F(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {   \
+  static_fun Heap(T) RK__HEAP_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) { \
     Heap(T) h = heap_init(T, n RK_IFALLOC(, alloc));                                               \
     vec_push_n(h.data, arr, n);                                                                    \
-    RK__HEAP_F(T, heapify)(&h);                                                                    \
+    RK__HEAP_PRI(T, heapify)(&h);                                                                  \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun Heap(T) RK__HEAP_F(T, adopt)(Vec(T) vec) {                                            \
+  static_fun Heap(T) RK__HEAP_PUB(T, adopt)(Vec(T) vec) {                                          \
     Heap(T) h = {vec};                                                                             \
-    RK__HEAP_F(T, heapify)(&h);                                                                    \
+    RK__HEAP_PRI(T, heapify)(&h);                                                                  \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, assign)(Heap(T) * self, const T* arr, size_t n) {                  \
+  static_fun void RK__HEAP_PUB(T, assign)(Heap(T) * self, const T* arr, size_t n) {                \
     vec_assign(self->data, arr, n);                                                                \
-    RK__HEAP_F(T, heapify)(self);                                                                  \
+    RK__HEAP_PRI(T, heapify)(self);                                                                \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, extend)(Heap(T) * self, const T* arr, size_t n) {                  \
+  static_fun void RK__HEAP_PUB(T, extend)(Heap(T) * self, const T* arr, size_t n) {                \
     vec_push_n(self->data, arr, n);                                                                \
-    RK__HEAP_F(T, heapify)(self);                                                                  \
+    RK__HEAP_PRI(T, heapify)(self);                                                                \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, push)(Heap(T) * self, T value) {                                   \
+  static_fun void RK__HEAP_PUB(T, push)(Heap(T) * self, T value) {                                 \
     vec_push(self->data, value);                                                                   \
     size_t i = vec_count(self->data) - 1;                                                          \
     while (i > 0) {                                                                                \
@@ -240,26 +263,26 @@ RK_HEADER_BEGIN
     }                                                                                              \
     self->data[i] = value;                                                                         \
   }                                                                                                \
-  static_fun T RK__HEAP_F(T, pop)(Heap(T) * self) {                                                \
+  static_fun T RK__HEAP_PUB(T, pop)(Heap(T) * self) {                                              \
     rk_assert(vec_count(self->data) && "Cannot pop an empty heap");                                \
     const T      result = self->data[0], last = vec_pop(self->data);                               \
     const size_t n = vec_count(self->data);                                                        \
-    if (n) { RK__HEAP_F(T, sift_down)(self, 0, last, n); }                                         \
+    if (n) { RK__HEAP_PRI(T, sift_down)(self, 0, last, n); }                                       \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun bool RK__HEAP_F(T, try_pop)(Heap(T) * self, T * out) {                                \
+  static_fun bool RK__HEAP_PUB(T, try_pop)(Heap(T) * self, T * out) {                              \
     if (!vec_count(self->data)) { return false; }                                                  \
-    return *out = RK__HEAP_F(T, pop)(self), true;                                                  \
+    return *out = RK__HEAP_PUB(T, pop)(self), true;                                                \
   }                                                                                                \
-  static_fun T RK__HEAP_F(T, replace_top)(Heap(T) * self, T value) {                               \
+  static_fun T RK__HEAP_PUB(T, replace_top)(Heap(T) * self, T value) {                             \
     rk_assert(vec_count(self->data) && "Cannot replace_top an empty heap");                        \
     const T result = self->data[0];                                                                \
-    RK__HEAP_F(T, sift_down)(self, 0, value, vec_count(self->data));                               \
+    RK__HEAP_PRI(T, sift_down)(self, 0, value, vec_count(self->data));                             \
     return result;                                                                                 \
   }                                                                                                \
   RK_EXTERNC_END
 
-#define RK__HEAP_FROM(T, arr, n, alloc)  RK__HEAP_F(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
+#define RK__HEAP_FROM(T, arr, n, alloc)  RK__HEAP_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
 #define RK__HEAP_FROM4(T, arr, n, alloc) rk_disable_if(RK__HEAP_FROM(T, arr, n, alloc))
 #define RK__HEAP_FROM3(T, arr, n)        RK__HEAP_FROM(T, arr, n, alloc_ctx)
 

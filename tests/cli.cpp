@@ -18,5 +18,5 @@ int main(int argc, char* argv[]) {
   defaults.outpaths        = {TRIAX_OUTPATH_DEFAULT, "./outputs_isolation/jsonout.json",
                               "./outputs_isolation/tapout.tap", "./outputs_isolation/junitout.xml"};
   defaults.attrs.isolation = TRIAX_ISOLATION_ON;
-  triax_run(triax_parse_argv(argc, argv, defaults));
+  return triax_run(triax_parse_argv(argc, argv, defaults));
 }

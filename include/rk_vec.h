@@ -52,21 +52,11 @@ RK_HEADER_BEGIN
 /// @note Vec(void) indicates that a Vec of any type is accepted as a parameter, this does not hold
 /// for macros which need type information. Using Vec as `Vec(void)` in any macro is undefined as
 /// most vec macros rely on type information such as sizeof.
-/// @note Implemented as `typeof(T*)` rather than `T*` so that array types such as `Vec(int[5])` are
-/// supported.
-#define Vec(T) typeof(T*)
-
-/// @brief Header of a dynamically allocated Vec. The Vec is implemented as a contiguous block of
-/// memory with a header (`VecHeader`) that stores metadata about the vec, such as its capacity,
-/// length, and allocator.
-typedef struct VecHeader {
-#if RK_CUSTOM_ALLOCATORS
-  Allocator alloc; ///< Allocator (can be disabled)
-#endif
-  size_t                    cap;    ///< Capacity of the Vec (in terms of elements)
-  size_t                    count;  ///< Length of the Vec (in terms of elements)
-  alignas_max unsigned char data[]; ///< Vec Data
-} VecHeader;
+/// @note Array element types (e.g. `Vec(int[5])`) are not supported, typedef'd or not:
+/// `vec_push()`, `vec_insert_at`, and every other operation that places a new element relies on
+/// plain C assignment (`self[i] = value`), which C disallows for array types regardless of how
+/// `Vec(T)` itself expands or whether the array type has a name of its own.
+#define Vec(T) T*
 
 /// @brief `Vec(T) vec_init(T, size_t cap, Allocator alloc = alloc_ctx)`
 /// - Initialises a Vec from an initial capacity and an optional Allocator.
@@ -102,7 +92,7 @@ typedef struct VecHeader {
 /// Vec(int) vec2 = vec_init_list(int, my_alloc, 1, 2, 3); /* uses my_alloc */
 ///
 /// // Compound literals must be wrapped in parens
-/// typedef struct Pair{ int x, y; } Pair;
+/// typedef struct Pair { int x, y; } Pair;
 /// Vec(struct Pair) vec3 = vec_init_list(Pair, ((Pair){1, 2}), ((Pair){3, 4}));
 /// ```
 #define vec_init_list(T, ...)                                                                      \
@@ -135,86 +125,38 @@ typedef struct VecHeader {
 /// NULL.
 #define vec_release(self) ((void)RK__vec_release(self))
 
-/// @defgroup rk_vec_accessors_u Unchecked Vec Accessors
-/// @ingroup rk_vec
-/// @brief Unchecked Accessor functions and macros for Vec metadata. These macros do not perform
-/// null-checks on the Vec and allow direct, unchecked member access.
-///
-/// @{
-
-/// @brief Unchecked access to the header of `self` as an lvalue.
-#define vec_HEADER(self)                                                                           \
-  ((VecHeader*)(void*)((char*)(self)                                                               \
-                       - offsetof(VecHeader, data))) // NOLINT(clang-analyzer-security.ArrayBound)
-
-#if RK_CUSTOM_ALLOCATORS
-# define vec_ALLOCATOR(V) (vec_HEADER(V)->alloc) // NOLINT(clang-analyzer-security.ArrayBound)
-
-#else
-# define vec_ALLOCATOR(V) ((void)(V), alloc_ctx)
-#endif
-
-/// @brief Unchecked access to the capacity of `self` as an lvalue.
-#define vec_CAP(self)   (vec_HEADER(self)->cap) // NOLINT(clang-analyzer-security.ArrayBound)
-
-/// @brief Unchecked access to the count of `self` as an lvalue.
-#define vec_COUNT(self) (vec_HEADER(self)->count) // NOLINT(clang-analyzer-security.ArrayBound)
-#define vec_LEN         vec_COUNT                 // NOLINT(clang-analyzer-security.ArrayBound)
-
-/// @}
-
-/// @defgroup rk_vec_accessors_c Checked Vec Accessors
-/// @ingroup rk_vec
-/// @brief Checked Accessor functions and macros for Vec metadata. These macros check for
-/// unallocated (NULL) Vecs.
-///
-/// @{
-
-/// @brief Returns a pointer to the header of the vec, for direct access to metadata
-/// @return Pointer to the header of the Vec or NULL, if `self` is NULL
-static_fun rk_const VecHeader* vec_header(const Vec(void) self) {
-  return self ? vec_HEADER(self) : rk_null;
-}
-
 /// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
-static_fun rk_pure size_t    vec_count(const Vec(void) self) { return self ? vec_COUNT(self) : 0; }
+static_fun rk_pure size_t vec_count(const Vec(void) self);
+#define vec_COUNT(self) rk_to_rvalue(RK__vec_count(self))
 
 /// @brief Alias for `vec_count()`
-static_fun rk_pure size_t    vec_len(const Vec(void) self) { return vec_count(self); }
+static_fun rk_pure size_t vec_len(const Vec(void) self);
+#define vec_LEN(self) vec_COUNT(self)
 
 /// @brief Returns the current capacity of the Vec, 0 iff `self` is NULL.
-static_fun rk_pure size_t    vec_cap(const Vec(void) self) { return self ? vec_CAP(self) : 0; }
+static_fun rk_pure size_t vec_cap(const Vec(void) self);
+#define vec_CAP(self) rk_to_rvalue(RK__vec_cap(self))
 
-/// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`.
-static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
-#if RK_CUSTOM_ALLOCATORS
-  return self ? vec_ALLOCATOR(self) : alloc_ctx;
-#else
-  return (void)self, alloc_ctx;
-#endif
-}
+/// @brief Returns the Allocator the Vec was constructed with, or `alloc_ctx` if `self` is `NULL`
+/// or custom allocators are disabled.
+static_fun rk_pure Allocator vec_allocator(const Vec(void) self);
+#define vec_ALLOCATOR(self) rk_to_rvalue(RK__vec_allocator(self))
 
 /// @brief Returns whether the count of a Vec is zero.
-static_fun rk_pure bool vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
+static_fun rk_pure bool vec_is_empty(const Vec(void) self);
 
 /// @brief Clears the contents of `self` by setting its count to 0.
-static_fun void vec_clear(Vec(void) self) {
-  if (self) { vec_COUNT(self) = 0; }
-}
+static_fun void         vec_clear(Vec(void) self);
 
 /// @brief `size_t vec_allocation_size(Vec(T) self)` - Returns the total size of memory allocated
 /// for the Vec in bytes, including. its header, 0 iff `self` is NULL.
-#define vec_allocation_size(self) RK__vec_allocation_size(self, sizeof(*(self)))
+#define vec_allocation_size(self) RK__vec_allocation_size(self)
 
 /// @brief Returns the remaining count of elements that can be pushed to a vec without reallocation.
-static_fun rk_pure size_t vec_remaining(const Vec(void) self) {
-  return self ? vec_CAP(self) - vec_COUNT(self) : 0;
-}
+static_fun rk_pure size_t vec_remaining(const Vec(void) self);
 
 /// @brief Returns whether an index is within the range of a Vec.
-static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
-  return idx < vec_count(self);
-}
+static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 
 /// @brief `void vec_reserve(Vec(T)& self, size_t new_cap)` - Grows the Vec to be able to hold at
 /// least `new_cap` elements.
@@ -286,7 +228,7 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
 /// @return The popped value
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behaviour in case of empty or uninitialised Vec is undefined
-#define vec_pop(self)                 ((self)[--vec_COUNT(RK__check_vec_pop(self))])
+#define vec_pop(self)                 ((self)[--RK__vec_count(RK__check_vec_pop(self))])
 
 /// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
 /// its length.
@@ -349,7 +291,7 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
 
 /// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
 /// `self` or `NULL` if `self` is `NULL`.
-#define vec_end(self)                    ((self) ? ((self) + vec_COUNT(self)) : (self))
+#define vec_end(self)                    ((self) ? ((self) + RK__vec_count(self)) : (self))
 
 /// @brief Convenience Macro to loop over the elements of a vec.
 /// @param vec The Vec to loop over
@@ -390,12 +332,12 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
     RK__IGNWARN_MSC_BEG(4114)                                                                      \
     typeof(vec) RK___VEC = (vec);                                                                  \
     if (!vec_count(RK___VEC)) { break; }                                                           \
-    typeof(*RK___VEC)*RK___BEG = RK___VEC, *const RK___END = RK___BEG + vec_COUNT(RK___BEG);       \
+    typeof(*RK___VEC)*RK___BEG = RK___VEC, *const RK___END = RK___BEG + RK__vec_count(RK___BEG);   \
     for (typeof(*RK___VEC)* RK___IT = RK___VEC; RK___IT != RK___END; ++RK___IT) {                  \
       typeof(*RK___VEC)* const it = RK___IT;                                                       \
       if (!(pred)) { *RK___BEG++ = *RK___IT; }                                                     \
     }                                                                                              \
-    vec_COUNT(RK___VEC) = (size_t)(RK___BEG - RK___VEC);                                           \
+    RK__vec_count(RK___VEC) = (size_t)(RK___BEG - RK___VEC);                                       \
     RK__IGNWARN_MSC_END()                                                                          \
   } while (0)
 
@@ -404,7 +346,7 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
   do {                                                                                             \
     typeof(vec) RK___BEG = (vec);                                                                  \
     if (!vec_count(RK___BEG)) { break; }                                                           \
-    typeof(RK___BEG) RK___END = RK___BEG + vec_COUNT(RK___BEG) - 1;                                \
+    typeof(RK___BEG) RK___END = RK___BEG + RK__vec_count(RK___BEG) - 1;                            \
     for (; RK___BEG < RK___END; ++RK___BEG, --RK___END) { rk_SWAP(*RK___BEG, *RK___END); }         \
   } while (0)
 
@@ -413,9 +355,50 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
+/// @brief Header of a dynamically allocated Vec. The Vec is implemented as a contiguous block of
+/// memory with a header (`RK__VecHdr`) that stores metadata about the vec, such as its capacity,
+/// length, and allocator.
+typedef struct RK__VecHdr {
+#if RK_CUSTOM_ALLOCATORS
+  Allocator alloc; ///< Allocator (can be disabled)
+#endif
+  size_t                    cap;    ///< Capacity of the Vec (in terms of elements)
+  size_t                    count;  ///< Length of the Vec (in terms of elements)
+  alignas_max unsigned char data[]; ///< Vec Data
+} RK__VecHdr;
+
+#define RK__vec_hdr(self)                                                                          \
+  ((RK__VecHdr*)(void*)((char*)(self)                                                              \
+                        - offsetof(RK__VecHdr,                                                     \
+                                   data))) // NOLINT(clang-analyzer-security.ArrayBound)
+#define RK__vec_allocator(self)                                                                    \
+  RK__allocatorof(RK__vec_hdr(self)) // NOLINT(clang-analyzer-security.ArrayBound)
+
+#define RK__vec_cap(self)   (RK__vec_hdr(self)->cap) // NOLINT(clang-analyzer-security.ArrayBound)
+
+#define RK__vec_count(self) (RK__vec_hdr(self)->count) // NOLINT(clang-analyzer-security.ArrayBound)
+
+static_fun rk_pure size_t vec_count(const Vec(void) self) { return self ? RK__vec_count(self) : 0; }
+static_fun rk_pure size_t vec_len(const Vec(void) self) { return vec_count(self); }
+static_fun rk_pure size_t vec_cap(const Vec(void) self) { return self ? RK__vec_cap(self) : 0; }
+static_fun rk_pure bool   vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
+static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
+  return self ? vec_ALLOCATOR(self) : alloc_ctx;
+}
+static_fun void vec_clear(Vec(void) self) {
+  if (self) { RK__vec_count(self) = 0; }
+}
+static_fun rk_pure size_t vec_remaining(const Vec(void) self) {
+  return self ? RK__vec_cap(self) - RK__vec_count(self) : 0;
+}
+
+static_fun rk_pure bool vec_index_in_range(const Vec(void) self, size_t idx) {
+  return idx < vec_count(self);
+}
+
 static_fun rk_forceinline size_t RK__decrease_index_check(void* self) {
   rk_assert(vec_count(self) && "Cannot decrease count of empty vec");
-  return --vec_COUNT(self);
+  return --RK__vec_count(self);
 }
 
 static_fun rk_forceinline void* RK__check_vec_push_u(void* self) {
@@ -430,8 +413,8 @@ static_fun rk_forceinline void* RK__check_vec_pop(void* self) {
 
 static_fun rk_forceinline void* RK__vec_pop_n(size_t elsize, void* self, size_t count) {
   rk_assert(vec_count(self) >= count && "Attempting to pop more than vec_count() elements");
-  vec_COUNT(self) -= count;
-  return (char*)self + rk_mult(elsize, vec_COUNT(self));
+  RK__vec_count(self) -= count;
+  return (char*)self + rk_mult(elsize, RK__vec_count(self));
 }
 
 static_fun rk_forceinline void* RK__vec_check_front(void* self) {
@@ -441,7 +424,7 @@ static_fun rk_forceinline void* RK__vec_check_front(void* self) {
 
 static_fun rk_forceinline void* RK__vec_check_back(size_t elsize, void* self) {
   rk_assert(vec_count(self) && "Attempting to access back of zero-sized vec");
-  return (char*)self + rk_mult(elsize, vec_COUNT(self) - 1);
+  return (char*)self + rk_mult(elsize, RK__vec_count(self) - 1);
 }
 
 static_fun rk_forceinline size_t RK__vec_assert_insertbounds(void* self, size_t i) {
@@ -456,27 +439,27 @@ static_fun rk_forceinline size_t RK__vec_assert_erasebounds_n(void* self, size_t
 }
 
 //  logical size of a vec if type information not available
-#define RK__VECSIZE_UT(elsize, elcount) (offsetof(VecHeader, data) + rk_mult(elsize, elcount))
+#define RK__VECSIZE_UT(elsize, elcount) (offsetof(RK__VecHdr, data) + rk_mult(elsize, elcount))
 #define RK__VEC_COMPUTE_SIZE(V, C)      RK__VECSIZE_UT(sizeof(*(V)), C)
-#define vec_ALLOCATION_SIZE(V)          RK__VEC_COMPUTE_SIZE(V, vec_CAP(V))
-#define vec_LOGICAL_SIZE(V)             RK__VEC_COMPUTE_SIZE(V, vec_COUNT(V))
+#define RK__vec_allocsize(V)            RK__VEC_COMPUTE_SIZE(V, RK__vec_cap(V))
 
-static_fun rk_forceinline rk_pure size_t RK__vec_allocation_size(const Vec(void) self,
-                                                                 size_t          elsize) {
-  return self ? RK__VECSIZE_UT(elsize, vec_CAP(self)) : 0;
+#define RK__vec_allocation_size(self)   RK__vec_allocation_size_f(self, sizeof(*(self)))
+static_fun rk_forceinline rk_pure size_t RK__vec_allocation_size_f(const Vec(void) self,
+                                                                   size_t          elsize) {
+  return self ? RK__VECSIZE_UT(elsize, RK__vec_cap(self)) : 0;
 }
 
-static_fun rk_forceinline VecHeader* rk_alloc_size(2)
+static_fun rk_forceinline RK__VecHdr* rk_alloc_size(2)
     RK__vec_init_f(size_t init_cap, size_t total_size,
                    size_t init_count RK_IFALLOC(, Allocator alloc)) {
   rk_assert_allocator_valid(alloc);
-  VecHeader* v = (VecHeader*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
+  RK__VecHdr* v = (RK__VecHdr*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
   v->cap = init_cap, v->count = init_count;
   RK_IFALLOC(v->alloc = alloc;)
   return v;
 }
 #define RK__VEC_NEW_NONZERO(T, cap, count, alloc)                                                  \
-  ((typeof(T)*)(void*)(RK__vec_init_f(cap, offsetof(VecHeader, data) + sizeof_n(T, cap),           \
+  ((typeof(T)*)(void*)(RK__vec_init_f(cap, offsetof(RK__VecHdr, data) + sizeof_n(T, cap),          \
                                       count RK_IFALLOC(, alloc))                                   \
                            ->data))
 #define RK__VEC_NEW(T, cap, count, alloc)                                                          \
@@ -497,53 +480,54 @@ static_fun rk_forceinline VecHeader* rk_alloc_size(2)
 
 #define RK__vec_release(V)                                                                         \
   ((V)                                                                                             \
-   && (alloc_deallocate(vec_HEADER(V), vec_ALLOCATION_SIZE(V),                                     \
-                        align_max RK_IFALLOC(, vec_ALLOCATOR(V))),                                 \
+   && (alloc_deallocate(RK__vec_hdr(V), RK__vec_allocsize(V),                                      \
+                        align_max RK_IFALLOC(, RK__vec_allocator(V))),                             \
        (V) = rk_null))
 
 /// always reallocates to a positive cap, sets cap accordingly
 #define RK__VEC_CHANGE_CAP(V, C)                                                                   \
-  ((V)                                                                                             \
-   = (typeof(V))(void*)(((VecHeader*)alloc_reallocate(vec_HEADER(V), vec_ALLOCATION_SIZE(V),       \
-                                                      RK__VEC_COMPUTE_SIZE(V, C),                  \
-                                                      align_max RK_IFALLOC(, vec_ALLOCATOR(V))))   \
-                            ->data),                                                               \
-   vec_CAP(V) = (C), (V))
+  ((V) = (typeof(V))(void*)(((RK__VecHdr*)alloc_reallocate(                                        \
+                                 RK__vec_hdr(V), RK__vec_allocsize(V), RK__VEC_COMPUTE_SIZE(V, C), \
+                                 align_max RK_IFALLOC(, RK__vec_allocator(V))))                    \
+                                ->data),                                                           \
+   RK__vec_cap(V) = (C), (V))
 
 /*doubles capacity if at limit*/
 #define RK__vec_reserve_1(V)                                                                       \
-  ((V) ? (vec_COUNT(V) == vec_CAP(V) ? RK__VEC_CHANGE_CAP(V, rk_mult(vec_CAP(V), 2)) : (V))        \
+  ((V) ? (RK__vec_count(V) == RK__vec_cap(V) ? RK__VEC_CHANGE_CAP(V, rk_mult(RK__vec_cap(V), 2))   \
+                                             : (V))                                                \
        : RK__VEC_INIT_ASSIGN(V, 1, alloc_ctx))
 
 #define RK__vec_reserve(V, C)                                                                      \
-  ((V) ? ((C) > vec_CAP(V) ? RK__VEC_CHANGE_CAP(V, C) : (V))                                       \
+  ((V) ? ((C) > RK__vec_cap(V) ? RK__VEC_CHANGE_CAP(V, C) : (V))                                   \
        : ((C) ? RK__VEC_INIT_ASSIGN(V, C, alloc_ctx) : rk_null))
 
-#define RK__vec_resize(V, C) (RK__vec_reserve(V, C), (V) && (vec_COUNT(V) = (C)))
+#define RK__vec_resize(V, C) (RK__vec_reserve(V, C), (V) && (RK__vec_count(V) = (C)))
 
 #define RK__vec_shrink_to_fit_exact(V)                                                             \
-  ((V) && vec_COUNT(V) < vec_CAP(V)                                                                \
-   && (vec_COUNT(V) ? RK__VEC_CHANGE_CAP(V, vec_COUNT(V)) : (vec_release(V), (V) = rk_null)))
+  ((V) && RK__vec_count(V) < RK__vec_cap(V)                                                        \
+   && (RK__vec_count(V) ? RK__VEC_CHANGE_CAP(V, RK__vec_count(V))                                  \
+                        : (vec_release(V), (V) = rk_null)))
 
 #define RK__vec_shrink_to_fit(V)                                                                   \
-  ((V) && (vec_COUNT(V) ? stdc_bit_ceil(vec_COUNT(V)) : 0) < vec_CAP(V)                            \
-   && (vec_COUNT(V) ? RK__VEC_CHANGE_CAP(V, stdc_bit_ceil(vec_COUNT(V)))                           \
-                    : (vec_release(V), (V) = rk_null)))
+  ((V) && (RK__vec_count(V) ? stdc_bit_ceil(RK__vec_count(V)) : 0) < RK__vec_cap(V)                \
+   && (RK__vec_count(V) ? RK__VEC_CHANGE_CAP(V, stdc_bit_ceil(RK__vec_count(V)))                   \
+                        : (vec_release(V), (V) = rk_null)))
 
-#define RK__vec_push_u(V, O)        ((V)[vec_COUNT(RK__check_vec_push_u(V))++] = (O))
+#define RK__vec_push_u(V, O)        ((V)[RK__vec_count(RK__check_vec_push_u(V))++] = (O))
 #define RK__vec_push(V, O)          (RK__vec_reserve_1(V), RK__vec_push_u(V, O))
 
-#define RK__vec_push_arr_u(V, O, N) (rk_copy((V) + vec_COUNT(V), O, N), vec_COUNT(V) += (N))
+#define RK__vec_push_arr_u(V, O, N) (rk_copy((V) + RK__vec_count(V), O, N), RK__vec_count(V) += (N))
 #define RK__vec_push_arr(V, O, N)                                                                  \
   ((void)((N) && (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_push_arr_u(V, O, N), 1)))
 
 static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* restrict v, size_t i,
                                                        const void* restrict arr, size_t n) {
-  size_t old_count = vec_COUNT(v); // NOLINT(clang-analyzer-security.ArrayBound)
+  size_t old_count = RK__vec_count(v); // NOLINT(clang-analyzer-security.ArrayBound)
   char * src = (char*)v + rk_mult(i, elsize), *dst = src + rk_mult(n, elsize);
   memmove(dst, src, rk_mult(old_count - i, elsize));
   memcpy(src, arr, rk_mult(elsize, n));
-  vec_COUNT(v) = old_count + n; // NOLINT(clang-analyzer-security.ArrayBound)
+  RK__vec_count(v) = old_count + n; // NOLINT(clang-analyzer-security.ArrayBound)
 }
 
 #define RK__vec_insert_arr_at_u(V, I, O, N)                                                        \
@@ -557,7 +541,7 @@ static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* rest
 
 static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void* restrict vec,
                                                              size_t i, const void* restrict o) {
-  size_t count = vec_COUNT(vec); // NOLINT(clang-analyzer-security.ArrayBound)
+  size_t count = RK__vec_count(vec); // NOLINT(clang-analyzer-security.ArrayBound)
   char*  dst   = (char*)vec + rk_mult(elsize, count);
   if (i < count) {
     char* src = (char*)vec + rk_mult(elsize, i);
@@ -566,7 +550,7 @@ static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void
   } else {
     memcpy(dst, o, elsize);
   }
-  ++vec_COUNT(vec); // NOLINT(clang-analyzer-security.ArrayBound)
+  ++RK__vec_count(vec); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 
 #define RK__vec_insert_at_unordered(V, I, O)                                                       \
@@ -578,7 +562,7 @@ static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size
   if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
-          rk_mult(((vec_COUNT(v) -= n) - i),
+          rk_mult(((RK__vec_count(v) -= n) - i),
                   elsize)); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 #define RK__vec_erase_at_n(V, I, N)                                                                \
@@ -586,7 +570,7 @@ static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size
 #define RK__vec_erase_at(V, I) RK__vec_erase_at_n(V, I, 1)
 
 #define RK__vec_assign(V, O, N)                                                                    \
-  (RK__vec_reserve(V, N), (V) && (vec_COUNT(V) = (N), rk_copy(V, O, N)))
+  (RK__vec_reserve(V, N), (V) && (RK__vec_count(V) = (N), rk_copy(V, O, N)))
 
 // msvc sizeof returns 0
 #define RK__vec_init_list_(T, arr, alloc)                                                          \

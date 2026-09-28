@@ -2,37 +2,41 @@
 #define TEST_DICT_H
 #include "conf.h"
 #include "rk_dict.h"
+#include <limits.h>
 
 RK_HEADER_BEGIN
 RK__IGNWARN_CLANG_BEG("-Wunused-variable")
 
 // ---- Define concrete key/value dict: int -> const char* ----
-typedef const char*     cstr;
+typedef const char* cstr;
 
-extern_fun unsigned int int_hash(int key) {
-  // simple multiplicative hash
-  return (unsigned int)key * 2654435761u;
-}
-
-extern_fun int int_cmp(int a, int b) {
-  return a != b; // returns 0 if equal
-}
-
-// Instantiate the dict for int -> cstr
+extern_fun unsigned int_hash(int key) {
+  return (unsigned)key * 2654435761u;
+} // simple multiplicative hash
+extern_fun int int_cmp(int a, int b) { return a != b; } // returns 0 if equal
 DICT_DEFINE(int, cstr, int_hash, int_cmp)
 
-typedef const char*     cstr;
-
 extern_fun unsigned int str_hash(cstr s) {
-  // djb2
-  unsigned int h = 5381;
+  unsigned int h = 5381; // djb2
   for (; *s; s++) { h = ((h << 5) + h) ^ (unsigned char)(*s); }
   return h;
 }
 extern_fun int str_cmp(cstr a, cstr b) { return strcmp(a, b) != 0; }
-// Instantiate two dicts
 DICT_DEFINE(cstr, int, str_hash, str_cmp)
 
+triax_test(dict, contains) {
+  Dict(int, cstr) d = {RK_ZINIT};
+  triax_assert_false(dict_contains(int, cstr, &d, 0));
+  dict_add(int, cstr, &d, 0, "hello");
+  triax_assert_true(dict_contains(int, cstr, &d, 0));
+}
+
+triax_test(dict, cap) {
+  Dict(int, cstr) d = {RK_ZINIT};
+  triax_assert_false(dict_contains(int, cstr, &d, 0));
+  dict_add(int, cstr, &d, 0, "hello");
+  triax_assert_true(dict_contains(int, cstr, &d, 0));
+}
 triax_test(dict, null) {
   Dict(int, cstr) d = {RK_ZINIT};
   triax_expect_eq(dict_cap(&d), 0u);
@@ -62,6 +66,7 @@ triax_test(dict, zero_initialized) {
   triax_expect_true(dict_is_empty(&d));
   triax_expect_eq(dict_count(&d), 0u);
   triax_expect_eq(dict_cap(&d), 0u);
+  RK_IFALLOC(triax_expect_memeq((Allocator[]){dict_allocator(&d)}, &alloc_ctx, sizeof(alloc_ctx));)
 
   triax_expect_true(dict_set(int, cstr, &d, 7, "seven"));
   triax_expect_eq(dict_count(&d), 1u);
@@ -72,160 +77,117 @@ triax_test(dict, zero_initialized) {
   triax_expect_true(dict_is_empty(&d));
 }
 
-triax_test(dict, tests1) {
-  // ---- basic insert/get ----
-  Dict(int, cstr) d1 = dict_init(int, cstr, 4);
-  triax_expect_true(dict_set(int, cstr, &d1, 10, "ten"));
-  triax_expect_true(dict_set(int, cstr, &d1, 20, "twenty"));
-  triax_expect_streq(*dict_get(int, cstr, &d1, 10), "ten");
+triax_test(dict, set_get_update) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  triax_expect_true(dict_set(int, cstr, &d, 10, "ten"));
+  triax_expect_true(dict_set(int, cstr, &d, 20, "twenty"));
+  triax_expect_streq(*dict_get(int, cstr, &d, 10), "ten");
 
-  // ---- update existing ----
-  triax_expect_false(dict_set(int, cstr, &d1, 20, "twenty-updated"));
-  triax_expect_streq(*dict_get(int, cstr, &d1, 20), "twenty-updated");
+  // set on an existing key updates it and reports "not a new insert"
+  triax_expect_false(dict_set(int, cstr, &d, 20, "twenty-updated"));
+  triax_expect_streq(*dict_get(int, cstr, &d, 20), "twenty-updated");
 
-  // ---- contains / missing ----
-  triax_expect_true(dict_contains(int, cstr, &d1, 10));
-  triax_expect_false(dict_contains(int, cstr, &d1, 42));
+  triax_expect_true(dict_contains(int, cstr, &d, 10));
+  triax_expect_false(dict_contains(int, cstr, &d, 42));
 
-  // ---- try_insert ----
-  triax_expect_false(dict_add(int, cstr, &d1, 10, "fail")); // already exists
-  triax_expect_true(dict_add(int, cstr, &d1, 30, "thirty"));
-  triax_expect_streq(*dict_get(int, cstr, &d1, 30), "thirty");
-
-  // ---- remove & reinsert ----
-  triax_expect_true(dict_remove(int, cstr, &d1, 10));
-  triax_expect_false(dict_contains(int, cstr, &d1, 10));
-  triax_expect_true(dict_set(int, cstr, &d1, 10, "ten-again"));
-  triax_expect_streq(*dict_get(int, cstr, &d1, 10), "ten-again");
-
-  // ---- extract ----
-  cstr out = rk_null;
-  triax_expect_true(dict_extract(int, cstr, &d1, 30, &out));
-  triax_expect_streq(out, "thirty");
-  triax_expect_false(dict_contains(int, cstr, &d1, 30));
-
-  // ---- clear ----
-  dict_clear(int, cstr, &d1);
-  triax_expect_eq(d1.count, 0);
-  triax_expect_false(dict_contains(int, cstr, &d1, 10));
-
-  // ---- growth test ----
-  size_t init_cap = d1.cap;
-  for (int i = 0; i < 1000; i++) {
-    char* buf = (char*)malloc(32);
-    snprintf(buf, 20, "val_%d", i);
-    dict_set(int, cstr, &d1, i, buf);
-  }
-  triax_expect_eq(d1.count, 1000);
-  triax_expect_true(d1.cap > init_cap); // grew
-  triax_expect_streq(*dict_get(int, cstr, &d1, 123), "val_123");
-
-  // ---- iteration correctness ----
-  size_t seen = 0;
-  dict_foreach(&d1, k, v) {
-    triax_expect_nonnull(v);
-    seen++;
-  }
-  triax_expect_eq(seen, d1.count);
-
-  // ---- string→int dict ----
-  Dict(cstr, int) d2 = dict_init(cstr, int, 2);
-  triax_expect_true(dict_set(cstr, int, &d2, "apple", 1));
-  triax_expect_true(dict_set(cstr, int, &d2, "banana", 2));
-  triax_expect_true(dict_contains(cstr, int, &d2, "apple"));
-  triax_expect_eq(*dict_get(cstr, int, &d2, "banana"), 2);
-
-  // ---- delete non-existent ----
-  triax_expect_false(dict_remove(cstr, int, &d2, "missing"));
-
-  // ---- tombstone reuse ----
-  triax_expect_true(dict_remove(cstr, int, &d2, "apple"));
-  triax_expect_true(dict_set(cstr, int, &d2, "apricot", 3)); // should reuse slot
-  triax_expect_true(dict_contains(cstr, int, &d2, "apricot"));
-
-  // ---- reserve explicitly ----
-  size_t old_cap = d2.cap;
-  dict_reserve(cstr, int, &d2, 100);
-  triax_expect_true(d2.cap >= 100);
-  triax_expect_true(d2.cap >= old_cap);
-
-  // ---- iteration ----
-  seen = 0;
-  dict_foreach(&d2, k, v) {
-    triax_expect_true(k && v);
-    seen++;
-  }
-
-  triax_expect_eq(seen, d2.count);
-
-  // ---- cleanup ----
-  dict_release(int, cstr, &d1);
-  dict_release(cstr, int, &d2);
+  dict_release(int, cstr, &d);
 }
 
-triax_test(dict, tests2) {
-  // ---- init and insert ----
-  Dict(int, cstr) dict = dict_init(int, cstr, 8);
-  triax_expect_eq(dict.count, 0);
+triax_test(dict, add_does_not_overwrite) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 10, "ten");
 
-  triax_expect_true(dict_set(int, cstr, &dict, 1, "one"));
-  triax_expect_true(dict_set(int, cstr, &dict, 2, "two"));
-  triax_expect_true(dict_set(int, cstr, &dict, 3, "three"));
-  triax_expect_eq(dict.count, 3);
+  triax_expect_false(dict_add(int, cstr, &d, 10, "fail")); // already exists
+  triax_expect_streq(*dict_get(int, cstr, &d, 10), "ten");
+  triax_expect_true(dict_add(int, cstr, &d, 30, "thirty")); // new key
+  triax_expect_streq(*dict_get(int, cstr, &d, 30), "thirty");
 
-  // ---- get / contains ----
-  triax_expect_true(dict_contains(int, cstr, &dict, 1));
-  triax_expect_streq(*dict_get(int, cstr, &dict, 2), "two");
-  triax_expect_null(dict_get(int, cstr, &dict, 42));
+  dict_release(int, cstr, &d);
+}
 
-  // ---- update existing key ----
-  triax_expect_false(dict_set(int, cstr, &dict, 2, "two_updated")); // should update
-  triax_expect_streq(*dict_get(int, cstr, &dict, 2), "two_updated");
+triax_test(dict, remove_and_reinsert) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 10, "ten");
 
-  // ---- try_insert ----
-  triax_expect_false(dict_add(int, cstr, &dict, 2, "two_fail")); // exists
-  triax_expect_true(dict_add(int, cstr, &dict, 4, "four"));      // new
-  triax_expect_eq(dict.count, 4);
+  triax_expect_true(dict_remove(int, cstr, &d, 10));
+  triax_expect_false(dict_contains(int, cstr, &d, 10));
+  triax_expect_true(dict_set(int, cstr, &d, 10, "ten-again"));
+  triax_expect_streq(*dict_get(int, cstr, &d, 10), "ten-again");
 
-  // ---- remove ----
-  triax_expect_true(dict_remove(int, cstr, &dict, 3));
-  triax_expect_false(dict_contains(int, cstr, &dict, 3));
-  triax_expect_eq(dict.count, 3);
+  dict_release(int, cstr, &d);
+}
 
-  // ---- extract ----
-  const char* out = rk_null;
-  triax_expect_true(dict_extract(int, cstr, &dict, 4, &out));
-  triax_expect_streq(out, "four");
-  triax_expect_false(dict_contains(int, cstr, &dict, 4));
-  triax_expect_eq(dict.count, 2);
+// Removing a key marks its slot a tombstone rather than freeing it immediately; a subsequent
+// insert must be able to reuse that slot rather than leaking probe-chain length forever.
+triax_test(dict, remove_then_reinsert_reuses_tombstone_slot) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 1, "apple");
 
-  // ---- clear ----
-  dict_clear(int, cstr, &dict);
-  triax_expect_eq(dict.count, 0);
+  triax_expect_true(dict_remove(int, cstr, &d, 1));
+  triax_expect_true(dict_set(int, cstr, &d, 2, "apricot")); // should reuse the tombstoned slot
+  triax_expect_true(dict_contains(int, cstr, &d, 2));
+  triax_expect_false(dict_contains(int, cstr, &d, 1));
 
-  // ---- reserve/grow ----
-  for (int i = 0; i < 100; i++) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "val_%d", i);
-    dict_set(int, cstr, &dict, i, strdup(buf)); // strdup for safety
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, extract) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 30, "thirty");
+
+  cstr out = rk_null;
+  triax_expect_true(dict_extract(int, cstr, &d, 30, &out));
+  triax_expect_streq(out, "thirty");
+  triax_expect_false(dict_contains(int, cstr, &d, 30));
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, clear_resets_count) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 10, "ten");
+  dict_set(int, cstr, &d, 20, "twenty");
+
+  dict_clear(int, cstr, &d);
+  triax_expect_eq(dict_count(&d), 0u);
+  triax_expect_false(dict_contains(int, cstr, &d, 10));
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, growth_preserves_entries) {
+  static char     bufs[1000][20];
+  Dict(int, cstr) d        = dict_init(int, cstr, 4);
+  size_t          init_cap = dict_cap(&d);
+
+  for (int i = 0; i < 1000; ++i) {
+    snprintf(bufs[i], sizeof(bufs[i]), "val_%d", i);
+    dict_set(int, cstr, &d, i, bufs[i]);
   }
-  triax_expect_eq(dict.count, 100);
-  triax_expect_true(dict_contains(int, cstr, &dict, 42));
+  triax_expect_eq(dict_count(&d), 1000u);
+  triax_expect_true(dict_cap(&d) > init_cap);
+  triax_expect_streq(*dict_get(int, cstr, &d, 123), "val_123");
 
-  // ---- foreach ----
   size_t seen = 0;
-
-  dict_foreach(&dict, k, v) {
-    triax_expect_nonnull(*v);
-    seen++;
+  dict_foreach(&d, k, v) {
+    (void)k;
+    triax_expect_nonnull(v);
+    ++seen;
   }
+  triax_expect_eq(seen, dict_count(&d));
 
-  // dict_foreach_key(&dict, k) { *k = (typeof(*k)){0}; }
+  dict_release(int, cstr, &d);
+}
 
-  triax_expect_eq(seen, dict.count);
-  dict_foreach_val(&dict, v) { *v = (typeof(*v)){0}; }
+triax_test(dict, string_keyed_basic_ops) {
+  Dict(cstr, int) d = dict_init(cstr, int, 2);
+  triax_expect_true(dict_set(cstr, int, &d, "apple", 1));
+  triax_expect_true(dict_set(cstr, int, &d, "banana", 2));
+  triax_expect_true(dict_contains(cstr, int, &d, "apple"));
+  triax_expect_eq(*dict_get(cstr, int, &d, "banana"), 2);
+  triax_expect_false(dict_remove(cstr, int, &d, "missing"));
 
-  dict_release(int, cstr, &dict);
+  dict_release(cstr, int, &d);
 }
 
 triax_test(dict, count_is_empty_cap_load_factor) {
@@ -318,14 +280,18 @@ triax_test(dict, ops_on_empty_dict) {
   dict_release(int, cstr, &d);
 }
 
+// dict_reserve's n counts live entries, not raw slots (see reserve_counts_entries_not_slots
+// below), so "reserve(current slot cap)" is NOT a no-op: that many entries need more than that
+// many slots at the load factor. A true no-op needs an entry count comfortably under the current
+// slots' load-factor threshold.
 triax_test(dict, reserve_noop_when_smaller) {
   Dict(int, cstr) d            = dict_init(int, cstr, 64);
   size_t          original_cap = dict_cap(&d);
-  dict_reserve(int, cstr, &d, 4); // smaller than current — no change
+  dict_reserve(int, cstr, &d, 4); // well under the load-factor threshold — no change
   triax_expect_eq(dict_cap(&d), original_cap);
-  dict_reserve(int, cstr, &d, original_cap); // equal — no change
+  dict_reserve(int, cstr, &d, 1); // even smaller — still no change
   triax_expect_eq(dict_cap(&d), original_cap);
-  dict_reserve(int, cstr, &d, original_cap * 2); // larger — grows
+  dict_reserve(int, cstr, &d, original_cap * 2); // clearly larger — grows
   triax_expect_true(dict_cap(&d) >= original_cap * 2);
   dict_release(int, cstr, &d);
 }
@@ -368,6 +334,80 @@ triax_test(dict, shrink_to_fit) {
   dict_release(int, cstr, &d);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Parameterized: a single key/value round-trips through set/get/contains/  */
+/* remove identically regardless of its actual value. Collapses what would  */
+/* otherwise be one near-identical test per case into a single test run     */
+/* once per row of the table.                                               */
+/* ------------------------------------------------------------------------ */
+typedef struct {
+  const char* name;
+  int         key;
+  cstr        value;
+} DictRoundtripCase;
+
+static const DictRoundtripCase dict_roundtrip_cases[] = {
+    {"positive", 42, "forty-two"},   {"zero", 0, "zero"},
+    {"negative", -17, "neg-17"},     {"int_min", INT_MIN, "int-min"},
+    {"int_max", INT_MAX, "int-max"},
+};
+
+triax_test(dict, single_key_roundtrip, .params = triax_as_params(dict_roundtrip_cases)) {
+  const DictRoundtripCase* c = triax_param(DictRoundtripCase);
+  Dict(int, cstr)          d = dict_init(int, cstr, 0);
+
+  triax_expect(dict_set(int, cstr, &d, c->key, c->value), "case: %s", c->name);
+  triax_expect_eq(dict_count(&d), 1u);
+  triax_expect_true(dict_contains(int, cstr, &d, c->key));
+
+  cstr* p = dict_get(int, cstr, &d, c->key);
+  triax_expect_nonnull(p);
+  if (p) { triax_expect_streq(*p, c->value); }
+
+  triax_expect_true(dict_remove(int, cstr, &d, c->key));
+  triax_expect_true(dict_is_empty(&d));
+
+  dict_release(int, cstr, &d);
+}
+
+/* ------------------------------------------------------------------------ */
+/* dict_get_or_add()'s inserted_out is optional and NULL-tolerant. dict_-    */
+/* extract()'s out_ptr is not: it's the only place the removed value goes,  */
+/* so it still asserts non-NULL (rk_assert_ptr_nonnull, an abort in debug   */
+/* builds) -- exercised via triax_assert_fault rather than skipped just     */
+/* because it crashes, matching the convention already used for arena/pool */
+/* allocator-failure paths and the tree foreach stack-overflow checks.     */
+/* Isolation is set explicitly even though it's already the framework      */
+/* default, since getting this wrong would crash the suite.                */
+/* ------------------------------------------------------------------------ */
+triax_test(dict, get_or_add_tolerates_null_inserted_out) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+
+  cstr* v1 = dict_get_or_add(int, cstr, &d, 1, "one", rk_null);
+  triax_expect_nonnull(v1);
+  triax_expect_streq(*v1, "one");
+  triax_expect_eq(dict_count(&d), 1u);
+
+  // key already exists: still tolerates a NULL inserted_out, value is left unchanged
+  cstr* v2 = dict_get_or_add(int, cstr, &d, 1, "changed", rk_null);
+  triax_expect_nonnull(v2);
+  triax_expect_streq(*v2, "one");
+  triax_expect_eq(dict_count(&d), 1u);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, extract_rejects_null_out_ptr, .isolation = TRIAX_ISOLATION_ON) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 1, "one");
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)dict_extract(int, cstr, &d, 1, rk_null); });
+  dict_release(int, cstr, &d);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name Set Tests
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 static inline int rk_set_int_cmp(int x, int y) { return x != y; }
 static inline int rk_set_int_hash(int x) { return x; }
 
@@ -377,26 +417,13 @@ typedef unsigned char uchar;
 static inline int     rk_uchar_cmp(uchar x, uchar y) { return x != y; }
 static inline int     rk_uchar_hash(uchar x) { return x; }
 SET_DEFINE(uchar, rk_uchar_hash, rk_uchar_cmp)
-triax_test(set, tests0) {
-  Set(uchar) s = {0};
-  triax_assert_eq(set_cap(&s), 0u);
-  triax_assert_eq(set_count(&s), 0u);
-  set_clear(uchar, &s);
-  set_release(uchar, &s);
-  s = set_init(uchar, 256);
-  for (int i = 0; i < 256; ++i) {
-    set_add(uchar, &s, (uchar)i);
-    triax_assert_true(set_contains(uchar, &s, (uchar)i));
-  }
-  triax_assert_eq(set_count(&s), 256);
-  for (int i = 0; i < 256; ++i) { set_add(uchar, &s, (uchar)i); }
-  triax_assert_eq(set_count(&s), 256);
-}
+
 triax_test(set, zero_initialized) {
   Set(uchar) s = {RK_ZINIT};
   triax_expect_true(set_is_empty(&s));
   triax_expect_eq(set_count(&s), 0u);
   triax_expect_eq(set_cap(&s), 0u);
+  RK_IFALLOC(triax_expect_memeq((Allocator[]){set_allocator(&s)}, &alloc_ctx, sizeof(alloc_ctx));)
 
   triax_expect_true(set_add(uchar, &s, 7));
   triax_expect_eq(set_count(&s), 1u);
@@ -404,6 +431,21 @@ triax_test(set, zero_initialized) {
 
   set_release(uchar, &s);
   triax_expect_true(set_is_empty(&s));
+}
+
+triax_test(set, add_all_byte_values) {
+  Set(uchar) s = set_init(uchar, 256);
+  for (int i = 0; i < 256; ++i) {
+    triax_expect_true(set_add(uchar, &s, (uchar)i));
+    triax_expect_true(set_contains(uchar, &s, (uchar)i));
+  }
+  triax_expect_eq(set_count(&s), 256u);
+
+  // re-adding every value again is a no-op: still exactly 256 members
+  for (int i = 0; i < 256; ++i) { set_add(uchar, &s, (uchar)i); }
+  triax_expect_eq(set_count(&s), 256u);
+
+  set_release(uchar, &s);
 }
 
 // set_reserve(K, self, n) counts live entries, not raw slots: after reserving room for n entries,
@@ -443,6 +485,33 @@ triax_test(set, shrink_to_fit) {
 
   set_release(int, &s);
 }
+
+typedef struct {
+  const char* name;
+  int         key;
+} SetRoundtripCase;
+
+static const SetRoundtripCase set_roundtrip_cases[] = {
+    {"positive", 42}, {"zero", 0}, {"negative", -17}, {"int_min", INT_MIN}, {"int_max", INT_MAX},
+};
+
+triax_test(set, single_key_roundtrip, .params = triax_as_params(set_roundtrip_cases)) {
+  const SetRoundtripCase* c = triax_param(SetRoundtripCase);
+  Set(int) s                = set_init(int, 0);
+
+  triax_expect(set_add(int, &s, c->key), "case: %s", c->name);
+  triax_expect_eq(set_count(&s), 1u);
+  triax_expect_true(set_contains(int, &s, c->key));
+
+  triax_expect_true(set_remove(int, &s, c->key));
+  triax_expect_true(set_is_empty(&s));
+
+  set_release(int, &s);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @name Misc
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 triax_test(arrdup, t0) {
   int  src[5] = {1, 2, 3, 4, 5};

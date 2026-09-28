@@ -33,8 +33,8 @@ RK_HEADER_BEGIN
 /// @param C Capacity of the pool if static
 /// @note Static Pools take a second capacity parameter
 #define Pool(T, ...)            RK__STATOVERLOAD__(RK__POOL, T, ##__VA_ARGS__)
-#define StaticPool(T, CAP)      Pool_static_##T##_##CAP
-#define DynPool(T)              Pool_dynamic_##T
+#define StaticPool(T, CAP)      Pool_##CAP##_##T
+#define DynPool(T)              Pool_##T
 
 /// @brief `Pool(T)* pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
 /// pool with given capacity.
@@ -58,52 +58,48 @@ RK_HEADER_BEGIN
 /// @brief `size_t pool_cap(Pool(T, ...)* self)` - Returns the total capacity of the pool.
 #define pool_cap(self)          ((size_t)RK__pool_cap(self))
 
-#if RK_CUSTOM_ALLOCATORS
 /// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns the Allocator the (dynamic) pool was
-/// constructed with.
-# define pool_allocator(self) rk_to_rvalue((self)->_pool.alloc)
-#else
-/// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns `alloc_ctx` (allocators disabled).
-# define pool_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// constructed with, or `alloc_ctx` if the pool was never initialized or custom allocators are
+/// disabled.
+#define pool_allocator(self)    RK__allocatorof(self)
 
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
-#define pool_used(self)        ((size_t)RK__pool_used(self))
+#define pool_used(self)         ((size_t)RK__pool_used(self))
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
-#define pool_remaining(self)   ((size_t)RK__pool_remaining(self))
+#define pool_remaining(self)    ((size_t)RK__pool_remaining(self))
 
 /// @brief Returns `true` iff the pool is empty.
-#define pool_is_empty(self)    ((bool)(pool_used(self) == 0))
+#define pool_is_empty(self)     ((bool)(pool_used(self) == 0))
 
 /// @brief Returns `true` iff the pool is full.
-#define pool_is_full(self)     ((bool)(pool_remaining(self) == 0))
+#define pool_is_full(self)      ((bool)(pool_remaining(self) == 0))
 
 /// @brief `Pool(T)* pool_clear(Pool(T)* self)` - Marks all elements in the pool as reusable.
 /// @return `self`, for chaining
-#define pool_clear(self)       ((typeof(self))RK__pool_clear(self))
+#define pool_clear(self)        ((typeof(self))RK__pool_clear(self))
 
 /// @brief `T* pool_new(Pool(T)* self)` - Allocates a new element in the pool.
 /// @return Pointer to the newly allocated element
-#define pool_new(self)         ((RK__poolT(self)*)RK__pool_new(self))
+#define pool_new(self)          ((RK__poolT(self)*)RK__pool_new(self))
 
 /// @brief `T* pool_try_new(Pool(T)* self)` - Like `pool_new()`, but returns `NULL` if full instead
 /// of running `RK_POOL_FAIL()`.
-#define pool_try_new(self)     ((RK__poolT(self)*)RK__pool_try_new(self))
+#define pool_try_new(self)      ((RK__poolT(self)*)RK__pool_try_new(self))
 
 /// @brief `T* pool_put(Pool(T)* self, T el)` - Allocates a new element and stores a copy of the
 /// value.
 /// @return Pointer to the inserted element
-#define pool_put(self, el)     ((RK__poolT(self)*)RK__pool_put(self, el))
+#define pool_put(self, el)      ((RK__poolT(self)*)RK__pool_put(self, el))
 
 /// @brief `T* pool_try_put(Pool(T)* self, T el)` - Like `pool_put()`, but returns `NULL` if full
 /// instead of running `RK_POOL_FAIL()`.
-#define pool_try_put(self, el) ((RK__poolT(self)*)RK__pool_try_put(self, el))
+#define pool_try_put(self, el)  ((RK__poolT(self)*)RK__pool_try_put(self, el))
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.
-#define pool_delete(self, ptr) ((void)RK__pool_delete(self, ptr))
+#define pool_delete(self, ptr)  ((void)RK__pool_delete(self, ptr))
 
 /// @brief `pool_foreach(Pool(T)* self, it)` - Iterates over all allocated elements in the pool.
 ///
@@ -113,14 +109,14 @@ RK_HEADER_BEGIN
 ///     printf("%d\n", *elem);
 /// }
 /// ```
-#define pool_foreach(self, it) RK__pool_foreach(self, it)
+#define pool_foreach(self, it)  RK__pool_foreach(self, it)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__POOL2              StaticPool
+#define RK__POOL2               StaticPool
 #define RK__POOL_DEFINE2(T, C)                                                                     \
   typedef struct StaticPool(T, C) {                                                                \
     bitset(C) data;                                                                                \
@@ -184,16 +180,18 @@ static_fun rk_forceinline void* RK__Dpool_init(size_t elsize, size_t elalign,
 #define RK__DPOOL_INIT2(T, _cap)         RK__DPOOL_INIT(T, _cap, alloc_ctx)
 
 #define RK__pool_cap(self)                                                                         \
-  RK__pool_dispatch(self, rk_COUNTOF((self)->RK__POOL_ELS), (size_t)(self)->_pool.cap)
+  RK__pool_dispatch(self, ((void)(self), rk_COUNTOF((self)->RK__POOL_ELS)),                        \
+                    (size_t)(self)->_pool.cap)
 
-static_fun rk_forceinline size_t RK__Dpool_used(const RK__pool_dynamic* self) {
+static_fun rk_pure rk_forceinline size_t RK__Dpool_used(const RK__pool_dynamic* self) {
   return bitset_count_ones(self->data, self->cap);
 }
+
 #define RK__pool_used(self)                                                                        \
   RK__pool_dispatch(self, bitset_count_ones((self)->data, rk_COUNTOF((self)->RK__POOL_ELS)),       \
                     RK__Dpool_used((RK__pool_dynamic*)&((self)->_pool)))
 
-static_fun rk_forceinline size_t RK__Dpool_remaining(const RK__pool_dynamic* self) {
+static_fun rk_pure rk_forceinline size_t RK__Dpool_remaining(const RK__pool_dynamic* self) {
   return bitset_count_zeros(self->data, self->cap);
 }
 #define RK__pool_remaining(self)                                                                   \
@@ -336,8 +334,7 @@ static_fun rk_forceinline void RK__Dpool_release(size_t elsize, size_t align,
                                       (RK__pool_dynamic*)&((self)->_pool)))
 
 /// to prevent inactive union member access in c++
-#define RK__pool_els(self)                                                                         \
-  RK__pool_dispatch((self), (self)->els, (RK__poolT(self)*)(self)->_pool.els)
+#define RK__pool_els(self) RK__pool_dispatch(self, (self)->els, (RK__poolT(self)*)(self)->_pool.els)
 
 #define RK__pool_foreach(self, it)                                                                 \
   for (typeof(self) RK___pool = (self); RK___pool; RK___pool = rk_null)                            \

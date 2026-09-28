@@ -17,7 +17,6 @@ triax_test(heap, heaptest) {
   /* init / count / empty / peek on empty                                     */
   /* ------------------------------------------------------------------------ */
   Heap(int) h = heap_init(int, 0);
-
   triax_assert_true(heap_is_empty(&h));
   triax_assert_eq(heap_count(&h), 0u);
   triax_assert_true(heap_peek(int, &h) == rk_null);
@@ -221,7 +220,7 @@ triax_test(heap, extend_empty_and_singleton) {
   heap_release(&h1);
 
   Heap(int) h2 = heap_init(int, 0);
-  int arr[] = {3, 1, 2};
+  int arr[]    = {3, 1, 2};
   heap_extend(int, &h2, arr, 3); // extending an empty heap == building fresh
   triax_expect_eq(heap_count(&h2), 3u);
   triax_expect_eq(heap_pop(int, &h2), 1);
@@ -231,7 +230,7 @@ triax_test(heap, extend_empty_and_singleton) {
 triax_test(heap, from_and_assign) {
   // heap_from: constructs a fresh, correctly heap-ordered Heap in one call
   {
-    int arr[] = {9, 3, 7, 1, 8, 2, 6, 5, 4, 0};
+    int arr[]   = {9, 3, 7, 1, 8, 2, 6, 5, 4, 0};
     Heap(int) h = heap_from(int, arr, 10);
     triax_expect_eq(heap_count(&h), 10u);
     int prev = -1000000, got = 0;
@@ -263,14 +262,14 @@ triax_test(heap, from_and_assign) {
   // heap_assign: replaces contents entirely, reusing the buffer when it
   // already fits (no growth needed)
   {
-    Heap(int) h = heap_from(int, ((int[]){5, 1, 9, 3}), 4);
-    int* before_ptr   = h.data;
-    size_t before_cap = heap_cap(&h);
+    Heap(int) h          = heap_from(int, ((int[]){5, 1, 9, 3}), 4);
+    int*   before_ptr    = h.data;
+    size_t before_cap    = heap_cap(&h);
 
-    int replacement[] = {100, 50};
+    int    replacement[] = {100, 50};
     heap_assign(int, &h, replacement, 2);
     triax_expect_eq(heap_count(&h), 2u);
-    triax_expect_eq(h.data, before_ptr);   // reused, no reallocation
+    triax_expect_eq(h.data, before_ptr); // reused, no reallocation
     triax_expect_eq(heap_cap(&h), before_cap);
     triax_expect_eq(heap_pop(int, &h), 50);
     triax_expect_eq(heap_pop(int, &h), 100);
@@ -298,7 +297,7 @@ triax_test(heap, from_and_assign) {
   // heap_assign into a freshly-initialized, empty heap
   {
     Heap(int) h = heap_init(int, 0);
-    int arr[] = {3, 1, 2};
+    int arr[]   = {3, 1, 2};
     heap_assign(int, &h, arr, 3);
     triax_expect_eq(heap_count(&h), 3u);
     triax_expect_eq(heap_pop(int, &h), 1);
@@ -318,7 +317,7 @@ triax_test(heap, adopt) {
     vec_push(v, 8);
     int* original_ptr = v;
 
-    Heap(int) h = heap_adopt(int, v);
+    Heap(int) h       = heap_adopt(int, v);
     triax_expect_eq(h.data, original_ptr); // same allocation, not a copy
     triax_expect_eq(heap_count(&h), 5u);
 

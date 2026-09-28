@@ -148,7 +148,7 @@ static_fun void str_release(Str* restrict self) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns whether the String is null-terminated.
-static_fun bool str_is_null_terminated(const Str* self) {
+static_fun rk_pure bool str_is_null_terminated(const Str* self) {
   return self->cap > self->len && self->str[self->len] == '\0';
 }
 
@@ -164,24 +164,20 @@ static_fun bool str_is_null_terminated(const Str* self) {
 ///
 /// @warning This function does not enforce null-termination or perform any allocation. Callers must
 /// ensure null-termination if access to the full contents as a C string is required.
-static_fun const char* str_cstr(const Str* self) {
+static_fun rk_pure const char* str_cstr(const Str* self) {
   return str_is_null_terminated(self) ? self->str : "";
 }
 
-/// @brief Returns the current capacity of `self`, in bytes, or 0 if `self` is NULL.
-static_fun rk_pure size_t str_cap(const Str* self) { return self ? self->cap : 0; }
+/// @brief Returns the current capacity of `self`, in bytes.
+static_fun rk_pure size_t    str_cap(const Str* self) { return self->cap; }
 
-static_fun rk_pure Allocator str_allocator(const Str* self) {
-#if RK_CUSTOM_ALLOCATORS
-  return self ? self->alloc : alloc_ctx;
-#else
-  return (void)self, alloc_ctx;
-#endif
-}
+/// @brief Returns the Allocator `self` was constructed with, or `alloc_ctx` if `self` was never
+/// initialized, or custom allocators are disabled.
+static_fun rk_pure Allocator str_allocator(const Str* self) { return RK__allocatorof(self); }
 
 /// @brief Clears the contents of `self`, setting its length to zero and null-terminating it, if it
 /// owns an allocation.
-static_fun Str* str_clear(Str* restrict self) {
+static_fun Str*              str_clear(Str* restrict self) {
   if (self->str) { self->str[self->len = 0] = '\0'; }
   return self;
 }
@@ -192,21 +188,21 @@ static_fun Str* str_clear(Str* restrict self) {
 
 /// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`, reallocating, if
 /// necessary.
-static_fun Str*           str_reserve(Str* restrict self, size_t new_cap);
+static_fun Str* str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
 /// null-terminating it.
-static_fun Str*           str_resize(Str* restrict self, size_t new_len);
+static_fun Str* str_resize(Str* restrict self, size_t new_len);
 
 /// @brief Resizes a Str's capacity to the next power of two larger than its length,
 /// null-terminating it (matching `vec_shrink_to_fit()`'s convention). Leaves some slack to reduce
 /// reallocation on subsequent growth.
 /// @note Use `str_shrink_to_fit_exact()` for an exact-capacity shrink.
-static_fun Str*           str_shrink_to_fit(Str* restrict self);
+static_fun Str* str_shrink_to_fit(Str* restrict self);
 
 /// @brief Resizes a Str's capacity to exactly its length + 1 (matching
 /// `vec_shrink_to_fit_exact()`'s convention).
-static_fun Str*           str_shrink_to_fit_exact(Str* restrict self);
+static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Mutators
@@ -359,7 +355,7 @@ static_fun Str* str_reverse(Str* restrict self);
 /// @brief Constructs a Strv from a string literal.
 #define strv_from_literal(strlit) {.str = strlit, .len = lenof(strlit)}
 
-static_fun Strv strv_from_cstrn(const char* str, size_t len) {
+static_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
   return (Strv){.str = str, .len = len};
 }
 /// @brief Constructs a Strv from a Stringlike.
@@ -567,41 +563,45 @@ static_fun Strv strv_from_cstrn(const char* str, size_t len) {
   RK__IsCharLitLike(prefix, str_ends_with_char(strv_from(strlike), RK__GetCharLitLike(prefix)),    \
                     str_ends_with_strv(strv_from(strlike), RK__strv_from_fallback(prefix)))
 
-static_fun Strv strv_from_cstr(const char* s) { return (Strv){.str = s, .len = s ? strlen(s) : 0}; }
+static_fun rk_pure Strv strv_from_cstr(const char* s) {
+  return (Strv){.str = s, .len = s ? strlen(s) : 0};
+}
 
-static_fun Strv strv_from_strv(Strv str) { return str; }
+static_fun rk_const Strv strv_from_strv(Strv str) { return str; }
 
 #define RK__STR_FROMLIT(a, alloc)  str_from_strv((Strv)strv_from_literal(a) RK_IFALLOC(, alloc))
 #define RK__STR_FROMLIT2(a, alloc) rk_disable_if(RK__STR_FROMLIT(a, alloc))
 #define RK__STR_FROMLIT1(a)        RK__STR_FROMLIT(a, alloc_ctx)
 
-static_fun Strv strv_from_str(Str str) { return str.v; }
-static_fun bool str_equals_strv(Strv s1, Strv s2) {
+static_fun rk_const Strv strv_from_str(Str str) { return str.v; }
+static_fun rk_pure bool  str_equals_strv(Strv s1, Strv s2) {
   size_t mlen = rk_MIN(s1.len, s2.len);
   return s1.len == s2.len && !rk_memcmp(s1.str, s2.str, mlen);
 }
-static_fun int str_compare_strv(Strv s1, Strv s2) {
+static_fun rk_pure int str_compare_strv(Strv s1, Strv s2) {
   size_t mlen = rk_MIN(s1.len, s2.len);
   int    res  = rk_memcmp(s1.str, s2.str, mlen);
   return res ? res : (s1.len < s2.len ? -1 : (s1.len > s2.len ? 1 : 0));
 }
 
-static_fun bool str_starts_with_char(Strv sv, char c) { return sv.len && sv.str[0] == c; }
-static_fun bool str_starts_with_strv(Strv sv, Strv pref) {
+static_fun rk_pure bool str_starts_with_char(Strv sv, char c) { return sv.len && sv.str[0] == c; }
+static_fun rk_pure bool str_starts_with_strv(Strv sv, Strv pref) {
   return pref.len <= sv.len && !rk_memcmp(sv.str, pref.str, pref.len);
 }
-static_fun bool str_ends_with_char(Strv sv, char c) { return sv.len && sv.str[sv.len - 1] == c; }
+static_fun rk_pure bool str_ends_with_char(Strv sv, char c) {
+  return sv.len && sv.str[sv.len - 1] == c;
+}
 
-static_fun bool str_ends_with_strv(Strv sv, Strv suf) {
+static_fun rk_pure bool str_ends_with_strv(Strv sv, Strv suf) {
   if (!suf.len) { return true; }
   return suf.len <= sv.len && !rk_memcmp(sv.str + sv.len - suf.len, suf.str, suf.len);
 }
 
-static_fun const char* str_find_char(Strv sv, char c) {
+static_fun rk_pure const char* str_find_char(Strv sv, char c) {
   return sv.str ? (const char*)memchr(sv.str, (unsigned char)c, sv.len) : sv.str;
 }
 
-static_fun const char* str_find_strv(Strv hs, Strv ne) {
+static_fun rk_pure const char* str_find_strv(Strv hs, Strv ne) {
   if (ne.len == 0) { return hs.str; }
   if (ne.len > hs.len) { return rk_null; }
   if (ne.len <= 3) {
@@ -623,13 +623,13 @@ static_fun const char* str_find_strv(Strv hs, Strv ne) {
     return rk_null;
   }
 }
-static_fun const char* str_findr_char(Strv sv, char c) {
+static_fun rk_pure const char* str_findr_char(Strv sv, char c) {
   while (sv.len--) {
     if (sv.str[sv.len] == c) { return sv.str + sv.len; }
   }
   return rk_null;
 }
-static_fun const char* str_findr_strv(Strv hs, Strv ne) {
+static_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
   if (ne.len == 0) { return hs.str; }
   if (ne.len > hs.len) { return rk_null; }
   for (size_t i = hs.len - ne.len + 1, j; i-- > 0;) {
@@ -641,14 +641,14 @@ static_fun const char* str_findr_strv(Strv hs, Strv ne) {
   return rk_null;
 }
 
-static_fun bool str_contains_char(Strv sv, char c) {
+static_fun rk_pure bool str_contains_char(Strv sv, char c) {
   for (size_t i = 0; i < sv.len; ++i) {
     if (sv.str[i] == c) { return true; }
   }
   return false;
 }
 
-static_fun bool str_contains_strv(Strv s1, Strv s2) {
+static_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
   if (!s2.len) { return true; }
   for (size_t i = 0, j; i < s1.len && s1.len - i >= s2.len; ++i) {
     for (j = 0; j < s2.len; ++j) {
@@ -679,12 +679,12 @@ static_fun void RK__str_ensure_cap(Str* restrict self, size_t new_cap) {
   if (new_cap > self->cap) { RK__str_change_cap(self, stdc_bit_ceil(new_cap)); }
 }
 
-static_fun const char* RK__str_front_ptr(Strv sv) {
+static_fun rk_const const char* RK__str_front_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access first element of empty string");
   return sv.str;
 }
 
-static_fun const char* RK__str_back_ptr(Strv sv) {
+static_fun rk_const const char* RK__str_back_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access last element of empty string");
   return sv.str + sv.len - 1;
 }
@@ -737,7 +737,7 @@ static_fun Str* str_assign_strv(Str* restrict self, Strv sv) {
   return self;
 }
 
-static_fun Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
+static_fun rk_const Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
   if (start > sv.len || end < start) {
     sv.len = 0;
   } else {
@@ -931,17 +931,17 @@ static_fun Str* str_reverse(Str* restrict self) {
 }
 
 #define RK__STR_CHAR_ISSPACE(c) ((c) == ' ' || ((c) >= '\t' && (c) <= '\r'))
-static_fun Strv str_trimmed_left_strv(Strv sv) {
+static_fun rk_pure Strv str_trimmed_left_strv(Strv sv) {
   size_t i = 0;
   for (; i < sv.len && RK__STR_CHAR_ISSPACE(sv.str[i]); ++i);
   if (sv.str) { sv.str += i, sv.len -= i; }
   return sv;
 }
-static_fun Strv str_trimmed_right_strv(Strv sv) {
+static_fun rk_pure Strv str_trimmed_right_strv(Strv sv) {
   for (; sv.len && RK__STR_CHAR_ISSPACE(sv.str[sv.len - 1]); --sv.len);
   return sv;
 }
-static_fun Strv str_trimmed_strv(Strv sv) {
+static_fun rk_pure Strv str_trimmed_strv(Strv sv) {
   return str_trimmed_right_strv(str_trimmed_left_strv(sv));
 }
 #undef RK__STR_CHAR_ISSPACE

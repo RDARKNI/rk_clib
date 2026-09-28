@@ -6,6 +6,28 @@ RK_HEADER_BEGIN
 RK__IGNWARN_CLANG_BEG("-Wunused-variable")
 typedef struct PoolIntPair { int a, b; } PoolIntPair;
 
+static unsigned char   pool_alloc_storage[4096];
+rk_unused static Arena POOL_TEST_ARENA = arena_init_static(pool_alloc_storage);
+
+triax_test(pool, dynamic_allocator) {
+  POOL_DEFINE(int);
+  {
+    Pool(int) p = pool_init(int, 4);
+    RK_IFALLOC(triax_expect_memeq((Allocator[]){pool_allocator(&p)}, &alloc_ctx, sizeof(alloc_ctx));)
+    pool_release(&p);
+  }
+  {
+    rk_unused Allocator used_alloc = alloc_ctx;
+#if RK_CUSTOM_ALLOCATORS
+    used_alloc = arena_to_alloc(&POOL_TEST_ARENA);
+#endif
+    Pool(int) p = pool_init(int, 4 RK_IFALLOC(, used_alloc));
+    RK_IFALLOC(
+        triax_expect_memeq((Allocator[]){pool_allocator(&p)}, &used_alloc, sizeof(used_alloc));)
+    pool_release(&p);
+  }
+}
+
 triax_test(pool, dynamic_init_empty_state) {
   POOL_DEFINE(int);
   Pool(int) p = pool_init(int, 8);
@@ -114,7 +136,7 @@ triax_test(pool, dynamic_new_crash, .isolation = TRIAX_ISOLATION_ON) {
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
-  triax_assert_fault(SIGABRT, (void)pool_new(&p));
+  triax_assert_fault(TRIAX_FAULT_ABORT, (void)pool_new(&p));
 }
 
 triax_test(pool, static_new_crash, .isolation = TRIAX_ISOLATION_ON) {
@@ -124,7 +146,7 @@ triax_test(pool, static_new_crash, .isolation = TRIAX_ISOLATION_ON) {
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
   triax_expect_nonnull(pool_new(&p));
-  triax_assert_fault(SIGABRT, (void)pool_new(&p));
+  triax_assert_fault(TRIAX_FAULT_ABORT, (void)pool_new(&p));
 }
 
 triax_test(pool, dynamic_insert_crash, .isolation = TRIAX_ISOLATION_ON) {
@@ -135,7 +157,7 @@ triax_test(pool, dynamic_insert_crash, .isolation = TRIAX_ISOLATION_ON) {
   triax_expect_nonnull(pool_put(&p, v));
   triax_expect_nonnull(pool_put(&p, v));
   triax_expect_nonnull(pool_put(&p, v));
-  triax_assert_fault(SIGABRT, (void)pool_new(&p));
+  triax_assert_fault(TRIAX_FAULT_ABORT, (void)pool_new(&p));
 }
 
 triax_test(pool, delete_reclaims_slot_dynamic) {
@@ -243,7 +265,7 @@ triax_test(pool, release_resets_dynamic_pool, .isolation = TRIAX_ISOLATION_ON) {
   triax_expect_eq((size_t)0, pool_remaining(&p));
   triax_expect_true(pool_is_empty(&p));
   triax_expect_true(pool_is_full(&p));
-  triax_assert_fault(SIGABRT, (void)pool_new(&p));
+  triax_assert_fault(TRIAX_FAULT_ABORT, (void)pool_new(&p));
 }
 
 triax_test(pool, release_resets_static_pool_usage) {

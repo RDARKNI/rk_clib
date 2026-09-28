@@ -742,6 +742,19 @@ static_fun rk_alloc_alignsize(3, 2) void* RK__arrdup_f(const void* src, size_t s
 #define RK__ARRDUP3(src, count, alloc) rk_disable_if(RK__ARRDUP(src, count, alloc))
 #define RK__ARRDUP2(src, count)        RK__ARRDUP(src, count, alloc_ctx)
 
+static_fun rk_pure rk_forceinline Allocator RK__allocator_of(Allocator alloc) {
+  return alloc.vtab ? alloc : alloc_ctx;
+}
+/// @brief Returns a container's effective allocator.
+/// If the stored allocator is unset (its `vtab` is NULL), returns `alloc_ctx`.
+/// `self` must point to an object containing an `Allocator alloc` member.
+/// The result is an rvalue and cannot be used to modify the stored allocator.
+#if RK_CUSTOM_ALLOCATORS
+# define RK__allocatorof(self) RK__allocator_of((self)->alloc)
+#else
+# define RK__allocatorof(self) ((void)(self), alloc_ctx)
+#endif
+
 #undef RK__ALLOCCTX_STORAGE
 #undef RK__ALLOCCTX_INIT
 /// @endcond

@@ -32,7 +32,8 @@ triax_test(string, str_len) {
 // }
 
 triax_test(string, str_starts_with) {
-  str_starts_with("hello", 'a');
+  triax_expect_false(str_starts_with("hello", 'a'));
+  triax_expect_true(str_starts_with("hello", 'h'));
   triax_expect_eq(str_len("hello"), lenof("hello"));
   char arr[] = "world";
   triax_expect_eq(str_len(arr), 5u);
@@ -81,6 +82,31 @@ triax_test(string, str_cap) {
 
   Str z = {0};
   triax_expect_eq(str_cap(&z), 0u);
+}
+
+static unsigned char   str_alloc_storage[4096];
+rk_unused static Arena STR_TEST_ARENA = arena_init_static(str_alloc_storage);
+
+triax_test(string, str_allocator) {
+  {
+    rk_unused Str z = {0};
+    RK_IFALLOC(triax_expect_memeq((Allocator[]){str_allocator(&z)}, &alloc_ctx, sizeof(alloc_ctx));)
+  }
+  {
+    Str s = str_init(4);
+    RK_IFALLOC(triax_expect_memeq((Allocator[]){str_allocator(&s)}, &alloc_ctx, sizeof(alloc_ctx));)
+    str_release(&s);
+  }
+  {
+    rk_unused Allocator used_alloc = alloc_ctx;
+#if RK_CUSTOM_ALLOCATORS
+    used_alloc = arena_to_alloc(&STR_TEST_ARENA);
+#endif
+    Str s = str_init(4 RK_IFALLOC(, used_alloc));
+    RK_IFALLOC(
+        triax_expect_memeq((Allocator[]){str_allocator(&s)}, &used_alloc, sizeof(used_alloc));)
+    str_release(&s);
+  }
 }
 
 triax_test(string, str_clone_and_assign) {
