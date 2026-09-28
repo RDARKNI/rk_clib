@@ -820,7 +820,7 @@ static_fun rk_forceinline void* rk_memmove(void* dst, const void* src, size_t nb
 static_fun rk_forceinline void* rk_memset(void* dst, int value, size_t nbytes) {
   return nbytes ? memset(dst, value, nbytes) : dst;
 }
-static_fun rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
+static_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
   return nbytes ? memcmp(a, b, nbytes) : 0;
 }
 
@@ -1491,6 +1491,7 @@ static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   rk_assert_align_pow2(align);
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
+
 RK_HEADER_END
 
 #ifdef __cplusplus
@@ -2341,6 +2342,19 @@ static_fun rk_alloc_alignsize(3, 2) void* RK__arrdup_f(const void* src, size_t s
 #define RK__ARRDUP3(src, count, alloc) rk_disable_if(RK__ARRDUP(src, count, alloc))
 #define RK__ARRDUP2(src, count)        RK__ARRDUP(src, count, alloc_ctx)
 
+static_fun rk_pure rk_forceinline Allocator RK__allocator_of(Allocator alloc) {
+  return alloc.vtab ? alloc : alloc_ctx;
+}
+/// @brief Returns a container's effective allocator.
+/// If the stored allocator is unset (its `vtab` is NULL), returns `alloc_ctx`.
+/// `self` must point to an object containing an `Allocator alloc` member.
+/// The result is an rvalue and cannot be used to modify the stored allocator.
+#if RK_CUSTOM_ALLOCATORS
+# define RK__allocatorof(self) RK__allocator_of((self)->alloc)
+#else
+# define RK__allocatorof(self) ((void)(self), alloc_ctx)
+#endif
+
 #undef RK__ALLOCCTX_STORAGE
 #undef RK__ALLOCCTX_INIT
 /// @endcond
@@ -2415,16 +2429,15 @@ typedef struct tree_iter {
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
 /// mutation are the only operations that differ by rebalancing strategy and therefore stay
 /// variant-prefixed.
-#define tree_count(self) ((size_t)(self)->count)
+#define tree_count(self)     ((size_t)(self)->count)
 
-#if RK_CUSTOM_ALLOCATORS
-# define tree_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-# define tree_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// @brief `Allocator tree_allocator(self)` - Returns the Allocator the tree was constructed with,
+/// or `alloc_ctx` if the tree was never initialized or custom allocators are disabled. Identical
+/// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_allocator`/`avl_allocator`/`rbt_allocator`).
+#define tree_allocator(self) RK__allocatorof(self)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
-#define tree_is_empty(self) (tree_count(self) == 0)
+#define tree_is_empty(self)  (tree_count(self) == 0)
 
 /// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
 /// Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`): the
@@ -2466,7 +2479,7 @@ typedef struct tree_iter {
 #define BST_DEFINE(K, V, CMP_FUN)       RK__BST_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific BST struct name.
-#define Bst(K, V)                       bst_##K##_##V
+#define Bst(K, V)                       Bst_##K##_##V
 /// @brief Generates a type-specific BST entry struct name.
 #define BstEntry(K, V)                  bst_entry_##K##_##V
 
@@ -2525,8 +2538,8 @@ typedef struct tree_iter {
 /// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
 /// Performs a single tree traversal, unlike a separate `bst_get()`/`bst_add()` pair.
 /// @param default_value Value to insert if `key` is not present.
-/// @param inserted_out Set to `true` if a new node was inserted, `false` if the key already
-/// existed. Must not be `NULL`.
+/// @param inserted_out Optional output pointer. If non-`NULL`, set to `true` if a new node was
+/// inserted and `false` if the key already existed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define bst_get_or_add(K, V, self, key, default_value, inserted_out)                               \
   RK__BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
@@ -2579,7 +2592,7 @@ typedef struct tree_iter {
 #define AVL_DEFINE(K, V, CMP_FUN)       RK__AVL_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Avl struct name.
-#define Avl(K, V)                       avl_##K##_##V
+#define Avl(K, V)                       Avl_##K##_##V
 /// @brief Generates a type-specific Avl entry struct name.
 #define AvlEntry(K, V)                  avl_entry_##K##_##V
 
@@ -2652,6 +2665,7 @@ typedef struct tree_iter {
   tree_foreach(self, stack_buf, stack_cap, entry)
 
 ////////////////////////////////// Rbt: left-leaning red-black tree ///////////////////////////////
+
 /// @brief `RBT_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific left-leaning red-black
 /// tree API for the given key/value combination. See `BST_DEFINE()` for the shared usage pattern.
 /// @param K Key type (must be a plain identifier; use `typedef` for pointer or struct types)
@@ -2661,7 +2675,7 @@ typedef struct tree_iter {
 #define RBT_DEFINE(K, V, CMP_FUN)       RK__RBT_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Rbt struct name.
-#define Rbt(K, V)                       rbt_##K##_##V
+#define Rbt(K, V)                       Rbt_##K##_##V
 /// @brief Generates a type-specific Rbt entry struct name.
 #define RbtEntry(K, V)                  rbt_entry_##K##_##V
 
@@ -2693,7 +2707,7 @@ typedef struct tree_iter {
 #define rbt_max(self)                   tree_max(self)
 
 /// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
-#define rbt_get(K, V, self, key)        RK__RBT_F(K, V, get)(self, key)
+#define rbt_get(K, V, self, key)        RK__RBT_PUB(K, V, get)(self, key)
 
 /// @brief `bool rbt_contains(K, V, Rbt(K, V)* self, K key)` - See `bst_contains()`.
 #define rbt_contains(K, V, self, key)   (!!rbt_get(K, V, self, key))
@@ -2701,28 +2715,28 @@ typedef struct tree_iter {
 /// @brief `bool rbt_set(K, V, Rbt(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define rbt_set(K, V, self, key, value) RK__RBT_F(K, V, set)(self, key, value)
+#define rbt_set(K, V, self, key, value) RK__RBT_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* rbt_add(K, V, Rbt(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
 /// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
-#define rbt_add(K, V, self, key, value) RK__RBT_F(K, V, add)(self, key, value)
+#define rbt_add(K, V, self, key, value) RK__RBT_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* rbt_get_or_add(K, V, Rbt(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define rbt_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__RBT_F(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RK__RBT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool rbt_extract(K, V, Rbt(K, V)* self, K key, V* out)` - See `bst_extract()`;
 /// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_extract(K, V, self, key, out) RK__RBT_F(K, V, extract)(self, key, out)
+#define rbt_extract(K, V, self, key, out) RK__RBT_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool rbt_remove(K, V, Rbt(K, V)* self, K key)` - See `bst_remove()`; rebalances as
 /// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_remove(K, V, self, key)       RK__RBT_F(K, V, remove)(self, key)
+#define rbt_remove(K, V, self, key)       RK__RBT_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Rbt tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
@@ -2769,14 +2783,14 @@ static_fun void RK__tree_release(size_t nodesize, size_t nodealign, tree_data* s
 /// node. Passing the real offset (rather than assuming entry data sits right after `l`/`r`, as a
 /// bare `tree_node*` would) is what makes this safe to reuse for node types that carry extra
 /// bookkeeping (e.g. an AVL height or a red-black color bit) between the pointers and the entry.
-static_fun void* RK__tree_min_off(tree_node* node, size_t entry_off) {
+static_fun rk_pure void* RK__tree_min_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->l) { node = node->l; }
   return (char*)node + entry_off;
 }
 
 /// @brief Like `RK__tree_min_off()`, but for the rightmost (maximum) node.
-static_fun void* RK__tree_max_off(tree_node* node, size_t entry_off) {
+static_fun rk_pure void* RK__tree_max_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
@@ -2816,13 +2830,14 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 //////////////////////////////////////////////
 
 #define RK__BstEntryPriv(K, V)      RK__bst_entry_##K##_##V
-#define RK__BST_PUB(K, V, FNAME)    bstf_##FNAME##_##K##_##V
-#define RK__BST_PRI(K, V, FNAME)    RK__bst_##FNAME##_##K##_##V
-#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
 
 #define RK__bst_init(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
 #define RK__bst_init3(K, V, _Alloc) rk_disable_if(RK__bst_init(K, V, _Alloc))
 #define RK__bst_init2(K, V)         RK__bst_init(K, V, alloc_ctx)
+
+#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
+#define RK__BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
+#define RK__BST_PRI(K, V, FNAME)    RK__bst_##K##_##V##_##FNAME
 
 #define RK__BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
@@ -2851,7 +2866,20 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       };                                                                                           \
     };                                                                                             \
   } Bst(K, V);                                                                                     \
-  static_fun struct RK__BstNode(K, V) * *RK__BST_PUB(K, V, search_ptr)(Bst(K, V) * self, K key) {  \
+  /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
+  /* address, cross-container generic dispatch); bst_count()/bst_is_empty()/bst_allocator() */     \
+  /* remain the untyped macros meant for everyday use. */                                          \
+  static_fun rk_pure size_t RK__BST_PUB(K, V, count)(const Bst(K, V) * self) {                     \
+    return tree_count(self);                                                                       \
+  }                                                                                                \
+  static_fun rk_pure bool RK__BST_PUB(K, V, is_empty)(const Bst(K, V) * self) {                    \
+    return tree_is_empty(self);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__BST_PUB(K, V, allocator)(const Bst(K, V) * self) {              \
+    return tree_allocator(self);                                                                   \
+  }                                                                                                \
+  static_fun rk_pure struct RK__BstNode(K, V)                                                      \
+      * *RK__BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
     node_t** curr = &self->root;                                                                   \
     for (; *curr;) {                                                                               \
@@ -2861,18 +2889,18 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return curr;                                                                                   \
   }                                                                                                \
-  static_fun V* RK__BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                                  \
+  static_fun rk_pure V* RK__BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                          \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** node = RK__BST_PUB(K, V, search_ptr)(self, key);                                      \
+    node_t** node = RK__BST_PRI(K, V, search_ptr)(self, key);                                      \
     return *node ? &((*node)->entry.val) : rk_null;                                                \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                           \
-    return !!(*RK__BST_PUB(K, V, search_ptr)(self, key));                                          \
+  static_fun rk_pure bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                   \
+    return !!(*RK__BST_PRI(K, V, search_ptr)(self, key));                                          \
   }                                                                                                \
   static_fun V* RK__BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,      \
                                            V val) {                                                \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
       if (always_insert) { (*lnk)->entry.val = val; }                                              \
       return rk_null;                                                                              \
@@ -2893,11 +2921,10 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
   }                                                                                                \
   static_fun V* RK__BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                      \
                                               bool* restrict inserted_out) {                       \
-    rk_assert_ptr_nonnull(inserted_out);                                                           \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
-      *inserted_out = false;                                                                       \
+      if (inserted_out) { *inserted_out = false; }                                                 \
       return &((*lnk)->entry_mod.val);                                                             \
     }                                                                                              \
     rk_set_alloc_fallback(self->alloc);                                                            \
@@ -2906,13 +2933,13 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
     *lnk         = n;                                                                              \
     ++self->count;                                                                                 \
-    *inserted_out = true;                                                                          \
+    if (inserted_out) { *inserted_out = true; }                                                    \
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
   static_fun bool RK__BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {               \
     rk_assert_ptr_nonnull(val_out);                                                                \
     typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PUB(K, V, search_ptr)(self, key);                                       \
+    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (!*lnk) { return false; }                                                                   \
     --self->count;                                                                                 \
     node_t* curr = *lnk;                                                                           \
@@ -2938,13 +2965,13 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RK__AvlNode(K, V)      RK__avl_node_##K##_##V
-#define RK__AVL_PUB(K, V, F)   avlf_##F##_##K##_##V
-#define RK__AVL_PRI(K, V, F)   RK__avl_##F##_##K##_##V
+#define RK__avl_init(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RK__avl_init3(K, V, A)   rk_disable_if(RK__avl_init(K, V, A))
+#define RK__avl_init2(K, V)      RK__avl_init(K, V, alloc_ctx)
 
-#define RK__avl_init(K, V, A)  ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__avl_init3(K, V, A) rk_disable_if(RK__avl_init(K, V, A))
-#define RK__avl_init2(K, V)    RK__avl_init(K, V, alloc_ctx)
+#define RK__AvlNode(K, V)        RK__avl_node_##K##_##V
+#define RK__AVL_PUB(K, V, FNAME) avl_##K##_##V##_##FNAME
+#define RK__AVL_PRI(K, V, FNAME) RK__avl_##K##_##V##_##FNAME
 
 #define RK__AVL_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
@@ -2974,8 +3001,20 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       };                                                                                           \
     };                                                                                             \
   } Avl(K, V);                                                                                     \
-  static_fun int  RK__AVL_PRI(K, V, h)(RK__AvlNode(K, V) * n) { return n ? n->height : 0; }        \
-  static_fun void RK__AVL_PRI(K, V, fixh)(RK__AvlNode(K, V) * n) {                                 \
+  /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
+  /* address, cross-container generic dispatch); avl_count()/avl_is_empty()/avl_allocator() */     \
+  /* remain the untyped macros meant for everyday use. */                                          \
+  static_fun rk_pure size_t RK__AVL_PUB(K, V, count)(const Avl(K, V) * self) {                     \
+    return tree_count(self);                                                                       \
+  }                                                                                                \
+  static_fun rk_pure bool RK__AVL_PUB(K, V, is_empty)(const Avl(K, V) * self) {                    \
+    return tree_is_empty(self);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__AVL_PUB(K, V, allocator)(const Avl(K, V) * self) {              \
+    return tree_allocator(self);                                                                   \
+  }                                                                                                \
+  static_fun rk_pure int RK__AVL_PRI(K, V, h)(RK__AvlNode(K, V) * n) { return n ? n->height : 0; } \
+  static_fun void        RK__AVL_PRI(K, V, fixh)(RK__AvlNode(K, V) * n) {                          \
     int a = RK__AVL_PRI(K, V, h)(n->l), b = RK__AVL_PRI(K, V, h)(n->r);                            \
     n->height = 1 + (a > b ? a : b);                                                               \
   }                                                                                                \
@@ -3038,7 +3077,7 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return RK__AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
-  static_fun V* RK__AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                                  \
+  static_fun rk_pure V* RK__AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                          \
     RK__AvlNode(K, V)* n = self->root;                                                             \
     while (n) {                                                                                    \
       int c = CMP_FUN(key, n->entry.key);                                                          \
@@ -3067,8 +3106,9 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
   }                                                                                                \
   static_fun V* RK__AVL_PUB(K, V, get_or_add)(Avl(K, V) * self, K key, V val,                      \
                                               bool* restrict inserted_out) {                       \
-    rk_assert_ptr_nonnull(inserted_out);                                                           \
-    return RK__AVL_PRI(K, V, setadd)(self, key, val, false, inserted_out);                         \
+    bool ignored;                                                                                  \
+    return RK__AVL_PRI(K, V, setadd)(self, key, val, false,                                        \
+                                     inserted_out ? inserted_out : &ignored);                      \
   }                                                                                                \
   static_fun RK__AvlNode(K, V)                                                                     \
       * RK__AVL_PRI(K, V, detach_min)(RK__AvlNode(K, V) * n, RK__AvlNode(K, V) * *out) {           \
@@ -3120,15 +3160,15 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RK__RbtNode(K, V)      RK__rbt_node_##K##_##V
-#define RK__RBT_F(K, V, F)     rbtf_##F##_##K##_##V
-#define RK__RBT_I(K, V, F)     RK__rbt_##F##_##K##_##V
-
-#define RK__rbt_init(K, V, A)  ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__rbt_init3(K, V, A) rk_disable_if(RK__rbt_init(K, V, A))
-#define RK__rbt_init2(K, V)    RK__rbt_init(K, V, alloc_ctx)
+#define RK__rbt_init(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RK__rbt_init3(K, V, A)   rk_disable_if(RK__rbt_init(K, V, A))
+#define RK__rbt_init2(K, V)      RK__rbt_init(K, V, alloc_ctx)
 
 /* Left-leaning red-black tree: red links lean left and no node has two red links in a row. */
+
+#define RK__RbtNode(K, V)        RK__rbt_node_##K##_##V
+#define RK__RBT_PUB(K, V, FNAME) rbt_##K##_##V##_##FNAME
+#define RK__RBT_PRI(K, V, FNAME) RK__rbt_##K##_##V##_##FNAME
 
 #define RK__RBT_DEFINE(K, V, CMP)                                                                  \
   RK_EXTERNC_BEG                                                                                   \
@@ -3136,15 +3176,15 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     K const key;                                                                                   \
     V       val;                                                                                   \
   } RbtEntry(K, V);                                                                                \
-  typedef struct RK__RBT_I(K, V, E) {                                                              \
+  typedef struct RK__RBT_PRI(K, V, E) {                                                            \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__RBT_I(K, V, E);                                                                            \
+  } RK__RBT_PRI(K, V, E);                                                                          \
   typedef struct RK__RbtNode(K, V) {                                                               \
     struct RK__RbtNode(K, V) * l, *r;                                                              \
     bool red;                                                                                      \
     union {                                                                                        \
-      RK__RBT_I(K, V, E) entry_mod;                                                                \
+      RK__RBT_PRI(K, V, E) entry_mod;                                                              \
       RbtEntry(K, V) entry;                                                                        \
     };                                                                                             \
   } RK__RbtNode(K, V);                                                                             \
@@ -3158,8 +3198,20 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       };                                                                                           \
     };                                                                                             \
   } Rbt(K, V);                                                                                     \
-  static_fun bool RK__RBT_I(K, V, red)(RK__RbtNode(K, V) * n) { return n && n->red; }              \
-  static_fun      RK__RbtNode(K, V) * RK__RBT_I(K, V, rl)(RK__RbtNode(K, V) * h) {                 \
+  /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
+  /* address, cross-container generic dispatch); rbt_count()/rbt_is_empty()/rbt_allocator() */     \
+  /* remain the untyped macros meant for everyday use. */                                          \
+  static_fun rk_pure size_t RK__RBT_PUB(K, V, count)(const Rbt(K, V) * self) {                     \
+    return tree_count(self);                                                                       \
+  }                                                                                                \
+  static_fun rk_pure bool RK__RBT_PUB(K, V, is_empty)(const Rbt(K, V) * self) {                    \
+    return tree_is_empty(self);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__RBT_PUB(K, V, allocator)(const Rbt(K, V) * self) {              \
+    return tree_allocator(self);                                                                   \
+  }                                                                                                \
+  static_fun rk_pure bool RK__RBT_PRI(K, V, red)(RK__RbtNode(K, V) * n) { return n && n->red; }    \
+  static_fun              RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rl)(RK__RbtNode(K, V) * h) {       \
     RK__RbtNode(K, V)* x = h->r;                                                                   \
     h->r                 = x->l;                                                                   \
     x->l                 = h;                                                                      \
@@ -3167,7 +3219,7 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, rr)(RK__RbtNode(K, V) * h) {                      \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rr)(RK__RbtNode(K, V) * h) {                    \
     RK__RbtNode(K, V)* x = h->l;                                                                   \
     h->l                 = x->r;                                                                   \
     x->r                 = h;                                                                      \
@@ -3175,39 +3227,41 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun void RK__RBT_I(K, V, flip)(RK__RbtNode(K, V) * h) {                                   \
+  static_fun void RK__RBT_PRI(K, V, flip)(RK__RbtNode(K, V) * h) {                                 \
     h->red    = !h->red;                                                                           \
     h->l->red = !h->l->red;                                                                        \
     h->r->red = !h->r->red;                                                                        \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, fix)(RK__RbtNode(K, V) * h) {                     \
-    if (RK__RBT_I(K, V, red)(h->r)) { h = RK__RBT_I(K, V, rl)(h); }                                \
-    if (RK__RBT_I(K, V, red)(h->l) && RK__RBT_I(K, V, red)(h->l->l)) {                             \
-      h = RK__RBT_I(K, V, rr)(h);                                                                  \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, fix)(RK__RbtNode(K, V) * h) {                   \
+    if (RK__RBT_PRI(K, V, red)(h->r)) { h = RK__RBT_PRI(K, V, rl)(h); }                            \
+    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->l->l)) {                         \
+      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
     }                                                                                              \
-    if (RK__RBT_I(K, V, red)(h->l) && RK__RBT_I(K, V, red)(h->r)) { RK__RBT_I(K, V, flip)(h); }    \
-    return h;                                                                                      \
-  }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, ml)(RK__RbtNode(K, V) * h) {                      \
-    RK__RBT_I(K, V, flip)(h);                                                                      \
-    if (RK__RBT_I(K, V, red)(h->r->l)) {                                                           \
-      h->r = RK__RBT_I(K, V, rr)(h->r);                                                            \
-      h    = RK__RBT_I(K, V, rl)(h);                                                               \
-      RK__RBT_I(K, V, flip)(h);                                                                    \
+    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->r)) {                            \
+      RK__RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, mr)(RK__RbtNode(K, V) * h) {                      \
-    RK__RBT_I(K, V, flip)(h);                                                                      \
-    if (RK__RBT_I(K, V, red)(h->l->l)) {                                                           \
-      h = RK__RBT_I(K, V, rr)(h);                                                                  \
-      RK__RBT_I(K, V, flip)(h);                                                                    \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, ml)(RK__RbtNode(K, V) * h) {                    \
+    RK__RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RK__RBT_PRI(K, V, red)(h->r->l)) {                                                         \
+      h->r = RK__RBT_PRI(K, V, rr)(h->r);                                                          \
+      h    = RK__RBT_PRI(K, V, rl)(h);                                                             \
+      RK__RBT_PRI(K, V, flip)(h);                                                                  \
+    }                                                                                              \
+    return h;                                                                                      \
+  }                                                                                                \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mr)(RK__RbtNode(K, V) * h) {                    \
+    RK__RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RK__RBT_PRI(K, V, red)(h->l->l)) {                                                         \
+      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
+      RK__RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
   static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_I(K, V, put)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V v, bool ow, V** out,     \
-                             bool* added) {                                                        \
+      * RK__RBT_PRI(K, V, put)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
+                               bool* added) {                                                      \
     if (!h) {                                                                                      \
       rk_set_alloc_fallback(s->alloc);                                                             \
       h    = alloc_new(RK__RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
@@ -3220,16 +3274,16 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     int c = CMP(k, h->entry.key);                                                                  \
     if (c < 0) {                                                                                   \
-      h->l = RK__RBT_I(K, V, put)(s, h->l, k, v, ow, out, added);                                  \
+      h->l = RK__RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
     } else if (c > 0) {                                                                            \
-      h->r = RK__RBT_I(K, V, put)(s, h->r, k, v, ow, out, added);                                  \
+      h->r = RK__RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
     } else {                                                                                       \
       if (ow) { h->entry_mod.val = v; }                                                            \
       *out = &h->entry_mod.val;                                                                    \
     }                                                                                              \
-    return RK__RBT_I(K, V, fix)(h);                                                                \
+    return RK__RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun V* RK__RBT_F(K, V, get)(Rbt(K, V) * s, K k) {                                         \
+  static_fun rk_pure V* RK__RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                               \
     RK__RbtNode(K, V)* n = s->root;                                                                \
     while (n) {                                                                                    \
       int c = CMP(k, n->entry.key);                                                                \
@@ -3238,55 +3292,55 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
-  static_fun V* RK__RBT_I(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {           \
+  static_fun V* RK__RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {         \
     V* out       = rk_null;                                                                        \
     *added       = false;                                                                          \
-    s->root      = RK__RBT_I(K, V, put)(s, s->root, k, v, ow, &out, added);                        \
+    s->root      = RK__RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
     s->root->red = false;                                                                          \
     if (*added) { ++s->count; }                                                                    \
     return out;                                                                                    \
   }                                                                                                \
-  static_fun bool RK__RBT_F(K, V, set)(Rbt(K, V) * s, K k, V v) {                                  \
+  static_fun bool RK__RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                \
     bool a;                                                                                        \
-    (void)RK__RBT_I(K, V, insert)(s, k, v, true, &a);                                              \
+    (void)RK__RBT_PRI(K, V, insert)(s, k, v, true, &a);                                            \
     return a;                                                                                      \
   }                                                                                                \
-  static_fun V* RK__RBT_F(K, V, add)(Rbt(K, V) * s, K k, V v) {                                    \
+  static_fun V* RK__RBT_PUB(K, V, add)(Rbt(K, V) * s, K k, V v) {                                  \
     bool a;                                                                                        \
-    V*   p = RK__RBT_I(K, V, insert)(s, k, v, false, &a);                                          \
+    V*   p = RK__RBT_PRI(K, V, insert)(s, k, v, false, &a);                                        \
     return a ? p : rk_null;                                                                        \
   }                                                                                                \
-  static_fun V* RK__RBT_F(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                               \
-                                            bool* restrict inserted_out) {                         \
-    rk_assert_ptr_nonnull(inserted_out);                                                           \
-    return RK__RBT_I(K, V, insert)(s, k, v, false, inserted_out);                                  \
+  static_fun V* RK__RBT_PUB(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                             \
+                                              bool* restrict inserted_out) {                       \
+    bool ignored;                                                                                  \
+    return RK__RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, mn)(RK__RbtNode(K, V) * h) {                      \
+  static_fun rk_pure RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mn)(RK__RbtNode(K, V) * h) {            \
     while (h->l) { h = h->l; }                                                                     \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_I(K, V, dm)(Rbt(K, V) * s, RK__RbtNode(K, V) * h) {       \
+  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, dm)(Rbt(K, V) * s, RK__RbtNode(K, V) * h) {     \
     if (!h->l) {                                                                                   \
       alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                   \
       return rk_null;                                                                              \
     }                                                                                              \
-    if (!RK__RBT_I(K, V, red)(h->l) && !RK__RBT_I(K, V, red)(h->l->l)) {                           \
-      h = RK__RBT_I(K, V, ml)(h);                                                                  \
+    if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                       \
+      h = RK__RBT_PRI(K, V, ml)(h);                                                                \
     }                                                                                              \
-    h->l = RK__RBT_I(K, V, dm)(s, h->l);                                                           \
-    return RK__RBT_I(K, V, fix)(h);                                                                \
+    h->l = RK__RBT_PRI(K, V, dm)(s, h->l);                                                         \
+    return RK__RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
   static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_I(K, V, del)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V * out, bool* gone) {     \
+      * RK__RBT_PRI(K, V, del)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
     if (CMP(k, h->entry.key) < 0) {                                                                \
       if (h->l) {                                                                                  \
-        if (!RK__RBT_I(K, V, red)(h->l) && !RK__RBT_I(K, V, red)(h->l->l)) {                       \
-          h = RK__RBT_I(K, V, ml)(h);                                                              \
+        if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                   \
+          h = RK__RBT_PRI(K, V, ml)(h);                                                            \
         }                                                                                          \
-        h->l = RK__RBT_I(K, V, del)(s, h->l, k, out, gone);                                        \
+        h->l = RK__RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
       }                                                                                            \
     } else {                                                                                       \
-      if (RK__RBT_I(K, V, red)(h->l)) { h = RK__RBT_I(K, V, rr)(h); }                              \
+      if (RK__RBT_PRI(K, V, red)(h->l)) { h = RK__RBT_PRI(K, V, rr)(h); }                          \
       int c = CMP(k, h->entry.key);                                                                \
       if (!c && !h->r) {                                                                           \
         *out  = h->entry_mod.val;                                                                  \
@@ -3295,38 +3349,38 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
         return rk_null;                                                                            \
       }                                                                                            \
       if (h->r) {                                                                                  \
-        if (!RK__RBT_I(K, V, red)(h->r) && !RK__RBT_I(K, V, red)(h->r->l)) {                       \
-          h = RK__RBT_I(K, V, mr)(h);                                                              \
+        if (!RK__RBT_PRI(K, V, red)(h->r) && !RK__RBT_PRI(K, V, red)(h->r->l)) {                   \
+          h = RK__RBT_PRI(K, V, mr)(h);                                                            \
         }                                                                                          \
         c = CMP(k, h->entry.key);                                                                  \
         if (!c) {                                                                                  \
-          RK__RbtNode(K, V)* m = RK__RBT_I(K, V, mn)(h->r);                                        \
+          RK__RbtNode(K, V)* m = RK__RBT_PRI(K, V, mn)(h->r);                                      \
           *out                 = h->entry_mod.val;                                                 \
           *gone                = true;                                                             \
           h->entry_mod         = m->entry_mod;                                                     \
-          h->r                 = RK__RBT_I(K, V, dm)(s, h->r);                                     \
+          h->r                 = RK__RBT_PRI(K, V, dm)(s, h->r);                                   \
         } else {                                                                                   \
-          h->r = RK__RBT_I(K, V, del)(s, h->r, k, out, gone);                                      \
+          h->r = RK__RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
         }                                                                                          \
       }                                                                                            \
     }                                                                                              \
-    return RK__RBT_I(K, V, fix)(h);                                                                \
+    return RK__RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun bool RK__RBT_F(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                          \
+  static_fun bool RK__RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                        \
     rk_assert_ptr_nonnull(out);                                                                    \
-    if (!s->root || !RK__RBT_F(K, V, get)(s, k)) { return false; }                                 \
+    if (!s->root || !RK__RBT_PUB(K, V, get)(s, k)) { return false; }                               \
     bool gone = false;                                                                             \
-    if (!RK__RBT_I(K, V, red)(s->root->l) && !RK__RBT_I(K, V, red)(s->root->r)) {                  \
+    if (!RK__RBT_PRI(K, V, red)(s->root->l) && !RK__RBT_PRI(K, V, red)(s->root->r)) {              \
       s->root->red = true;                                                                         \
     }                                                                                              \
-    s->root = RK__RBT_I(K, V, del)(s, s->root, k, out, &gone);                                     \
+    s->root = RK__RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
     if (s->root) { s->root->red = false; }                                                         \
     if (gone) { --s->count; }                                                                      \
     return gone;                                                                                   \
   }                                                                                                \
-  static_fun bool RK__RBT_F(K, V, remove)(Rbt(K, V) * s, K k) {                                    \
+  static_fun bool RK__RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                  \
     V x;                                                                                           \
-    return RK__RBT_F(K, V, extract)(s, k, &x);                                                     \
+    return RK__RBT_PUB(K, V, extract)(s, k, &x);                                                   \
   }                                                                                                \
   RK_EXTERNC_END
 
@@ -3473,7 +3527,7 @@ static_fun bitset bitset_copy(bitset restrict dst, size_t nbits, cbitset restric
 /// @param idx Bit index (0-based)
 /// @return `true` if bit `idx` is 1, otherwise `false`.
 /// @pre `idx < nbits`.
-static_fun bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
+static_fun rk_pure bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   return (bs[bitset_word_index(idx)] & bitset_word_mask(idx)) != 0;
 }
@@ -3618,7 +3672,7 @@ static_fun bitset bitset_flip_all(bitset bs, size_t nbits) {
 /// @return A **1-based** position of the first leading one, or 0 if none.
 /// @note This matches the “1-based with 0 sentinel” convention used by C23 `<stdbit.h>` query
 /// functions and several compiler builtins.
-static_fun size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
@@ -3636,7 +3690,7 @@ static_fun size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first leading zero, or 0 if none.
 /// @note If all valid bits are 1, returns 0.
-static_fun size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
@@ -3655,7 +3709,7 @@ static_fun size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first trailing one, or 0 if none.
-static_fun size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     size_t pos = stdc_first_trailing_one(bs[w]);
@@ -3668,7 +3722,7 @@ static_fun size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first trailing zero, or 0 if none.
 /// @note Padding bits are treated as 1 (not eligible as “zero” results).
-static_fun size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = 0, pos;
   for (size_t words = bitset_words(nbits); w < words - (rest != 0); ++w) {
@@ -3686,7 +3740,7 @@ static_fun size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
 /// @brief Counts leading zeros (from MSB toward LSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive zero bits starting at the MSB.
-static_fun size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_leading_one(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3694,7 +3748,7 @@ static_fun size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
 /// @brief Counts leading ones (from MSB toward LSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive one bits starting at the MSB.
-static_fun size_t bitset_leading_ones(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_leading_ones(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_leading_zero(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3702,7 +3756,7 @@ static_fun size_t bitset_leading_ones(cbitset bs, size_t nbits) {
 /// @brief Counts trailing zeros (from LSB toward MSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive zero bits starting at the LSB.
-static_fun size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_trailing_one(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3710,7 +3764,7 @@ static_fun size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
 /// @brief Counts trailing ones (from LSB toward MSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive one bits starting at the LSB.
-static_fun size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_trailing_zero(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3718,7 +3772,7 @@ static_fun size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
 /// @brief Counts the number of 1 bits.
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of set bits.
-static_fun size_t bitset_count_ones(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_count_ones(cbitset bs, size_t nbits) {
   size_t words = bitset_words(nbits), count = 0;
   for (size_t w = 0; w < words; ++w) { count += stdc_count_ones(bs[w]); }
   return count;
@@ -3727,14 +3781,14 @@ static_fun size_t bitset_count_ones(cbitset bs, size_t nbits) {
 /// @brief Counts the number of 0 bits.
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of zero bits.
-static_fun size_t bitset_count_zeros(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_count_zeros(cbitset bs, size_t nbits) {
   return nbits - bitset_count_ones(bs, nbits);
 }
 
 /// @brief Returns whether any bit is set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if at least one valid bit is 1, else `false`.
-static_fun bool bitset_any(cbitset bs, size_t nbits) {
+static_fun rk_pure bool bitset_any(cbitset bs, size_t nbits) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     if (bs[w]) { return true; }
   }
@@ -3744,12 +3798,12 @@ static_fun bool bitset_any(cbitset bs, size_t nbits) {
 /// @brief Returns whether no bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 0, else `false`.
-static_fun bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
+static_fun rk_pure bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
 
 /// @brief Returns whether all bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 1, else `false`.
-static_fun bool bitset_all(cbitset bs, size_t nbits) {
+static_fun rk_pure bool bitset_all(cbitset bs, size_t nbits) {
   size_t rest = nbits % bitset_word_bits, w = 0;
   for (size_t words = bitset_words(nbits); w < words - (rest != 0); ++w) {
     if (bs[w] != ((bitset_word)~0)) { return false; }
@@ -3761,7 +3815,7 @@ static_fun bool bitset_all(cbitset bs, size_t nbits) {
 /// @brief Returns whether exactly one bit is set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if exactly one valid bit is 1, else `false`.
-static_fun bool bitset_has_single_bit(cbitset bs, size_t nbits) {
+static_fun rk_pure bool bitset_has_single_bit(cbitset bs, size_t nbits) {
   size_t count = 0;
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     if ((count += stdc_count_ones(bs[w])) > 1) { return false; }
@@ -3774,7 +3828,7 @@ static_fun bool bitset_has_single_bit(cbitset bs, size_t nbits) {
 /// @param nbits Logical size of both bitsets
 /// @param b Second bitset
 /// @return `true` if all valid bits match, else `false`.
-static_fun bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
+static_fun rk_pure bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
   return rk_memcmp(a, b, sizeof_n(*a, bitset_words(nbits))) == 0;
 }
 
@@ -3917,7 +3971,7 @@ static_fun bitset bitset_shift_right(bitset bs, size_t nbits, size_t sh) {
 /// }
 /// // prints: 1, 5, 64
 /// ```
-static_fun size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
+static_fun rk_pure size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (++cur >= nbits) { return BITSET_NPOS; }
   size_t res, w = bitset_word_index(cur);
@@ -3934,7 +3988,7 @@ static_fun size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
 /// @param cur Previously visited bit index, or `BITSET_NPOS` to start from the beginning.
 /// @return The index (0-based) of the first zero bit with index `> cur`, or `BITSET_NPOS` if no
 /// such bit exists.
-static_fun size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
+static_fun rk_pure size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (++cur >= nbits) { return BITSET_NPOS; }
   size_t      res, rest = nbits % W, w = bitset_word_index(cur);
@@ -3955,7 +4009,7 @@ static_fun size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
 /// @param cur Current bit index, or `nbits` to start from the end.
 /// @return The index (0-based) of the last set bit with index `< cur`, or `BITSET_NPOS` if no such
 /// bit exists.
-static_fun size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
+static_fun rk_pure size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (!cur) { return BITSET_NPOS; }
   --cur;
@@ -3973,7 +4027,7 @@ static_fun size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_
 /// @param cur Current bit index, or `nbits` to start from the end.
 /// @return The index (0-based) of the last zero bit with index `< cur`, or `BITSET_NPOS` if no such
 /// bit exists.
-static_fun size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
+static_fun rk_pure size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (!cur) { return BITSET_NPOS; }
   --cur;
@@ -3991,28 +4045,28 @@ static_fun size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the first set bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_first_set(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_first_set(cbitset bs, size_t nbits) {
   return bitset_find_next_set(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the first zero bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the first zero bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
   return bitset_find_next_clear(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the last set bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the last set bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_last_set(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_last_set(cbitset bs, size_t nbits) {
   return bitset_find_prev_set(bs, nbits, nbits);
 }
 
 /// @brief Finds the last zero bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the last zero bit, or `BITSET_NPOS` if none.
-static_fun size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
+static_fun rk_pure size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
   return bitset_find_prev_clear(bs, nbits, nbits);
 }
 
@@ -4167,7 +4221,7 @@ typedef struct Arena {
 /// @param arr The byte array to serve as the arena's backing memory
 /// @param len The length of `arr`, in bytes
 /// @return New Arena using the array as backing storage
-static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
+static_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
   return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
 }
 
@@ -4184,45 +4238,48 @@ static_fun rk_pure Arena arena_init(unsigned char* arr, size_t len) {
 /// @return `self`, for chaining
 static_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
-/// @brief Returns the number of bytes an Arena can allocate in total.
+/// @brief Returns the number of bytes an Arena can allocate in total, or 0 if `self` was never
+/// initialized.
 static_fun rk_pure size_t arena_cap(const Arena* self) {
-  return rk_likely(self && self->beg) ? (size_t)(self->end - self->beg) : 0;
+  return rk_likely(self->beg) ? (size_t)(self->end - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena has allocated.
+/// @brief Returns the number of bytes an Arena has allocated, or 0 if `self` was never initialized.
 static_fun rk_pure size_t arena_used(const Arena* self) {
-  return rk_likely(self && self->beg) ? (size_t)(self->cur - self->beg) : 0;
+  return rk_likely(self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena can still allocate before running out of space.
+/// @brief Returns the number of bytes an Arena can still allocate before running out of space, or 0
+/// if `self` was never initialized.
 static_fun rk_pure size_t arena_remaining(const Arena* self) {
-  return rk_likely(self && self->beg) ? (size_t)(self->end - self->cur) : 0;
+  return rk_likely(self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
-/// @brief Returns whether the arena has no allocations.
+/// @brief Returns whether the arena has no allocations. Returns `true` if `self` was never
+/// initialized.
 static_fun rk_pure bool arena_is_empty(const Arena* self) {
-  return rk_likely(self && self->beg) ? self->cur == self->beg : true;
+  return rk_likely(self->beg) ? self->cur == self->beg : true;
 }
 
-typedef struct ArenaMark ArenaMark;
+typedef struct ArenaMark     ArenaMark;
 
 /// @brief Returns the current position of the arena as an opaque marker. Pass to `arena_rewind_to`
 /// to restore the arena to this state.
 /// @return Pointer to the current position in the arena
-static_fun ArenaMark     arena_mark(const Arena* self);
+static_fun rk_pure ArenaMark arena_mark(const Arena* self);
 
 /// @brief Rewinds the arena's current pointer to `mark`, marking memory starting from `mark` as
 /// free.
 /// @return `self`, for chaining
 /// @attention Behavior is undefined if `mark` was not allocated by the arena.
-static_fun Arena*        arena_rewind_to(Arena* self, ArenaMark mark);
+static_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
 
 /// @brief Returns whether `ptr` is the most recently made allocation of the given `size`, i.e.
 /// whether it ends exactly at the arena's current position.
 /// @param ptr The allocation to check. Must be an allocation made by the arena.
 /// @param size Size of the allocation in bytes
 /// @return `true` if `ptr` is the top allocation, `false` otherwise
-static_fun bool          arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
+static_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
   return (const unsigned char*)ptr + size == self->cur;
 }
 
@@ -4308,19 +4365,16 @@ static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena
                                                           .realloc_f = RK__arena_reallocate,
                                                           .dealloc_f = RK__arena_deallocate};
 
-// todo important fix
 /// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
 /// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
 /// be used for static initialisation.
-/// @note Expands to a fully parenthesized compound literal (not a bare brace-list) specifically so
-/// it stays a single, comma-safe expression when passed as an argument to another macro (e.g.
-/// `dict_init_static(K, V, arena_to_alloc_static(&my_arena))`) -- a bare `{...}`'s internal comma
-/// would otherwise be miscounted as an argument separator by the enclosing macro.
-#define arena_to_alloc_static(arena) ((Allocator){.vtab = &arena_allocator_vtable, .ctx = (arena)})
+#define arena_to_alloc_static(arena) {.vtab = &arena_allocator_vtable, .ctx = (arena)}
 
 /// @brief Creates an Allocator from an Arena at runtime, allowing it to serve as backing allocator
 /// for other rk_clib types.
-static_fun Allocator arena_to_alloc(Arena* arena) { return arena_to_alloc_static(arena); }
+static_fun rk_const Allocator arena_to_alloc(Arena* arena) {
+  return (Allocator)arena_to_alloc_static(arena);
+}
 
 /// @brief Type of an Allocator object managing an array of size `size` using an Arena to manage its
 /// memory.
@@ -4367,7 +4421,7 @@ static_fun Allocator arena_to_alloc(Arena* arena) { return arena_to_alloc_static
 
 typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
 
-static_fun ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
+static_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
 
 #define rk_assert_ptr_in_arena(arena, ptr)                                                         \
   rk_assert(rk_ptr_in_range(ptr, (arena)->beg, (arena)->cur)                                       \
@@ -4548,21 +4602,11 @@ RK_HEADER_BEGIN
 /// @note Vec(void) indicates that a Vec of any type is accepted as a parameter, this does not hold
 /// for macros which need type information. Using Vec as `Vec(void)` in any macro is undefined as
 /// most vec macros rely on type information such as sizeof.
-/// @note Implemented as `typeof(T*)` rather than `T*` so that array types such as `Vec(int[5])` are
-/// supported.
-#define Vec(T) typeof(T*)
-
-/// @brief Header of a dynamically allocated Vec. The Vec is implemented as a contiguous block of
-/// memory with a header (`VecHeader`) that stores metadata about the vec, such as its capacity,
-/// length, and allocator.
-typedef struct VecHeader {
-#if RK_CUSTOM_ALLOCATORS
-  Allocator alloc; ///< Allocator (can be disabled)
-#endif
-  size_t                    cap;    ///< Capacity of the Vec (in terms of elements)
-  size_t                    count;  ///< Length of the Vec (in terms of elements)
-  alignas_max unsigned char data[]; ///< Vec Data
-} VecHeader;
+/// @note Array element types (e.g. `Vec(int[5])`) are not supported, typedef'd or not:
+/// `vec_push()`, `vec_insert_at`, and every other operation that places a new element relies on
+/// plain C assignment (`self[i] = value`), which C disallows for array types regardless of how
+/// `Vec(T)` itself expands or whether the array type has a name of its own.
+#define Vec(T) T*
 
 /// @brief `Vec(T) vec_init(T, size_t cap, Allocator alloc = alloc_ctx)`
 /// - Initialises a Vec from an initial capacity and an optional Allocator.
@@ -4598,7 +4642,7 @@ typedef struct VecHeader {
 /// Vec(int) vec2 = vec_init_list(int, my_alloc, 1, 2, 3); /* uses my_alloc */
 ///
 /// // Compound literals must be wrapped in parens
-/// typedef struct Pair{ int x, y; } Pair;
+/// typedef struct Pair { int x, y; } Pair;
 /// Vec(struct Pair) vec3 = vec_init_list(Pair, ((Pair){1, 2}), ((Pair){3, 4}));
 /// ```
 #define vec_init_list(T, ...)                                                                      \
@@ -4631,86 +4675,38 @@ typedef struct VecHeader {
 /// NULL.
 #define vec_release(self) ((void)RK__vec_release(self))
 
-/// @defgroup rk_vec_accessors_u Unchecked Vec Accessors
-/// @ingroup rk_vec
-/// @brief Unchecked Accessor functions and macros for Vec metadata. These macros do not perform
-/// null-checks on the Vec and allow direct, unchecked member access.
-///
-/// @{
-
-/// @brief Unchecked access to the header of `self` as an lvalue.
-#define vec_HEADER(self)                                                                           \
-  ((VecHeader*)(void*)((char*)(self)                                                               \
-                       - offsetof(VecHeader, data))) // NOLINT(clang-analyzer-security.ArrayBound)
-
-#if RK_CUSTOM_ALLOCATORS
-# define vec_ALLOCATOR(V) (vec_HEADER(V)->alloc) // NOLINT(clang-analyzer-security.ArrayBound)
-
-#else
-# define vec_ALLOCATOR(V) ((void)(V), alloc_ctx)
-#endif
-
-/// @brief Unchecked access to the capacity of `self` as an lvalue.
-#define vec_CAP(self)   (vec_HEADER(self)->cap) // NOLINT(clang-analyzer-security.ArrayBound)
-
-/// @brief Unchecked access to the count of `self` as an lvalue.
-#define vec_COUNT(self) (vec_HEADER(self)->count) // NOLINT(clang-analyzer-security.ArrayBound)
-#define vec_LEN         vec_COUNT                 // NOLINT(clang-analyzer-security.ArrayBound)
-
-/// @}
-
-/// @defgroup rk_vec_accessors_c Checked Vec Accessors
-/// @ingroup rk_vec
-/// @brief Checked Accessor functions and macros for Vec metadata. These macros check for
-/// unallocated (NULL) Vecs.
-///
-/// @{
-
-/// @brief Returns a pointer to the header of the vec, for direct access to metadata
-/// @return Pointer to the header of the Vec or NULL, if `self` is NULL
-static_fun rk_const VecHeader* vec_header(const Vec(void) self) {
-  return self ? vec_HEADER(self) : rk_null;
-}
-
 /// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
-static_fun rk_pure size_t    vec_count(const Vec(void) self) { return self ? vec_COUNT(self) : 0; }
+static_fun rk_pure size_t vec_count(const Vec(void) self);
+#define vec_COUNT(self) rk_to_rvalue(RK__vec_count(self))
 
 /// @brief Alias for `vec_count()`
-static_fun rk_pure size_t    vec_len(const Vec(void) self) { return vec_count(self); }
+static_fun rk_pure size_t vec_len(const Vec(void) self);
+#define vec_LEN(self) vec_COUNT(self)
 
 /// @brief Returns the current capacity of the Vec, 0 iff `self` is NULL.
-static_fun rk_pure size_t    vec_cap(const Vec(void) self) { return self ? vec_CAP(self) : 0; }
+static_fun rk_pure size_t vec_cap(const Vec(void) self);
+#define vec_CAP(self) rk_to_rvalue(RK__vec_cap(self))
 
-/// @brief Returns the allocator of the vec or `alloc_ctx` if `self` is `NULL`.
-static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
-#if RK_CUSTOM_ALLOCATORS
-  return self ? vec_ALLOCATOR(self) : alloc_ctx;
-#else
-  return (void)self, alloc_ctx;
-#endif
-}
+/// @brief Returns the Allocator the Vec was constructed with, or `alloc_ctx` if `self` is `NULL`
+/// or custom allocators are disabled.
+static_fun rk_pure Allocator vec_allocator(const Vec(void) self);
+#define vec_ALLOCATOR(self) rk_to_rvalue(RK__vec_allocator(self))
 
 /// @brief Returns whether the count of a Vec is zero.
-static_fun rk_pure bool vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
+static_fun rk_pure bool vec_is_empty(const Vec(void) self);
 
 /// @brief Clears the contents of `self` by setting its count to 0.
-static_fun void vec_clear(Vec(void) self) {
-  if (self) { vec_COUNT(self) = 0; }
-}
+static_fun void         vec_clear(Vec(void) self);
 
 /// @brief `size_t vec_allocation_size(Vec(T) self)` - Returns the total size of memory allocated
 /// for the Vec in bytes, including. its header, 0 iff `self` is NULL.
-#define vec_allocation_size(self) RK__vec_allocation_size(self, sizeof(*(self)))
+#define vec_allocation_size(self) RK__vec_allocation_size(self)
 
 /// @brief Returns the remaining count of elements that can be pushed to a vec without reallocation.
-static_fun rk_pure size_t vec_remaining(const Vec(void) self) {
-  return self ? vec_CAP(self) - vec_COUNT(self) : 0;
-}
+static_fun rk_pure size_t vec_remaining(const Vec(void) self);
 
 /// @brief Returns whether an index is within the range of a Vec.
-static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
-  return idx < vec_count(self);
-}
+static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 
 /// @brief `void vec_reserve(Vec(T)& self, size_t new_cap)` - Grows the Vec to be able to hold at
 /// least `new_cap` elements.
@@ -4782,7 +4778,7 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
 /// @return The popped value
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behaviour in case of empty or uninitialised Vec is undefined
-#define vec_pop(self)                 ((self)[--vec_COUNT(RK__check_vec_pop(self))])
+#define vec_pop(self)                 ((self)[--RK__vec_count(RK__check_vec_pop(self))])
 
 /// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
 /// its length.
@@ -4845,7 +4841,7 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
 
 /// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
 /// `self` or `NULL` if `self` is `NULL`.
-#define vec_end(self)                    ((self) ? ((self) + vec_COUNT(self)) : (self))
+#define vec_end(self)                    ((self) ? ((self) + RK__vec_count(self)) : (self))
 
 /// @brief Convenience Macro to loop over the elements of a vec.
 /// @param vec The Vec to loop over
@@ -4886,12 +4882,12 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
     RK__IGNWARN_MSC_BEG(4114)                                                                      \
     typeof(vec) RK___VEC = (vec);                                                                  \
     if (!vec_count(RK___VEC)) { break; }                                                           \
-    typeof(*RK___VEC)*RK___BEG = RK___VEC, *const RK___END = RK___BEG + vec_COUNT(RK___BEG);       \
+    typeof(*RK___VEC)*RK___BEG = RK___VEC, *const RK___END = RK___BEG + RK__vec_count(RK___BEG);   \
     for (typeof(*RK___VEC)* RK___IT = RK___VEC; RK___IT != RK___END; ++RK___IT) {                  \
       typeof(*RK___VEC)* const it = RK___IT;                                                       \
       if (!(pred)) { *RK___BEG++ = *RK___IT; }                                                     \
     }                                                                                              \
-    vec_COUNT(RK___VEC) = (size_t)(RK___BEG - RK___VEC);                                           \
+    RK__vec_count(RK___VEC) = (size_t)(RK___BEG - RK___VEC);                                       \
     RK__IGNWARN_MSC_END()                                                                          \
   } while (0)
 
@@ -4900,7 +4896,7 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
   do {                                                                                             \
     typeof(vec) RK___BEG = (vec);                                                                  \
     if (!vec_count(RK___BEG)) { break; }                                                           \
-    typeof(RK___BEG) RK___END = RK___BEG + vec_COUNT(RK___BEG) - 1;                                \
+    typeof(RK___BEG) RK___END = RK___BEG + RK__vec_count(RK___BEG) - 1;                            \
     for (; RK___BEG < RK___END; ++RK___BEG, --RK___END) { rk_SWAP(*RK___BEG, *RK___END); }         \
   } while (0)
 
@@ -4909,9 +4905,50 @@ static_fun bool vec_index_in_range(const Vec(void) self, size_t idx) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
+/// @brief Header of a dynamically allocated Vec. The Vec is implemented as a contiguous block of
+/// memory with a header (`RK__VecHdr`) that stores metadata about the vec, such as its capacity,
+/// length, and allocator.
+typedef struct RK__VecHdr {
+#if RK_CUSTOM_ALLOCATORS
+  Allocator alloc; ///< Allocator (can be disabled)
+#endif
+  size_t                    cap;    ///< Capacity of the Vec (in terms of elements)
+  size_t                    count;  ///< Length of the Vec (in terms of elements)
+  alignas_max unsigned char data[]; ///< Vec Data
+} RK__VecHdr;
+
+#define RK__vec_hdr(self)                                                                          \
+  ((RK__VecHdr*)(void*)((char*)(self)                                                              \
+                        - offsetof(RK__VecHdr,                                                     \
+                                   data))) // NOLINT(clang-analyzer-security.ArrayBound)
+#define RK__vec_allocator(self)                                                                    \
+  RK__allocatorof(RK__vec_hdr(self)) // NOLINT(clang-analyzer-security.ArrayBound)
+
+#define RK__vec_cap(self)   (RK__vec_hdr(self)->cap) // NOLINT(clang-analyzer-security.ArrayBound)
+
+#define RK__vec_count(self) (RK__vec_hdr(self)->count) // NOLINT(clang-analyzer-security.ArrayBound)
+
+static_fun rk_pure size_t vec_count(const Vec(void) self) { return self ? RK__vec_count(self) : 0; }
+static_fun rk_pure size_t vec_len(const Vec(void) self) { return vec_count(self); }
+static_fun rk_pure size_t vec_cap(const Vec(void) self) { return self ? RK__vec_cap(self) : 0; }
+static_fun rk_pure bool   vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
+static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
+  return self ? vec_ALLOCATOR(self) : alloc_ctx;
+}
+static_fun void vec_clear(Vec(void) self) {
+  if (self) { RK__vec_count(self) = 0; }
+}
+static_fun rk_pure size_t vec_remaining(const Vec(void) self) {
+  return self ? RK__vec_cap(self) - RK__vec_count(self) : 0;
+}
+
+static_fun rk_pure bool vec_index_in_range(const Vec(void) self, size_t idx) {
+  return idx < vec_count(self);
+}
+
 static_fun rk_forceinline size_t RK__decrease_index_check(void* self) {
   rk_assert(vec_count(self) && "Cannot decrease count of empty vec");
-  return --vec_COUNT(self);
+  return --RK__vec_count(self);
 }
 
 static_fun rk_forceinline void* RK__check_vec_push_u(void* self) {
@@ -4926,8 +4963,8 @@ static_fun rk_forceinline void* RK__check_vec_pop(void* self) {
 
 static_fun rk_forceinline void* RK__vec_pop_n(size_t elsize, void* self, size_t count) {
   rk_assert(vec_count(self) >= count && "Attempting to pop more than vec_count() elements");
-  vec_COUNT(self) -= count;
-  return (char*)self + rk_mult(elsize, vec_COUNT(self));
+  RK__vec_count(self) -= count;
+  return (char*)self + rk_mult(elsize, RK__vec_count(self));
 }
 
 static_fun rk_forceinline void* RK__vec_check_front(void* self) {
@@ -4937,7 +4974,7 @@ static_fun rk_forceinline void* RK__vec_check_front(void* self) {
 
 static_fun rk_forceinline void* RK__vec_check_back(size_t elsize, void* self) {
   rk_assert(vec_count(self) && "Attempting to access back of zero-sized vec");
-  return (char*)self + rk_mult(elsize, vec_COUNT(self) - 1);
+  return (char*)self + rk_mult(elsize, RK__vec_count(self) - 1);
 }
 
 static_fun rk_forceinline size_t RK__vec_assert_insertbounds(void* self, size_t i) {
@@ -4952,27 +4989,27 @@ static_fun rk_forceinline size_t RK__vec_assert_erasebounds_n(void* self, size_t
 }
 
 //  logical size of a vec if type information not available
-#define RK__VECSIZE_UT(elsize, elcount) (offsetof(VecHeader, data) + rk_mult(elsize, elcount))
+#define RK__VECSIZE_UT(elsize, elcount) (offsetof(RK__VecHdr, data) + rk_mult(elsize, elcount))
 #define RK__VEC_COMPUTE_SIZE(V, C)      RK__VECSIZE_UT(sizeof(*(V)), C)
-#define vec_ALLOCATION_SIZE(V)          RK__VEC_COMPUTE_SIZE(V, vec_CAP(V))
-#define vec_LOGICAL_SIZE(V)             RK__VEC_COMPUTE_SIZE(V, vec_COUNT(V))
+#define RK__vec_allocsize(V)            RK__VEC_COMPUTE_SIZE(V, RK__vec_cap(V))
 
-static_fun rk_forceinline rk_pure size_t RK__vec_allocation_size(const Vec(void) self,
-                                                                 size_t          elsize) {
-  return self ? RK__VECSIZE_UT(elsize, vec_CAP(self)) : 0;
+#define RK__vec_allocation_size(self)   RK__vec_allocation_size_f(self, sizeof(*(self)))
+static_fun rk_forceinline rk_pure size_t RK__vec_allocation_size_f(const Vec(void) self,
+                                                                   size_t          elsize) {
+  return self ? RK__VECSIZE_UT(elsize, RK__vec_cap(self)) : 0;
 }
 
-static_fun rk_forceinline VecHeader* rk_alloc_size(2)
+static_fun rk_forceinline RK__VecHdr* rk_alloc_size(2)
     RK__vec_init_f(size_t init_cap, size_t total_size,
                    size_t init_count RK_IFALLOC(, Allocator alloc)) {
   rk_assert_allocator_valid(alloc);
-  VecHeader* v = (VecHeader*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
+  RK__VecHdr* v = (RK__VecHdr*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
   v->cap = init_cap, v->count = init_count;
   RK_IFALLOC(v->alloc = alloc;)
   return v;
 }
 #define RK__VEC_NEW_NONZERO(T, cap, count, alloc)                                                  \
-  ((typeof(T)*)(void*)(RK__vec_init_f(cap, offsetof(VecHeader, data) + sizeof_n(T, cap),           \
+  ((typeof(T)*)(void*)(RK__vec_init_f(cap, offsetof(RK__VecHdr, data) + sizeof_n(T, cap),          \
                                       count RK_IFALLOC(, alloc))                                   \
                            ->data))
 #define RK__VEC_NEW(T, cap, count, alloc)                                                          \
@@ -4993,53 +5030,54 @@ static_fun rk_forceinline VecHeader* rk_alloc_size(2)
 
 #define RK__vec_release(V)                                                                         \
   ((V)                                                                                             \
-   && (alloc_deallocate(vec_HEADER(V), vec_ALLOCATION_SIZE(V),                                     \
-                        align_max RK_IFALLOC(, vec_ALLOCATOR(V))),                                 \
+   && (alloc_deallocate(RK__vec_hdr(V), RK__vec_allocsize(V),                                      \
+                        align_max RK_IFALLOC(, RK__vec_allocator(V))),                             \
        (V) = rk_null))
 
 /// always reallocates to a positive cap, sets cap accordingly
 #define RK__VEC_CHANGE_CAP(V, C)                                                                   \
-  ((V)                                                                                             \
-   = (typeof(V))(void*)(((VecHeader*)alloc_reallocate(vec_HEADER(V), vec_ALLOCATION_SIZE(V),       \
-                                                      RK__VEC_COMPUTE_SIZE(V, C),                  \
-                                                      align_max RK_IFALLOC(, vec_ALLOCATOR(V))))   \
-                            ->data),                                                               \
-   vec_CAP(V) = (C), (V))
+  ((V) = (typeof(V))(void*)(((RK__VecHdr*)alloc_reallocate(                                        \
+                                 RK__vec_hdr(V), RK__vec_allocsize(V), RK__VEC_COMPUTE_SIZE(V, C), \
+                                 align_max RK_IFALLOC(, RK__vec_allocator(V))))                    \
+                                ->data),                                                           \
+   RK__vec_cap(V) = (C), (V))
 
 /*doubles capacity if at limit*/
 #define RK__vec_reserve_1(V)                                                                       \
-  ((V) ? (vec_COUNT(V) == vec_CAP(V) ? RK__VEC_CHANGE_CAP(V, rk_mult(vec_CAP(V), 2)) : (V))        \
+  ((V) ? (RK__vec_count(V) == RK__vec_cap(V) ? RK__VEC_CHANGE_CAP(V, rk_mult(RK__vec_cap(V), 2))   \
+                                             : (V))                                                \
        : RK__VEC_INIT_ASSIGN(V, 1, alloc_ctx))
 
 #define RK__vec_reserve(V, C)                                                                      \
-  ((V) ? ((C) > vec_CAP(V) ? RK__VEC_CHANGE_CAP(V, C) : (V))                                       \
+  ((V) ? ((C) > RK__vec_cap(V) ? RK__VEC_CHANGE_CAP(V, C) : (V))                                   \
        : ((C) ? RK__VEC_INIT_ASSIGN(V, C, alloc_ctx) : rk_null))
 
-#define RK__vec_resize(V, C) (RK__vec_reserve(V, C), (V) && (vec_COUNT(V) = (C)))
+#define RK__vec_resize(V, C) (RK__vec_reserve(V, C), (V) && (RK__vec_count(V) = (C)))
 
 #define RK__vec_shrink_to_fit_exact(V)                                                             \
-  ((V) && vec_COUNT(V) < vec_CAP(V)                                                                \
-   && (vec_COUNT(V) ? RK__VEC_CHANGE_CAP(V, vec_COUNT(V)) : (vec_release(V), (V) = rk_null)))
+  ((V) && RK__vec_count(V) < RK__vec_cap(V)                                                        \
+   && (RK__vec_count(V) ? RK__VEC_CHANGE_CAP(V, RK__vec_count(V))                                  \
+                        : (vec_release(V), (V) = rk_null)))
 
 #define RK__vec_shrink_to_fit(V)                                                                   \
-  ((V) && (vec_COUNT(V) ? stdc_bit_ceil(vec_COUNT(V)) : 0) < vec_CAP(V)                            \
-   && (vec_COUNT(V) ? RK__VEC_CHANGE_CAP(V, stdc_bit_ceil(vec_COUNT(V)))                           \
-                    : (vec_release(V), (V) = rk_null)))
+  ((V) && (RK__vec_count(V) ? stdc_bit_ceil(RK__vec_count(V)) : 0) < RK__vec_cap(V)                \
+   && (RK__vec_count(V) ? RK__VEC_CHANGE_CAP(V, stdc_bit_ceil(RK__vec_count(V)))                   \
+                        : (vec_release(V), (V) = rk_null)))
 
-#define RK__vec_push_u(V, O)        ((V)[vec_COUNT(RK__check_vec_push_u(V))++] = (O))
+#define RK__vec_push_u(V, O)        ((V)[RK__vec_count(RK__check_vec_push_u(V))++] = (O))
 #define RK__vec_push(V, O)          (RK__vec_reserve_1(V), RK__vec_push_u(V, O))
 
-#define RK__vec_push_arr_u(V, O, N) (rk_copy((V) + vec_COUNT(V), O, N), vec_COUNT(V) += (N))
+#define RK__vec_push_arr_u(V, O, N) (rk_copy((V) + RK__vec_count(V), O, N), RK__vec_count(V) += (N))
 #define RK__vec_push_arr(V, O, N)                                                                  \
   ((void)((N) && (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_push_arr_u(V, O, N), 1)))
 
 static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* restrict v, size_t i,
                                                        const void* restrict arr, size_t n) {
-  size_t old_count = vec_COUNT(v); // NOLINT(clang-analyzer-security.ArrayBound)
+  size_t old_count = RK__vec_count(v); // NOLINT(clang-analyzer-security.ArrayBound)
   char * src = (char*)v + rk_mult(i, elsize), *dst = src + rk_mult(n, elsize);
   memmove(dst, src, rk_mult(old_count - i, elsize));
   memcpy(src, arr, rk_mult(elsize, n));
-  vec_COUNT(v) = old_count + n; // NOLINT(clang-analyzer-security.ArrayBound)
+  RK__vec_count(v) = old_count + n; // NOLINT(clang-analyzer-security.ArrayBound)
 }
 
 #define RK__vec_insert_arr_at_u(V, I, O, N)                                                        \
@@ -5053,7 +5091,7 @@ static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* rest
 
 static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void* restrict vec,
                                                              size_t i, const void* restrict o) {
-  size_t count = vec_COUNT(vec); // NOLINT(clang-analyzer-security.ArrayBound)
+  size_t count = RK__vec_count(vec); // NOLINT(clang-analyzer-security.ArrayBound)
   char*  dst   = (char*)vec + rk_mult(elsize, count);
   if (i < count) {
     char* src = (char*)vec + rk_mult(elsize, i);
@@ -5062,7 +5100,7 @@ static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void
   } else {
     memcpy(dst, o, elsize);
   }
-  ++vec_COUNT(vec); // NOLINT(clang-analyzer-security.ArrayBound)
+  ++RK__vec_count(vec); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 
 #define RK__vec_insert_at_unordered(V, I, O)                                                       \
@@ -5074,7 +5112,7 @@ static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size
   if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
-          rk_mult(((vec_COUNT(v) -= n) - i),
+          rk_mult(((RK__vec_count(v) -= n) - i),
                   elsize)); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 #define RK__vec_erase_at_n(V, I, N)                                                                \
@@ -5082,7 +5120,7 @@ static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size
 #define RK__vec_erase_at(V, I) RK__vec_erase_at_n(V, I, 1)
 
 #define RK__vec_assign(V, O, N)                                                                    \
-  (RK__vec_reserve(V, N), (V) && (vec_COUNT(V) = (N), rk_copy(V, O, N)))
+  (RK__vec_reserve(V, N), (V) && (RK__vec_count(V) = (N), rk_copy(V, O, N)))
 
 // msvc sizeof returns 0
 #define RK__vec_init_list_(T, arr, alloc)                                                          \
@@ -5198,7 +5236,7 @@ RK_HEADER_BEGIN
 
 /// @brief Macro to indicate that an object is a Heap.
 /// @param T The type of elements stored in the Heap
-#define Heap(T)                          rk_heap_##T
+#define Heap(T)                          Heap_##T
 
 /// @brief `Heap(T) heap_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initialises and
 /// returns an empty Heap.
@@ -5225,23 +5263,25 @@ RK_HEADER_BEGIN
 /// @return A `Heap(T)` wrapping `vec`'s own storage, now in heap order
 /// @attention `vec` is consumed: its storage now belongs to the returned Heap. Do not read, mutate,
 /// or `vec_release()` the original `vec` variable afterwards; release the Heap instead.
-#define heap_adopt(T, vec)               RK__HEAP_F(T, adopt)(vec)
+#define heap_adopt(T, vec)               RK__HEAP_PUB(T, adopt)(vec)
 
 /// @brief `void heap_release(Heap(T)* self)` - Frees the backing Vec and resets the Heap to an
 /// empty state.
 #define heap_release(self)               vec_release((self)->data)
 
-/// @brief `size_t heap_count(Heap(T)* self)` - Returns the number of elements stored in the Heap.
+/// @brief `size_t heap_count(const Heap(T)* self)` - Returns the number of elements in the Heap.
 #define heap_count(self)                 vec_count((self)->data)
 
-/// @brief `size_t heap_cap(Heap(T)* self)` - Returns the current capacity of the backing Vec.
+/// @brief `size_t heap_cap(const Heap(T)* self)` - Returns the current capacity of the backing Vec.
 #define heap_cap(self)                   vec_cap((self)->data)
 
-/// @brief `Allocator heap_allocator(Heap(T)* self)` - Returns the Allocator the Heap's backing Vec
-/// was constructed with.
+/// @brief `Allocator heap_allocator(const Heap(T)* self)` - Returns the Allocator the Heap's
+/// backing Vec was constructed with, or `alloc_ctx` if the Heap was never initialized or custom
+/// allocators are disabled.
 #define heap_allocator(self)             vec_allocator((self)->data)
 
-/// @brief `bool heap_is_empty(Heap(T)* self)` - Returns `true` iff the Heap contains no elements.
+/// @brief `bool heap_is_empty(const Heap(T)* self)` - Returns `true` iff the Heap contains no
+/// elements.
 #define heap_is_empty(self)              (heap_count(self) == 0)
 
 /// @brief `void heap_clear(Heap(T)* self)` - Removes all elements without freeing the backing Vec.
@@ -5270,33 +5310,33 @@ RK_HEADER_BEGIN
 /// triggered, the old buffer is freed before the copy from `arr` happens, turning an `arr` that
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination.
-#define heap_assign(T, self, arr, n)     RK__HEAP_F(T, assign)((self), (arr), (n))
+#define heap_assign(T, self, arr, n)     RK__HEAP_PUB(T, assign)(self, arr, n)
 
 /// @brief `const T* heap_peek(T, const Heap(T)* self)` - Returns a pointer to the minimum element
 /// without removing it.
 /// @param T Element type
 /// @return Pointer to the minimum element, or `NULL` if the Heap is empty
 /// @note Invalidated by any later mutation of the Heap.
-#define heap_peek(T, self)               RK__HEAP_F(T, peek)(self)
+#define heap_peek(T, self)               RK__HEAP_PUB(T, peek)(self)
 
 /// @brief `void heap_push(T, Heap(T)* self, T value)` - Inserts `value` into the Heap.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note A push may reallocate the backing Vec, invalidating prior pointers into it.
-#define heap_push(T, self, value)        RK__HEAP_F(T, push)(self, value)
+#define heap_push(T, self, value)        RK__HEAP_PUB(T, push)(self, value)
 
 /// @brief `T heap_pop(T, Heap(T)* self)` - Removes and returns the minimum element.
 /// @param T Element type
 /// @return The (former) minimum element
 /// @attention Requires a nonempty Heap.
-#define heap_pop(T, self)                RK__HEAP_F(T, pop)(self)
+#define heap_pop(T, self)                RK__HEAP_PUB(T, pop)(self)
 
 /// @brief `bool heap_try_pop(T, Heap(T)* self, T* out)` - Removes the minimum element and writes
 /// it to `*out`, if the Heap is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Heap is empty.
 /// @return `true` if an element was removed, `false` if the Heap was empty
-#define heap_try_pop(T, self, out)       RK__HEAP_F(T, try_pop)(self, out)
+#define heap_try_pop(T, self, out)       RK__HEAP_PUB(T, try_pop)(self, out)
 
 /// @brief `T heap_replace_top(T, Heap(T)* self, T value)` - Removes the minimum element and
 /// inserts `value`, in a single sift-down.
@@ -5306,7 +5346,7 @@ RK_HEADER_BEGIN
 /// @attention Requires a nonempty Heap.
 /// @note Equivalent to, but cheaper than, `heap_pop()` followed by `heap_push()`: it never shrinks
 /// or reallocates the backing Vec.
-#define heap_replace_top(T, self, value) RK__HEAP_F(T, replace_top)(self, value)
+#define heap_replace_top(T, self, value) RK__HEAP_PUB(T, replace_top)(self, value)
 
 /// @brief `void heap_extend(T, Heap(T)* self, const T* arr, size_t n)` - Appends `arr`'s first `n`
 /// values to the Heap's existing contents, then re-heapifies the combined set in O(count + n).
@@ -5318,22 +5358,43 @@ RK_HEADER_BEGIN
 /// `heap_push()` (O(n log count)) stays cheaper than re-heapifying everything (O(count + n)).
 /// @attention `arr[0..n)` must not overlap the Heap's own backing allocation, for the same reasons
 /// documented on `heap_assign()`.
-#define heap_extend(T, self, arr, n)     RK__HEAP_F(T, extend)((self), (arr), (n))
+#define heap_extend(T, self, arr, n)     RK__HEAP_PUB(T, extend)(self, arr, n)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__HEAP_F(T, NAME)              rk_heapf_##NAME##_##T
+#define RK__HEAP_PUB(T, FNAME)           heap_##T##_##FNAME
+#define RK__HEAP_PRI(T, FNAME)           RK__heap_##T##_##FNAME
 
 #define RK__HEAP_DEFINE(T, CMP_FUN)                                                                \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct Heap(T) { Vec(T) data; } Heap(T);                                                 \
-  static_fun const T* RK__HEAP_F(T, peek)(const Heap(T) * self) {                                  \
+  static_fun rk_pure size_t RK__HEAP_PUB(T, count)(const Heap(T) * self) {                         \
+    return vec_count(self->data);                                                                  \
+  }                                                                                                \
+  static_fun rk_pure size_t RK__HEAP_PUB(T, cap)(const Heap(T) * self) {                           \
+    return vec_cap(self->data);                                                                    \
+  }                                                                                                \
+  static_fun rk_pure bool RK__HEAP_PUB(T, is_empty)(const Heap(T) * self) {                        \
+    return vec_count(self->data) == 0;                                                             \
+  }                                                                                                \
+  static_fun rk_pure Allocator RK__HEAP_PUB(T, allocator)(const Heap(T) * self) {                  \
+    return vec_allocator(self->data);                                                              \
+  }                                                                                                \
+  static_fun rk_pure const T* RK__HEAP_PUB(T, peek)(const Heap(T) * self) {                        \
     return vec_count(self->data) ? &self->data[0] : rk_null;                                       \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, sift_down)(Heap(T) * self, size_t i, T value, size_t n) {          \
+  static_fun void RK__HEAP_PUB(T, release)(Heap(T) * self) { vec_release(self->data); }            \
+  static_fun void RK__HEAP_PUB(T, clear)(Heap(T) * self) { vec_clear(self->data); }                \
+  static_fun void RK__HEAP_PUB(T, reserve)(Heap(T) * self, size_t cap) {                           \
+    vec_reserve(self->data, cap);                                                                  \
+  }                                                                                                \
+  static_fun void RK__HEAP_PUB(T, shrink_to_fit)(Heap(T) * self) {                                 \
+    vec_shrink_to_fit(self->data);                                                                 \
+  }                                                                                                \
+  static_fun void RK__HEAP_PRI(T, sift_down)(Heap(T) * self, size_t i, T value, size_t n) {        \
     while (i < n / 2) {                                                                            \
       size_t child = 2 * i + 1;                                                                    \
       if (child + 1 < n && CMP_FUN(self->data[child + 1], self->data[child]) < 0) { ++child; }     \
@@ -5343,33 +5404,33 @@ RK_HEADER_BEGIN
     }                                                                                              \
     self->data[i] = value;                                                                         \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, heapify)(Heap(T) * self) {                                         \
+  static_fun void RK__HEAP_PRI(T, heapify)(Heap(T) * self) {                                       \
     const size_t n = vec_count(self->data);                                                        \
     for (size_t i = n / 2; i > 0;) {                                                               \
       --i;                                                                                         \
-      RK__HEAP_F(T, sift_down)(self, i, self->data[i], n);                                         \
+      RK__HEAP_PRI(T, sift_down)(self, i, self->data[i], n);                                       \
     }                                                                                              \
   }                                                                                                \
-  static_fun Heap(T) RK__HEAP_F(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {   \
+  static_fun Heap(T) RK__HEAP_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) { \
     Heap(T) h = heap_init(T, n RK_IFALLOC(, alloc));                                               \
     vec_push_n(h.data, arr, n);                                                                    \
-    RK__HEAP_F(T, heapify)(&h);                                                                    \
+    RK__HEAP_PRI(T, heapify)(&h);                                                                  \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun Heap(T) RK__HEAP_F(T, adopt)(Vec(T) vec) {                                            \
+  static_fun Heap(T) RK__HEAP_PUB(T, adopt)(Vec(T) vec) {                                          \
     Heap(T) h = {vec};                                                                             \
-    RK__HEAP_F(T, heapify)(&h);                                                                    \
+    RK__HEAP_PRI(T, heapify)(&h);                                                                  \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, assign)(Heap(T) * self, const T* arr, size_t n) {                  \
+  static_fun void RK__HEAP_PUB(T, assign)(Heap(T) * self, const T* arr, size_t n) {                \
     vec_assign(self->data, arr, n);                                                                \
-    RK__HEAP_F(T, heapify)(self);                                                                  \
+    RK__HEAP_PRI(T, heapify)(self);                                                                \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, extend)(Heap(T) * self, const T* arr, size_t n) {                  \
+  static_fun void RK__HEAP_PUB(T, extend)(Heap(T) * self, const T* arr, size_t n) {                \
     vec_push_n(self->data, arr, n);                                                                \
-    RK__HEAP_F(T, heapify)(self);                                                                  \
+    RK__HEAP_PRI(T, heapify)(self);                                                                \
   }                                                                                                \
-  static_fun void RK__HEAP_F(T, push)(Heap(T) * self, T value) {                                   \
+  static_fun void RK__HEAP_PUB(T, push)(Heap(T) * self, T value) {                                 \
     vec_push(self->data, value);                                                                   \
     size_t i = vec_count(self->data) - 1;                                                          \
     while (i > 0) {                                                                                \
@@ -5380,26 +5441,26 @@ RK_HEADER_BEGIN
     }                                                                                              \
     self->data[i] = value;                                                                         \
   }                                                                                                \
-  static_fun T RK__HEAP_F(T, pop)(Heap(T) * self) {                                                \
+  static_fun T RK__HEAP_PUB(T, pop)(Heap(T) * self) {                                              \
     rk_assert(vec_count(self->data) && "Cannot pop an empty heap");                                \
     const T      result = self->data[0], last = vec_pop(self->data);                               \
     const size_t n = vec_count(self->data);                                                        \
-    if (n) { RK__HEAP_F(T, sift_down)(self, 0, last, n); }                                         \
+    if (n) { RK__HEAP_PRI(T, sift_down)(self, 0, last, n); }                                       \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun bool RK__HEAP_F(T, try_pop)(Heap(T) * self, T * out) {                                \
+  static_fun bool RK__HEAP_PUB(T, try_pop)(Heap(T) * self, T * out) {                              \
     if (!vec_count(self->data)) { return false; }                                                  \
-    return *out = RK__HEAP_F(T, pop)(self), true;                                                  \
+    return *out = RK__HEAP_PUB(T, pop)(self), true;                                                \
   }                                                                                                \
-  static_fun T RK__HEAP_F(T, replace_top)(Heap(T) * self, T value) {                               \
+  static_fun T RK__HEAP_PUB(T, replace_top)(Heap(T) * self, T value) {                             \
     rk_assert(vec_count(self->data) && "Cannot replace_top an empty heap");                        \
     const T result = self->data[0];                                                                \
-    RK__HEAP_F(T, sift_down)(self, 0, value, vec_count(self->data));                               \
+    RK__HEAP_PRI(T, sift_down)(self, 0, value, vec_count(self->data));                             \
     return result;                                                                                 \
   }                                                                                                \
   RK_EXTERNC_END
 
-#define RK__HEAP_FROM(T, arr, n, alloc)  RK__HEAP_F(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
+#define RK__HEAP_FROM(T, arr, n, alloc)  RK__HEAP_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
 #define RK__HEAP_FROM4(T, arr, n, alloc) rk_disable_if(RK__HEAP_FROM(T, arr, n, alloc))
 #define RK__HEAP_FROM3(T, arr, n)        RK__HEAP_FROM(T, arr, n, alloc_ctx)
 
@@ -5473,11 +5534,11 @@ RK_HEADER_BEGIN
 /// or struct type.
 /// @attention Must be invoked at file scope, once per `T`.
 /// @note Allocator functions handle allocation failures according to `rk_alloc.h`.
-#define DEQUE_DEFINE(T)            RK__DEQUE_DEFINE(T)
+#define DEQUE_DEFINE(T)               RK__DEQUE_DEFINE(T)
 
 /// @brief Macro to indicate that an object is a Deque.
 /// @param T The type of elements stored in the Deque
-#define Deque(T)                   rk_deque_##T
+#define Deque(T)                      Deque_##T
 
 /// @brief `Deque(T) deque_init(T, size_t capacity, Allocator alloc = alloc_ctx)` - Initialises and
 /// returns an empty Deque.
@@ -5487,7 +5548,7 @@ RK_HEADER_BEGIN
 /// @return An initialised, empty `Deque(T)`
 /// @note A zero-initialized `Deque(T)` is also a valid, empty deque; it allocates using `alloc_ctx`
 /// on first insertion.
-#define deque_init(T, cap, ...)    rk_overload(RK__DEQUE_INIT, T, cap, ##__VA_ARGS__)
+#define deque_init(T, cap, ...)       rk_overload(RK__DEQUE_INIT, T, cap, ##__VA_ARGS__)
 
 /// @brief `Deque(T) deque_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` -
 /// Constructs a new Deque by copying `n` values from `arr`, in front-to-back order.
@@ -5496,46 +5557,46 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Deque(T)` containing a copy of `arr`'s first `n` values
-#define deque_from(T, arr, n, ...) rk_overload(RK__DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
+#define deque_from(T, arr, n, ...)    rk_overload(RK__DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `void deque_release(T, Deque(T)* self)` - Frees the backing buffer and resets the Deque
 /// to an empty state.
 /// @param T Element type
 /// @note Safe to call on a zero-initialized Deque.
-#define deque_release(T, self)     RK__DEQUE_F(T, release)(self)
+#define deque_release(T, self)        RK__DEQUE_PUB(T, release)(self)
 
 /// @brief `size_t deque_count(Deque(T)* self)` - Returns the number of elements stored in the
 /// Deque.
-#define deque_count(self)          ((size_t)(self)->count)
+/// @note A same-named, real, typed function also exists per instantiation (e.g.
+/// `deque_int_count`) purely for discoverability/direct use (IDE completion, taking its address,
+/// cross-container generic dispatch); this macro is the one meant for everyday use and does not
+/// need `T`, since it's a plain field read with no type-dependent logic.
+#define deque_count(self)             ((size_t)(self)->count)
 
 /// @brief `size_t deque_cap(Deque(T)* self)` - Returns the current capacity of the backing buffer.
 /// Always a power of two (or zero).
-#define deque_cap(self)            ((size_t)(self)->cap)
+#define deque_cap(self)               ((size_t)(self)->cap)
 
-#if RK_CUSTOM_ALLOCATORS
 /// @brief `Allocator deque_allocator(Deque(T)* self)` - Returns the Allocator the Deque was
-/// constructed with.
-# define deque_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-/// @brief `Allocator deque_allocator(Deque(T)* self)` - Returns `alloc_ctx` (allocators disabled).
-# define deque_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// constructed with, or `alloc_ctx` if the Deque was never initialized or custom allocators are
+/// disabled.
+#define deque_allocator(self)         RK__allocatorof(self)
 
 /// @brief `bool deque_is_empty(Deque(T)* self)` - Returns `true` iff the Deque contains no
 /// elements.
-#define deque_is_empty(self)          (deque_count(self) == 0)
+#define deque_is_empty(self)          ((bool)((self)->count == 0))
 
 /// @brief `void deque_clear(T, Deque(T)* self)` - Removes all elements without freeing the backing
 /// buffer.
 /// @param T Element type
-#define deque_clear(T, self)          RK__DEQUE_F(T, clear)(self)
+#define deque_clear(T, self)          RK__DEQUE_PUB(T, clear)(self)
 
 /// @brief `void deque_reserve(T, Deque(T)* self, size_t cap)` - Ensures the backing buffer holds at
 /// least `cap` elements without reallocating.
 /// @param T   Element type
 /// @param cap Minimum capacity to reserve (in elements)
 /// @note Existing elements retain their logical order.
-#define deque_reserve(T, self, cap)   RK__DEQUE_F(T, reserve)((self), (cap))
+#define deque_reserve(T, self, cap)   RK__DEQUE_PUB(T, reserve)(self, cap)
 
 /// @brief `void deque_shrink_to_fit(T, Deque(T)* self)` - Shrinks the Deque's capacity to the next
 /// power of two greater than or equal to its length, with a floor of 8 for a nonempty Deque
@@ -5543,7 +5604,7 @@ RK_HEADER_BEGIN
 /// unchanged.
 /// @param T Element type
 /// @note Frees the backing buffer entirely if the Deque is empty.
-#define deque_shrink_to_fit(T, self)  RK__DEQUE_F(T, shrink_to_fit)(self)
+#define deque_shrink_to_fit(T, self)  RK__DEQUE_PUB(T, shrink_to_fit)(self)
 
 /// @brief `void deque_assign(T, Deque(T)* self, const T* arr, size_t n)` - Replaces the Deque's
 /// contents with a copy of `arr`'s first `n` values, reusing the existing backing buffer (growing
@@ -5553,7 +5614,7 @@ RK_HEADER_BEGIN
 /// @param n   Number of values to copy
 /// @attention `arr[0..n)` must not overlap the Deque's own backing allocation, for the same reasons
 /// documented on `deque_push_back_n()`.
-#define deque_assign(T, self, arr, n) RK__DEQUE_F(T, assign)((self), (arr), (n))
+#define deque_assign(T, self, arr, n) RK__DEQUE_PUB(T, assign)(self, arr, n)
 
 /// @brief Returns the first element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_front()`, requires a nonempty Deque.
@@ -5563,8 +5624,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_front(T, self)                                                                       \
   (*_Generic((self),                                                                               \
-       const Deque(T)*: RK__DEQUE_F(T, front_const),                                               \
-       default: RK__DEQUE_F(T, front))(self))
+       const Deque(T)*: RK__DEQUE_PUB(T, front_const),                                             \
+       default: RK__DEQUE_PUB(T, front))(self))
 
 /// @brief Returns the last element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_back()`, requires a nonempty Deque.
@@ -5573,8 +5634,9 @@ RK_HEADER_BEGIN
 /// @attention Requires a nonempty Deque; use `deque_peek_back()` to check safely.
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_back(T, self)                                                                        \
-  (*_Generic((self), const Deque(T)*: RK__DEQUE_F(T, back_const), default: RK__DEQUE_F(T, back))(  \
-      self))
+  (*_Generic((self),                                                                               \
+       const Deque(T)*: RK__DEQUE_PUB(T, back_const),                                              \
+       default: RK__DEQUE_PUB(T, back))(self))
 
 /// @brief Returns a pointer to the element at the zero-based logical index (counting from the
 /// front): `T*` for `Deque(T)* self`, `const T*` for `const Deque(T)* self`.
@@ -5583,7 +5645,7 @@ RK_HEADER_BEGIN
 /// @return Pointer to the element, or `NULL` if `index` is out of bounds
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_at(T, self, index)                                                                   \
-  _Generic((self), const Deque(T)*: RK__DEQUE_F(T, at_const), default: RK__DEQUE_F(T, at))(        \
+  _Generic((self), const Deque(T)*: RK__DEQUE_PUB(T, at_const), default: RK__DEQUE_PUB(T, at))(    \
       (self), (index))
 
 /// @brief Returns a pointer to the first element: `T*` for `Deque(T)* self`, `const T*` for
@@ -5593,8 +5655,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_peek_front(T, self)                                                                  \
   _Generic((self),                                                                                 \
-      const Deque(T)*: RK__DEQUE_F(T, peek_front_const),                                           \
-      default: RK__DEQUE_F(T, peek_front))(self)
+      const Deque(T)*: RK__DEQUE_PUB(T, peek_front_const),                                         \
+      default: RK__DEQUE_PUB(T, peek_front))(self)
 
 /// @brief Returns a pointer to the last element: `T*` for `Deque(T)* self`, `const T*` for
 /// `const Deque(T)* self`.
@@ -5603,15 +5665,15 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_peek_back(T, self)                                                                   \
   _Generic((self),                                                                                 \
-      const Deque(T)*: RK__DEQUE_F(T, peek_back_const),                                            \
-      default: RK__DEQUE_F(T, peek_back))(self)
+      const Deque(T)*: RK__DEQUE_PUB(T, peek_back_const),                                          \
+      default: RK__DEQUE_PUB(T, peek_back))(self)
 
 /// @brief `void deque_push_front(T, Deque(T)* self, T value)` - Inserts `value` at the front of the
 /// Deque.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_front(T, self, value)        RK__DEQUE_F(T, push_front)((self), (value))
+#define deque_push_front(T, self, value)        RK__DEQUE_PUB(T, push_front)(self, value)
 
 /// @brief `void deque_push_front_n(T, Deque(T)* self, const T* arr, size_t count)` - Prepends
 /// `count` values from `arr` to the front of the Deque, preserving `arr`'s own order (`arr[0]`
@@ -5629,14 +5691,14 @@ RK_HEADER_BEGIN
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination. To insert elements taken
 /// from the same Deque, copy them into a temporary buffer first.
-#define deque_push_front_n(T, self, arr, count) RK__DEQUE_F(T, push_front_n)((self), (arr), (count))
+#define deque_push_front_n(T, self, arr, count) RK__DEQUE_PUB(T, push_front_n)(self, arr, count)
 
 /// @brief `void deque_push_back(T, Deque(T)* self, T value)` - Inserts `value` at the back of the
 /// Deque.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_back(T, self, value)         RK__DEQUE_F(T, push_back)((self), (value))
+#define deque_push_back(T, self, value)         RK__DEQUE_PUB(T, push_back)(self, value)
 
 /// @brief `void deque_push_back_n(T, Deque(T)* self, const T* arr, size_t count)` - Appends `count`
 /// values from `arr` to the back of the Deque, in order, as a single bulk operation.
@@ -5648,33 +5710,33 @@ RK_HEADER_BEGIN
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
 /// @attention `arr[0..count)` must not overlap the Deque's own backing allocation, for the same
 /// reasons documented on `deque_push_front_n()`.
-#define deque_push_back_n(T, self, arr, count)  RK__DEQUE_F(T, push_back_n)((self), (arr), (count))
+#define deque_push_back_n(T, self, arr, count)  RK__DEQUE_PUB(T, push_back_n)(self, arr, count)
 
 /// @brief `T deque_pop_front(T, Deque(T)* self)` - Removes and returns the first element.
 /// @param T Element type
 /// @return The (former) first element
 /// @attention Requires a nonempty Deque.
-#define deque_pop_front(T, self)                RK__DEQUE_F(T, pop_front)(self)
+#define deque_pop_front(T, self)                RK__DEQUE_PUB(T, pop_front)(self)
 
 /// @brief `T deque_pop_back(T, Deque(T)* self)` - Removes and returns the last element.
 /// @param T Element type
 /// @return The (former) last element
 /// @attention Requires a nonempty Deque.
-#define deque_pop_back(T, self)                 RK__DEQUE_F(T, pop_back)(self)
+#define deque_pop_back(T, self)                 RK__DEQUE_PUB(T, pop_back)(self)
 
 /// @brief `bool deque_try_pop_front(T, Deque(T)* self, T* out)` - Removes the first element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_front(T, self, out)       RK__DEQUE_F(T, try_pop_front)((self), (out))
+#define deque_try_pop_front(T, self, out)       RK__DEQUE_PUB(T, try_pop_front)(self, out)
 
 /// @brief `bool deque_try_pop_back(T, Deque(T)* self, T* out)` - Removes the last element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_back(T, self, out)        RK__DEQUE_F(T, try_pop_back)((self), (out))
+#define deque_try_pop_back(T, self, out)        RK__DEQUE_PUB(T, try_pop_back)(self, out)
 
 /// @brief Visits every element of a Deque in front-to-back order.
 /// @param self The Deque to loop over (a pointer). Evaluated once.
@@ -5708,7 +5770,10 @@ RK_HEADER_BEGIN
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
-#define RK__DEQUE_F(T, NAME) rk_dequef_##NAME##_##T
+
+#define RK__DEQUE_PUB(K, FNAME) deque_##K##_##FNAME
+#define RK__DEQUE_PRI(K, FNAME) RK__deque_##K##_##FNAME
+
 // The member `data` is a mutable pointer even when the Deque is const; propagate the
 // container's constness explicitly when choosing an iterator pointer type.
 #define RK__DEQUE_ITER_PTR(self)                                                                   \
@@ -5722,7 +5787,16 @@ RK_HEADER_BEGIN
     size_t head, count, cap;                                                                       \
     RK_IFALLOC(Allocator alloc;)                                                                   \
   } Deque(T);                                                                                      \
-  static_fun Deque(T) RK__DEQUE_F(T, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {             \
+  static_fun size_t rk_pure RK__DEQUE_PUB(T, count)(const Deque(T) * self) { return self->count; } \
+  static_fun size_t rk_pure RK__DEQUE_PUB(T, cap)(const Deque(T) * self) { return self->cap; }     \
+  static_fun bool rk_pure   RK__DEQUE_PUB(T, is_empty)(const Deque(T) * self) {                    \
+    return !self->count;                                                                           \
+  }                                                                                                \
+  static_fun Allocator rk_pure RK__DEQUE_PUB(T, allocator)(const Deque(T) * self) {                \
+    return RK__allocatorof(self);                                                                  \
+  }                                                                                                \
+                                                                                                   \
+  static_fun Deque(T) RK__DEQUE_PUB(T, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {           \
     RK_IFALLOC(rk_assert_allocator_valid(alloc);)                                                  \
     Deque(T) result = {rk_null, 0, 0, 0 RK_IFALLOC(, alloc)};                                      \
     if (cap) {                                                                                     \
@@ -5733,12 +5807,12 @@ RK_HEADER_BEGIN
     }                                                                                              \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, release)(Deque(T) * self) {                                       \
+  static_fun void RK__DEQUE_PUB(T, release)(Deque(T) * self) {                                     \
     if (self->data) { alloc_delete(self->data, self->cap RK_IFALLOC(, self->alloc)); }             \
     self->data = rk_null, self->head = self->count = self->cap = 0;                                \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, clear)(Deque(T) * self) { self->head = self->count = 0; }         \
-  static_fun void RK__DEQUE_F(T, realloc_to)(Deque(T) * self, size_t new_cap) {                    \
+  static_fun void RK__DEQUE_PUB(T, clear)(Deque(T) * self) { self->head = self->count = 0; }       \
+  static_fun void RK__DEQUE_PRI(T, realloc_to)(Deque(T) * self, size_t new_cap) {                  \
     T* data = alloc_new(T, new_cap RK_IFALLOC(, self->alloc));                                     \
     if (self->count) {                                                                             \
       size_t first = self->count < self->cap - self->head ? self->count : self->cap - self->head;  \
@@ -5750,131 +5824,132 @@ RK_HEADER_BEGIN
     if (self->data) { alloc_delete(self->data, self->cap RK_IFALLOC(, self->alloc)); }             \
     self->data = data, self->head = 0, self->cap = new_cap;                                        \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, reserve)(Deque(T) * self, size_t requested) {                     \
+  static_fun void RK__DEQUE_PUB(T, reserve)(Deque(T) * self, size_t requested) {                   \
     if (requested <= self->cap) { return; }                                                        \
     size_t cap = stdc_bit_ceil(rk_MAX((size_t)8, requested));                                      \
     rk_assert(cap && "Deque capacity overflow");                                                   \
     RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
-    RK__DEQUE_F(T, realloc_to)(self, cap);                                                         \
+    RK__DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, shrink_to_fit)(Deque(T) * self) {                                 \
+  static_fun void RK__DEQUE_PUB(T, shrink_to_fit)(Deque(T) * self) {                               \
     if (!self->count) {                                                                            \
-      RK__DEQUE_F(T, release)(self);                                                               \
+      RK__DEQUE_PUB(T, release)(self);                                                             \
       return;                                                                                      \
     }                                                                                              \
     size_t cap = stdc_bit_ceil(rk_MAX((size_t)8, self->count));                                    \
     if (cap == self->cap) { return; }                                                              \
     RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
-    RK__DEQUE_F(T, realloc_to)(self, cap);                                                         \
+    RK__DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
-  static_fun T* RK__DEQUE_F(T, at)(Deque(T) * self, size_t i) {                                    \
+  static_fun T* RK__DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                  \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_F(T, at_const)(const Deque(T) * self, size_t i) {                  \
+  static_fun const T* RK__DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
-  static_fun T* RK__DEQUE_F(T, peek_front)(Deque(T) * self) {                                      \
-    return RK__DEQUE_F(T, at)(self, 0);                                                            \
+  static_fun T* RK__DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                    \
+    return RK__DEQUE_PUB(T, at)(self, 0);                                                          \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_F(T, peek_front_const)(const Deque(T) * self) {                    \
-    return RK__DEQUE_F(T, at_const)(self, 0);                                                      \
+  static_fun const T* RK__DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                  \
+    return RK__DEQUE_PUB(T, at_const)(self, 0);                                                    \
   }                                                                                                \
-  static_fun T* RK__DEQUE_F(T, peek_back)(Deque(T) * self) {                                       \
-    return self->count ? RK__DEQUE_F(T, at)(self, self->count - 1) : rk_null;                      \
+  static_fun T* RK__DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                     \
+    return self->count ? RK__DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
   }                                                                                                \
-  static_fun T const* RK__DEQUE_F(T, peek_back_const)(const Deque(T) * self) {                     \
-    return self->count ? RK__DEQUE_F(T, at_const)(self, self->count - 1) : rk_null;                \
+  static_fun T const* RK__DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                   \
+    return self->count ? RK__DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
   }                                                                                                \
-  static_fun T* RK__DEQUE_F(T, front)(Deque(T) * self) {                                           \
+  static_fun T* RK__DEQUE_PUB(T, front)(Deque(T) * self) {                                         \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RK__DEQUE_F(T, at)(self, 0);                                                            \
+    return RK__DEQUE_PUB(T, at)(self, 0);                                                          \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_F(T, front_const)(const Deque(T) * self) {                         \
+  static_fun const T* RK__DEQUE_PUB(T, front_const)(const Deque(T) * self) {                       \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RK__DEQUE_F(T, at_const)(self, 0);                                                      \
+    return RK__DEQUE_PUB(T, at_const)(self, 0);                                                    \
   }                                                                                                \
-  static_fun T* RK__DEQUE_F(T, back)(Deque(T) * self) {                                            \
+  static_fun T* RK__DEQUE_PUB(T, back)(Deque(T) * self) {                                          \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RK__DEQUE_F(T, at)(self, self->count - 1);                                              \
+    return RK__DEQUE_PUB(T, at)(self, self->count - 1);                                            \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_F(T, back_const)(const Deque(T) * self) {                          \
+  static_fun const T* RK__DEQUE_PUB(T, back_const)(const Deque(T) * self) {                        \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RK__DEQUE_F(T, at_const)(self, self->count - 1);                                        \
+    return RK__DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, push_front)(Deque(T) * self, T value) {                           \
+  static_fun void RK__DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                         \
     if (self->count == self->cap) {                                                                \
       rk_assert(self->cap <= SIZE_MAX / 2 && "Deque capacity overflow");                           \
-      RK__DEQUE_F(T, reserve)(self, self->cap ? self->cap * 2 : 8);                                \
+      RK__DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
     }                                                                                              \
     self->head             = (self->head - 1) & (self->cap - 1);                                   \
     self->data[self->head] = value;                                                                \
     ++self->count;                                                                                 \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, push_back)(Deque(T) * self, T value) {                            \
+  static_fun void RK__DEQUE_PUB(T, push_back)(Deque(T) * self, T value) {                          \
     if (self->count == self->cap) {                                                                \
       rk_assert(self->cap <= SIZE_MAX / 2 && "Deque capacity overflow");                           \
-      RK__DEQUE_F(T, reserve)(self, self->cap ? self->cap * 2 : 8);                                \
+      RK__DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
     }                                                                                              \
     self->data[(self->head + self->count) & (self->cap - 1)] = value;                              \
     ++self->count;                                                                                 \
   }                                                                                                \
-  static_fun T RK__DEQUE_F(T, pop_front)(Deque(T) * self) {                                        \
+  static_fun T RK__DEQUE_PUB(T, pop_front)(Deque(T) * self) {                                      \
     rk_assert(self->count && "Cannot pop an empty deque");                                         \
     T result   = self->data[self->head];                                                           \
     self->head = (self->head + 1) & (self->cap - 1);                                               \
     if (!--self->count) { self->head = 0; }                                                        \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun T RK__DEQUE_F(T, pop_back)(Deque(T) * self) {                                         \
+  static_fun T RK__DEQUE_PUB(T, pop_back)(Deque(T) * self) {                                       \
     rk_assert(self->count && "Cannot pop an empty deque");                                         \
     T result = self->data[(self->head + self->count - 1) & (self->cap - 1)];                       \
     if (!--self->count) { self->head = 0; }                                                        \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun bool RK__DEQUE_F(T, try_pop_front)(Deque(T) * self, T * out) {                        \
-    return self->count ? (*out = RK__DEQUE_F(T, pop_front)(self), true) : false;                   \
+  static_fun bool RK__DEQUE_PUB(T, try_pop_front)(Deque(T) * self, T * out) {                      \
+    return self->count ? (*out = RK__DEQUE_PUB(T, pop_front)(self), true) : false;                 \
   }                                                                                                \
-  static_fun bool RK__DEQUE_F(T, try_pop_back)(Deque(T) * self, T * out) {                         \
-    return self->count ? (*out = RK__DEQUE_F(T, pop_back)(self), true) : false;                    \
+  static_fun bool RK__DEQUE_PUB(T, try_pop_back)(Deque(T) * self, T * out) {                       \
+    return self->count ? (*out = RK__DEQUE_PUB(T, pop_back)(self), true) : false;                  \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, push_front_n)(Deque(T) * self, const T* arr, size_t n) {          \
+  static_fun void RK__DEQUE_PUB(T, push_front_n)(Deque(T) * self, const T* arr, size_t n) {        \
     if (!n) { return; }                                                                            \
     rk_assert(n <= SIZE_MAX - self->count && "Deque capacity overflow");                           \
-    RK__DEQUE_F(T, reserve)(self, self->count + n);                                                \
+    RK__DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
     self->head   = (self->head - n) & (self->cap - 1);                                             \
     size_t first = self->cap - self->head < n ? self->cap - self->head : n;                        \
     rk_memcpy(self->data + self->head, arr, sizeof_n(T, first));                                   \
     if (first < n) { rk_memcpy(self->data, arr + first, sizeof_n(T, n - first)); }                 \
     self->count += n;                                                                              \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, push_back_n)(Deque(T) * self, const T* arr, size_t n) {           \
+  static_fun void RK__DEQUE_PUB(T, push_back_n)(Deque(T) * self, const T* arr, size_t n) {         \
     if (!n) { return; }                                                                            \
     rk_assert(n <= SIZE_MAX - self->count && "Deque capacity overflow");                           \
-    RK__DEQUE_F(T, reserve)(self, self->count + n);                                                \
+    RK__DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
     size_t start = (self->head + self->count) & (self->cap - 1);                                   \
     size_t first = self->cap - start < n ? self->cap - start : n;                                  \
     rk_memcpy(self->data + start, arr, sizeof_n(T, first));                                        \
     if (first < n) { rk_memcpy(self->data, arr + first, sizeof_n(T, n - first)); }                 \
     self->count += n;                                                                              \
   }                                                                                                \
-  static_fun void RK__DEQUE_F(T, assign)(Deque(T) * self, const T* arr, size_t n) {                \
-    RK__DEQUE_F(T, clear)(self);                                                                   \
-    RK__DEQUE_F(T, push_back_n)(self, arr, n);                                                     \
+  static_fun void RK__DEQUE_PUB(T, assign)(Deque(T) * self, const T* arr, size_t n) {              \
+    RK__DEQUE_PUB(T, clear)(self);                                                                 \
+    RK__DEQUE_PUB(T, push_back_n)(self, arr, n);                                                   \
   }                                                                                                \
-  static_fun Deque(T) RK__DEQUE_F(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) { \
-    Deque(T) d = RK__DEQUE_F(T, init)(n RK_IFALLOC(, alloc));                                      \
-    RK__DEQUE_F(T, push_back_n)(&d, arr, n);                                                       \
+  static_fun Deque(T)                                                                              \
+      RK__DEQUE_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {               \
+    Deque(T) d = RK__DEQUE_PUB(T, init)(n RK_IFALLOC(, alloc));                                    \
+    RK__DEQUE_PUB(T, push_back_n)(&d, arr, n);                                                     \
     return d;                                                                                      \
   }                                                                                                \
   RK_EXTERNC_END
 
 RK_HEADER_END
 
-#define RK__DEQUE_INIT(T, cap, alloc)     RK__DEQUE_F(T, init)(cap RK_IFALLOC(, alloc))
+#define RK__DEQUE_INIT(T, cap, alloc)     RK__DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
 #define RK__DEQUE_INIT3(T, cap, alloc)    rk_disable_if(RK__DEQUE_INIT(T, cap, alloc))
 #define RK__DEQUE_INIT2(T, cap)           RK__DEQUE_INIT(T, cap, alloc_ctx)
 
-#define RK__DEQUE_FROM(T, arr, n, alloc)  RK__DEQUE_F(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
+#define RK__DEQUE_FROM(T, arr, n, alloc)  RK__DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
 #define RK__DEQUE_FROM4(T, arr, n, alloc) rk_disable_if(RK__DEQUE_FROM(T, arr, n, alloc))
 #define RK__DEQUE_FROM3(T, arr, n)        RK__DEQUE_FROM(T, arr, n, alloc_ctx)
 
@@ -5967,30 +6042,29 @@ typedef struct ArenaStack {
 #define arenastack_init(arena_size, ...) rk_overload(RK__ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
 /// @brief Releases all arenas within the ArenaStack.
-/// @note No-op if `self` is `NULL`.
-static_fun void        arenastack_release(ArenaStack* self);
+static_fun void              arenastack_release(ArenaStack* self);
 
-/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` is
-/// `NULL`.
-static_fun Allocator arenastack_allocator(const ArenaStack* self) {
-  return self ? vec_allocator(self->arenas) : alloc_ctx;
+/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` was never
+/// initialized, or custom allocators are disabled.
+static_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
+  return vec_allocator(self->arenas);
 }
 
 /// @brief Marks all Memory in the ArenaStack as reusable Clears all currently active arenas and
 /// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
 /// the current index are left unchanged until reused.
-/// @return `self`, for chaining. No-op returning `self` if `self` is `NULL`.
-static_fun ArenaStack* arenastack_clear(ArenaStack* self);
+/// @return `self`, for chaining.
+static_fun ArenaStack*       arenastack_clear(ArenaStack* self);
 
 /// @brief Returns the current position of the active arena as an opaque marker. Pass to
 /// `arenastack_rewind_to` to restore the ArenaStack to this state.
-/// @note Returns a null marker if `self` is `NULL`.
-static_fun ArenaMark   arenastack_mark(const ArenaStack* self) {
-  return (self && self->arena_size) ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
+/// @note Returns a null marker if `self` was never initialized.
+static_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
+  return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
 }
 /// @brief Rewinds the ArenaStack to a specific mark returned by `arenastack_mark()`, marking every
 /// allocation in every Arena of the Stack as free until the mark is reached.
-/// @return `self`, for chaining. No-op returning `self` if `self` is `NULL`.
+/// @return `self`, for chaining.
 static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
@@ -6028,7 +6102,7 @@ static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = RK__are
                                                             .realloc_f = RK__arenastack_reallocate,
                                                             .dealloc_f = RK__arenastack_deallocate};
 
-static_fun Allocator         arenastack_to_alloc(ArenaStack* self) {
+static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
 
@@ -6045,7 +6119,6 @@ static_fun Allocator         arenastack_to_alloc(ArenaStack* self) {
   ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
 static_fun void arenastack_release(ArenaStack* self) {
-  if rk_unlikely (!self) { return; }
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
   vec_foreach(self->arenas, arena) {
     alloc_deallocate(arena->beg, (size_t)(arena->end - arena->beg), align_max RK_IFALLOC(, alloc));
@@ -6055,14 +6128,14 @@ static_fun void arenastack_release(ArenaStack* self) {
 }
 
 static_fun ArenaStack* arenastack_clear(ArenaStack* self) {
-  if rk_unlikely (!self || !self->arena_size) { return self; }
+  if rk_unlikely (!self->arena_size) { return self; }
   for (size_t cur = self->cur, i = 0; i <= cur; ++i) { arena_clear(&self->arenas[i]); }
   return self->cur = 0, self;
 }
 
 static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
   const unsigned char* ptr = mark.pos;
-  if rk_unlikely (!self || !ptr) { return self; }
+  if rk_unlikely (!ptr) { return self; }
   for (size_t i = self->cur + 1; i-- > 0;) {
     Arena* arena = &self->arenas[i];
     if (ptr == arena->cur || rk_ptr_in_range(ptr, arena->beg, arena->cur)) {
@@ -6332,7 +6405,7 @@ static_fun void str_release(Str* restrict self) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns whether the String is null-terminated.
-static_fun bool str_is_null_terminated(const Str* self) {
+static_fun rk_pure bool str_is_null_terminated(const Str* self) {
   return self->cap > self->len && self->str[self->len] == '\0';
 }
 
@@ -6348,24 +6421,20 @@ static_fun bool str_is_null_terminated(const Str* self) {
 ///
 /// @warning This function does not enforce null-termination or perform any allocation. Callers must
 /// ensure null-termination if access to the full contents as a C string is required.
-static_fun const char* str_cstr(const Str* self) {
+static_fun rk_pure const char* str_cstr(const Str* self) {
   return str_is_null_terminated(self) ? self->str : "";
 }
 
-/// @brief Returns the current capacity of `self`, in bytes, or 0 if `self` is NULL.
-static_fun rk_pure size_t str_cap(const Str* self) { return self ? self->cap : 0; }
+/// @brief Returns the current capacity of `self`, in bytes.
+static_fun rk_pure size_t    str_cap(const Str* self) { return self->cap; }
 
-static_fun rk_pure Allocator str_allocator(const Str* self) {
-#if RK_CUSTOM_ALLOCATORS
-  return self ? self->alloc : alloc_ctx;
-#else
-  return (void)self, alloc_ctx;
-#endif
-}
+/// @brief Returns the Allocator `self` was constructed with, or `alloc_ctx` if `self` was never
+/// initialized, or custom allocators are disabled.
+static_fun rk_pure Allocator str_allocator(const Str* self) { return RK__allocatorof(self); }
 
 /// @brief Clears the contents of `self`, setting its length to zero and null-terminating it, if it
 /// owns an allocation.
-static_fun Str* str_clear(Str* restrict self) {
+static_fun Str*              str_clear(Str* restrict self) {
   if (self->str) { self->str[self->len = 0] = '\0'; }
   return self;
 }
@@ -6376,21 +6445,21 @@ static_fun Str* str_clear(Str* restrict self) {
 
 /// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`, reallocating, if
 /// necessary.
-static_fun Str*           str_reserve(Str* restrict self, size_t new_cap);
+static_fun Str* str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
 /// null-terminating it.
-static_fun Str*           str_resize(Str* restrict self, size_t new_len);
+static_fun Str* str_resize(Str* restrict self, size_t new_len);
 
 /// @brief Resizes a Str's capacity to the next power of two larger than its length,
 /// null-terminating it (matching `vec_shrink_to_fit()`'s convention). Leaves some slack to reduce
 /// reallocation on subsequent growth.
 /// @note Use `str_shrink_to_fit_exact()` for an exact-capacity shrink.
-static_fun Str*           str_shrink_to_fit(Str* restrict self);
+static_fun Str* str_shrink_to_fit(Str* restrict self);
 
 /// @brief Resizes a Str's capacity to exactly its length + 1 (matching
 /// `vec_shrink_to_fit_exact()`'s convention).
-static_fun Str*           str_shrink_to_fit_exact(Str* restrict self);
+static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Mutators
@@ -6543,7 +6612,7 @@ static_fun Str* str_reverse(Str* restrict self);
 /// @brief Constructs a Strv from a string literal.
 #define strv_from_literal(strlit) {.str = strlit, .len = lenof(strlit)}
 
-static_fun Strv strv_from_cstrn(const char* str, size_t len) {
+static_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
   return (Strv){.str = str, .len = len};
 }
 /// @brief Constructs a Strv from a Stringlike.
@@ -6751,41 +6820,45 @@ static_fun Strv strv_from_cstrn(const char* str, size_t len) {
   RK__IsCharLitLike(prefix, str_ends_with_char(strv_from(strlike), RK__GetCharLitLike(prefix)),    \
                     str_ends_with_strv(strv_from(strlike), RK__strv_from_fallback(prefix)))
 
-static_fun Strv strv_from_cstr(const char* s) { return (Strv){.str = s, .len = s ? strlen(s) : 0}; }
+static_fun rk_pure Strv strv_from_cstr(const char* s) {
+  return (Strv){.str = s, .len = s ? strlen(s) : 0};
+}
 
-static_fun Strv strv_from_strv(Strv str) { return str; }
+static_fun rk_const Strv strv_from_strv(Strv str) { return str; }
 
 #define RK__STR_FROMLIT(a, alloc)  str_from_strv((Strv)strv_from_literal(a) RK_IFALLOC(, alloc))
 #define RK__STR_FROMLIT2(a, alloc) rk_disable_if(RK__STR_FROMLIT(a, alloc))
 #define RK__STR_FROMLIT1(a)        RK__STR_FROMLIT(a, alloc_ctx)
 
-static_fun Strv strv_from_str(Str str) { return str.v; }
-static_fun bool str_equals_strv(Strv s1, Strv s2) {
+static_fun rk_const Strv strv_from_str(Str str) { return str.v; }
+static_fun rk_pure bool  str_equals_strv(Strv s1, Strv s2) {
   size_t mlen = rk_MIN(s1.len, s2.len);
   return s1.len == s2.len && !rk_memcmp(s1.str, s2.str, mlen);
 }
-static_fun int str_compare_strv(Strv s1, Strv s2) {
+static_fun rk_pure int str_compare_strv(Strv s1, Strv s2) {
   size_t mlen = rk_MIN(s1.len, s2.len);
   int    res  = rk_memcmp(s1.str, s2.str, mlen);
   return res ? res : (s1.len < s2.len ? -1 : (s1.len > s2.len ? 1 : 0));
 }
 
-static_fun bool str_starts_with_char(Strv sv, char c) { return sv.len && sv.str[0] == c; }
-static_fun bool str_starts_with_strv(Strv sv, Strv pref) {
+static_fun rk_pure bool str_starts_with_char(Strv sv, char c) { return sv.len && sv.str[0] == c; }
+static_fun rk_pure bool str_starts_with_strv(Strv sv, Strv pref) {
   return pref.len <= sv.len && !rk_memcmp(sv.str, pref.str, pref.len);
 }
-static_fun bool str_ends_with_char(Strv sv, char c) { return sv.len && sv.str[sv.len - 1] == c; }
+static_fun rk_pure bool str_ends_with_char(Strv sv, char c) {
+  return sv.len && sv.str[sv.len - 1] == c;
+}
 
-static_fun bool str_ends_with_strv(Strv sv, Strv suf) {
+static_fun rk_pure bool str_ends_with_strv(Strv sv, Strv suf) {
   if (!suf.len) { return true; }
   return suf.len <= sv.len && !rk_memcmp(sv.str + sv.len - suf.len, suf.str, suf.len);
 }
 
-static_fun const char* str_find_char(Strv sv, char c) {
+static_fun rk_pure const char* str_find_char(Strv sv, char c) {
   return sv.str ? (const char*)memchr(sv.str, (unsigned char)c, sv.len) : sv.str;
 }
 
-static_fun const char* str_find_strv(Strv hs, Strv ne) {
+static_fun rk_pure const char* str_find_strv(Strv hs, Strv ne) {
   if (ne.len == 0) { return hs.str; }
   if (ne.len > hs.len) { return rk_null; }
   if (ne.len <= 3) {
@@ -6807,13 +6880,13 @@ static_fun const char* str_find_strv(Strv hs, Strv ne) {
     return rk_null;
   }
 }
-static_fun const char* str_findr_char(Strv sv, char c) {
+static_fun rk_pure const char* str_findr_char(Strv sv, char c) {
   while (sv.len--) {
     if (sv.str[sv.len] == c) { return sv.str + sv.len; }
   }
   return rk_null;
 }
-static_fun const char* str_findr_strv(Strv hs, Strv ne) {
+static_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
   if (ne.len == 0) { return hs.str; }
   if (ne.len > hs.len) { return rk_null; }
   for (size_t i = hs.len - ne.len + 1, j; i-- > 0;) {
@@ -6825,14 +6898,14 @@ static_fun const char* str_findr_strv(Strv hs, Strv ne) {
   return rk_null;
 }
 
-static_fun bool str_contains_char(Strv sv, char c) {
+static_fun rk_pure bool str_contains_char(Strv sv, char c) {
   for (size_t i = 0; i < sv.len; ++i) {
     if (sv.str[i] == c) { return true; }
   }
   return false;
 }
 
-static_fun bool str_contains_strv(Strv s1, Strv s2) {
+static_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
   if (!s2.len) { return true; }
   for (size_t i = 0, j; i < s1.len && s1.len - i >= s2.len; ++i) {
     for (j = 0; j < s2.len; ++j) {
@@ -6863,12 +6936,12 @@ static_fun void RK__str_ensure_cap(Str* restrict self, size_t new_cap) {
   if (new_cap > self->cap) { RK__str_change_cap(self, stdc_bit_ceil(new_cap)); }
 }
 
-static_fun const char* RK__str_front_ptr(Strv sv) {
+static_fun rk_const const char* RK__str_front_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access first element of empty string");
   return sv.str;
 }
 
-static_fun const char* RK__str_back_ptr(Strv sv) {
+static_fun rk_const const char* RK__str_back_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access last element of empty string");
   return sv.str + sv.len - 1;
 }
@@ -6921,7 +6994,7 @@ static_fun Str* str_assign_strv(Str* restrict self, Strv sv) {
   return self;
 }
 
-static_fun Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
+static_fun rk_const Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
   if (start > sv.len || end < start) {
     sv.len = 0;
   } else {
@@ -7115,17 +7188,17 @@ static_fun Str* str_reverse(Str* restrict self) {
 }
 
 #define RK__STR_CHAR_ISSPACE(c) ((c) == ' ' || ((c) >= '\t' && (c) <= '\r'))
-static_fun Strv str_trimmed_left_strv(Strv sv) {
+static_fun rk_pure Strv str_trimmed_left_strv(Strv sv) {
   size_t i = 0;
   for (; i < sv.len && RK__STR_CHAR_ISSPACE(sv.str[i]); ++i);
   if (sv.str) { sv.str += i, sv.len -= i; }
   return sv;
 }
-static_fun Strv str_trimmed_right_strv(Strv sv) {
+static_fun rk_pure Strv str_trimmed_right_strv(Strv sv) {
   for (; sv.len && RK__STR_CHAR_ISSPACE(sv.str[sv.len - 1]); --sv.len);
   return sv;
 }
-static_fun Strv str_trimmed_strv(Strv sv) {
+static_fun rk_pure Strv str_trimmed_strv(Strv sv) {
   return str_trimmed_right_strv(str_trimmed_left_strv(sv));
 }
 #undef RK__STR_CHAR_ISSPACE
@@ -7266,8 +7339,8 @@ RK_HEADER_BEGIN
 /// @param C Capacity of the pool if static
 /// @note Static Pools take a second capacity parameter
 #define Pool(T, ...)            RK__STATOVERLOAD__(RK__POOL, T, ##__VA_ARGS__)
-#define StaticPool(T, CAP)      Pool_static_##T##_##CAP
-#define DynPool(T)              Pool_dynamic_##T
+#define StaticPool(T, CAP)      Pool_##CAP##_##T
+#define DynPool(T)              Pool_##T
 
 /// @brief `Pool(T)* pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
 /// pool with given capacity.
@@ -7291,52 +7364,48 @@ RK_HEADER_BEGIN
 /// @brief `size_t pool_cap(Pool(T, ...)* self)` - Returns the total capacity of the pool.
 #define pool_cap(self)          ((size_t)RK__pool_cap(self))
 
-#if RK_CUSTOM_ALLOCATORS
 /// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns the Allocator the (dynamic) pool was
-/// constructed with.
-# define pool_allocator(self) rk_to_rvalue((self)->_pool.alloc)
-#else
-/// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns `alloc_ctx` (allocators disabled).
-# define pool_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// constructed with, or `alloc_ctx` if the pool was never initialized or custom allocators are
+/// disabled.
+#define pool_allocator(self)    RK__allocatorof(self)
 
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
-#define pool_used(self)        ((size_t)RK__pool_used(self))
+#define pool_used(self)         ((size_t)RK__pool_used(self))
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
-#define pool_remaining(self)   ((size_t)RK__pool_remaining(self))
+#define pool_remaining(self)    ((size_t)RK__pool_remaining(self))
 
 /// @brief Returns `true` iff the pool is empty.
-#define pool_is_empty(self)    ((bool)(pool_used(self) == 0))
+#define pool_is_empty(self)     ((bool)(pool_used(self) == 0))
 
 /// @brief Returns `true` iff the pool is full.
-#define pool_is_full(self)     ((bool)(pool_remaining(self) == 0))
+#define pool_is_full(self)      ((bool)(pool_remaining(self) == 0))
 
 /// @brief `Pool(T)* pool_clear(Pool(T)* self)` - Marks all elements in the pool as reusable.
 /// @return `self`, for chaining
-#define pool_clear(self)       ((typeof(self))RK__pool_clear(self))
+#define pool_clear(self)        ((typeof(self))RK__pool_clear(self))
 
 /// @brief `T* pool_new(Pool(T)* self)` - Allocates a new element in the pool.
 /// @return Pointer to the newly allocated element
-#define pool_new(self)         ((RK__poolT(self)*)RK__pool_new(self))
+#define pool_new(self)          ((RK__poolT(self)*)RK__pool_new(self))
 
 /// @brief `T* pool_try_new(Pool(T)* self)` - Like `pool_new()`, but returns `NULL` if full instead
 /// of running `RK_POOL_FAIL()`.
-#define pool_try_new(self)     ((RK__poolT(self)*)RK__pool_try_new(self))
+#define pool_try_new(self)      ((RK__poolT(self)*)RK__pool_try_new(self))
 
 /// @brief `T* pool_put(Pool(T)* self, T el)` - Allocates a new element and stores a copy of the
 /// value.
 /// @return Pointer to the inserted element
-#define pool_put(self, el)     ((RK__poolT(self)*)RK__pool_put(self, el))
+#define pool_put(self, el)      ((RK__poolT(self)*)RK__pool_put(self, el))
 
 /// @brief `T* pool_try_put(Pool(T)* self, T el)` - Like `pool_put()`, but returns `NULL` if full
 /// instead of running `RK_POOL_FAIL()`.
-#define pool_try_put(self, el) ((RK__poolT(self)*)RK__pool_try_put(self, el))
+#define pool_try_put(self, el)  ((RK__poolT(self)*)RK__pool_try_put(self, el))
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.
-#define pool_delete(self, ptr) ((void)RK__pool_delete(self, ptr))
+#define pool_delete(self, ptr)  ((void)RK__pool_delete(self, ptr))
 
 /// @brief `pool_foreach(Pool(T)* self, it)` - Iterates over all allocated elements in the pool.
 ///
@@ -7346,14 +7415,14 @@ RK_HEADER_BEGIN
 ///     printf("%d\n", *elem);
 /// }
 /// ```
-#define pool_foreach(self, it) RK__pool_foreach(self, it)
+#define pool_foreach(self, it)  RK__pool_foreach(self, it)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__POOL2              StaticPool
+#define RK__POOL2               StaticPool
 #define RK__POOL_DEFINE2(T, C)                                                                     \
   typedef struct StaticPool(T, C) {                                                                \
     bitset(C) data;                                                                                \
@@ -7417,16 +7486,18 @@ static_fun rk_forceinline void* RK__Dpool_init(size_t elsize, size_t elalign,
 #define RK__DPOOL_INIT2(T, _cap)         RK__DPOOL_INIT(T, _cap, alloc_ctx)
 
 #define RK__pool_cap(self)                                                                         \
-  RK__pool_dispatch(self, rk_COUNTOF((self)->RK__POOL_ELS), (size_t)(self)->_pool.cap)
+  RK__pool_dispatch(self, ((void)(self), rk_COUNTOF((self)->RK__POOL_ELS)),                        \
+                    (size_t)(self)->_pool.cap)
 
-static_fun rk_forceinline size_t RK__Dpool_used(const RK__pool_dynamic* self) {
+static_fun rk_pure rk_forceinline size_t RK__Dpool_used(const RK__pool_dynamic* self) {
   return bitset_count_ones(self->data, self->cap);
 }
+
 #define RK__pool_used(self)                                                                        \
   RK__pool_dispatch(self, bitset_count_ones((self)->data, rk_COUNTOF((self)->RK__POOL_ELS)),       \
                     RK__Dpool_used((RK__pool_dynamic*)&((self)->_pool)))
 
-static_fun rk_forceinline size_t RK__Dpool_remaining(const RK__pool_dynamic* self) {
+static_fun rk_pure rk_forceinline size_t RK__Dpool_remaining(const RK__pool_dynamic* self) {
   return bitset_count_zeros(self->data, self->cap);
 }
 #define RK__pool_remaining(self)                                                                   \
@@ -7569,8 +7640,7 @@ static_fun rk_forceinline void RK__Dpool_release(size_t elsize, size_t align,
                                       (RK__pool_dynamic*)&((self)->_pool)))
 
 /// to prevent inactive union member access in c++
-#define RK__pool_els(self)                                                                         \
-  RK__pool_dispatch((self), (self)->els, (RK__poolT(self)*)(self)->_pool.els)
+#define RK__pool_els(self) RK__pool_dispatch(self, (self)->els, (RK__poolT(self)*)(self)->_pool.els)
 
 #define RK__pool_foreach(self, it)                                                                 \
   for (typeof(self) RK___pool = (self); RK___pool; RK___pool = rk_null)                            \
@@ -7729,7 +7799,7 @@ RK_HEADER_BEGIN
 #define DICT_DEFINE(key_t, val_t, hash_f, cmp_f) RK__DICT_DEF(key_t, val_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific dict struct name.
-#define Dict(K, V)                               Dict##_##K##_##V
+#define Dict(K, V)                               Dict_##K##_##V
 
 /// @brief `Dict(K, V) dict_init(K, V, size_t cap, Allocator alloc = alloc_ctx)` - Convenience Macro
 /// to create a Dict.
@@ -7745,24 +7815,23 @@ RK_HEADER_BEGIN
 /// Dict(int, cstr) tab =  dict_init(int, cstr, 10, alloc);
 /// ```
 /// @return An initialised Dict
-#define dict_init(K, V, cap, ...) rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
+#define dict_init(K, V, cap, ...)              rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
 
 /// @brief `void dict_release(K, V, Dict(K, V)* self)` - Frees the underlying memory of the Dict.
-#define dict_release(K, V, self)  RK__DICT_PUB(K, V, release)(self)
+#define dict_release(K, V, self)               RK__DICT_PUB(K, V, release)(self)
 
 /// @brief `size_t dict_count(Dict(K, V)* self)` - Returns the number of live key-value pairs stored
 /// in the Dict.
-#define dict_count(self)          ((size_t)((self)->count))
+#define dict_count(self)                       ((size_t)((self)->count))
 
 /// @brief `size_t dict_cap(Dict(K, V)* self)` - Returns the current slot capacity of the Dict.
 /// Always a power of two.
-#define dict_cap(self)            ((size_t)((self)->cap))
+#define dict_cap(self)                         ((size_t)((self)->cap))
 
-#if RK_CUSTOM_ALLOCATORS
-# define dict_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-# define dict_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// @brief `Allocator dict_allocator(Dict(K, V)* self)` - Returns the Allocator the Dict was
+/// constructed with, or `alloc_ctx` if the Dict was never initialized or custom allocators are
+/// disabled.
+#define dict_allocator(self)                   RK__allocatorof(self)
 
 /// @brief `bool dict_is_empty(Dict(K, V)* self)` - Returns `true` iff the dict contains no
 /// elements.
@@ -7823,18 +7892,18 @@ RK_HEADER_BEGIN
 #define dict_add(K, V, self, key, val) RK__DICT_PUB(K, V, add)(self, key, val)
 
 /// @brief `V* dict_get_or_add(K, V, Dict(K, V)* self, K key, V default_value, bool* inserted_out)`
-/// - Returns a pointer to the value for `key`, inserting `default_value` first if the key is
-/// absent; resizes the Dict if necessary.
-/// @param default_value Value to insert if `key` is not present.
-/// @param inserted_out Set to `true` if a new entry was inserted, `false` if the key already
-/// existed. Must not be `NULL`.
-/// @return Pointer to the value for `key` (never `NULL`).
+/// - Returns a pointer to the value associated with `key`, inserting `default_value` first if the
+/// key is absent. Resizes the Dict if necessary.
+/// @param default_value Value to insert if `key` is absent.
+/// @param inserted_out Optional output set to `true` if a new entry was inserted or `false` if the
+/// key already existed. May be `NULL` if this information is not needed.
+/// @return Pointer to the value associated with `key`; never `NULL`.
 #define dict_get_or_add(K, V, self, key, default_value, inserted_out)                              \
   RK__DICT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool dict_extract(K, V, Dict(K, V)* self, K key, V* out_ptr)` - Removes a key from the
 /// Dict and stores the value in `out_ptr`.
-/// @param out_ptr Pointer to where the removed value should be written if found.
+/// @param out_ptr Non-null pointer; where the removed value should be written if found.
 /// @return `true` if key was found and removed, `false` otherwise
 #define dict_extract(K, V, self, key, out_ptr) RK__DICT_PUB(K, V, extract)(self, key, out_ptr)
 
@@ -7922,7 +7991,7 @@ RK_HEADER_BEGIN
 #define SET_DEFINE(key_t, hash_f, cmp_f) RK__SET_DEF(key_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific set struct name.
-#define Set(K)                           Set##_##K
+#define Set(K)                           Set_##K
 
 /// @brief `Set(K) set_init(K, size_t cap, Allocator alloc = alloc_ctx)` - Creates a Set.
 /// @param K           Name of the key Type
@@ -7948,55 +8017,53 @@ RK_HEADER_BEGIN
 /// power of two.
 #define set_cap(self)                    ((size_t)((self)->cap))
 
-#if RK_CUSTOM_ALLOCATORS
-# define set_allocator(self) rk_to_rvalue((self)->alloc)
-#else
-# define set_allocator(self) ((void)(self), alloc_ctx)
-#endif
+/// @brief `Allocator set_allocator(Set(K)* self)` - Returns the Allocator the Set was constructed
+/// with, or `alloc_ctx` if the Set was never initialized or custom allocators are disabled.
+#define set_allocator(self)              RK__allocatorof(self)
 
 /// @brief `bool set_is_empty(Set(K)* self)` - Returns `true` iff the set contains no elements.
-#define set_is_empty(self)           ((bool)(set_count(self) == 0))
+#define set_is_empty(self)               ((bool)(set_count(self) == 0))
 
 /// @brief `float set_load_factor(Set(K)* self)` - Returns the current load factor (live entries /
 /// capacity). See `dict_load_factor()`.
-#define set_load_factor(self)        ((float)RK__ds_load_factor(&(self)->hdr))
+#define set_load_factor(self)            ((float)RK__ds_load_factor(&(self)->hdr))
 
 /// @brief `Set(K)* set_clear(K, Set(K)* self)` - Marks all slots in the Set as free, allowing reuse
 /// of its memory.
 /// @return `self`, for chaining.
-#define set_clear(K, self)           RK__SET_PUB(K, clear)(self)
+#define set_clear(K, self)               RK__SET_PUB(K, clear)(self)
 
 /// @brief `Set(K)* set_reserve(K, Set(K)* self, size_t n)` - Reserves and rehashes the Set so that
 /// it can hold at least `n` live entries without triggering another automatic rehash. See
 /// `dict_reserve()`.
 /// @return `self`, for chaining.
-#define set_reserve(K, self, n)      RK__SET_PUB(K, reserve)(self, n)
+#define set_reserve(K, self, n)          RK__SET_PUB(K, reserve)(self, n)
 
 /// @brief `Set(K)* set_shrink_to_fit(K, Set(K)* self)` - Rehashes the Set down to the smallest
 /// table capacity that still keeps its live entries under the load factor threshold. See
 /// `dict_shrink_to_fit()`.
 /// @return `self`, for chaining.
-#define set_shrink_to_fit(K, self)   RK__SET_PUB(K, shrink_to_fit)(self)
+#define set_shrink_to_fit(K, self)       RK__SET_PUB(K, shrink_to_fit)(self)
 
 /// @brief `Set(K)* set_assign(K, Set(K)* self, const K* keys, size_t n)` - Replaces the Set's
 /// contents with `n` keys from `keys`, reusing the existing table (growing it if necessary) rather
 /// than allocating a new one.
 /// @return `self`, for chaining.
-#define set_assign(K, self, keys, n) RK__SET_PUB(K, assign)(self, keys, n)
+#define set_assign(K, self, keys, n)     RK__SET_PUB(K, assign)(self, keys, n)
 
 /// @brief `bool set_contains(K, const Set(K)* self, K key)`
 /// - Checks whether the given key is present in the Set.
 /// @return `true` if `self` contains the key, `false` otherwise
-#define set_contains(K, self, key)   RK__SET_PUB(K, contains)(self, key)
+#define set_contains(K, self, key)       RK__SET_PUB(K, contains)(self, key)
 
 /// @brief `bool set_add(K, Set(K)* self, K key)` - Ensures a key is present in a set; resizes the
 /// Set if necessary.
 /// @return `true` if the key was inserted, `false` if it was already present.
-#define set_add(K, self, key)        RK__SET_PUB(K, add)(self, key)
+#define set_add(K, self, key)            RK__SET_PUB(K, add)(self, key)
 
 /// @brief `bool set_remove(K, Set(K)* self, K key)` - Removes a key from the Set if it is present.
 /// @return `true` if the value was found and removed, `false` otherwise
-#define set_remove(K, self, key)     RK__SET_PUB(K, remove)(self, key)
+#define set_remove(K, self, key)         RK__SET_PUB(K, remove)(self, key)
 
 /// @brief Iterates over all keys in the Set, skipping empty slots.
 /// @param self     Pointer to the Set to iterate over
@@ -8010,7 +8077,7 @@ RK_HEADER_BEGIN
 /// ```
 /// @warning Adding or removing keys via this macro leads to incorrect iteration.
 /// @note Iteration skips empty slots in the underlying storage.
-#define set_foreach(self, key)       dict_foreach_key(self, key)
+#define set_foreach(self, key)           dict_foreach_key(self, key)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
@@ -8054,8 +8121,8 @@ typedef size_t RK__hashprobe_t;
 #define RK__DS_SLOT_DELETED                   ((u8)0xFE)
 #define RK__DS_SLOT_EMPTY_OR_DELETED(x)       ((x) & 0x80)
 
-#define RK__DICT_PUB(K, V, FNAME)             dictf_##FNAME##_##K##_##V
-#define RK__DICT_PRI(K, V, FNAME)             RK__dict##_##K##_##V##_##FNAME
+#define RK__DICT_PUB(K, V, FNAME)             dict_##K##_##V##_##FNAME
+#define RK__DICT_PRI(K, V, FNAME)             RK__dict_##K##_##V##_##FNAME
 
 #define RK__DICT_INIT(K, V, init_cap, alloc)  RK__DICT_PUB(K, V, init)(init_cap RK_IFALLOC(, alloc))
 #define RK__DICT_INIT4(K, V, init_cap, alloc) rk_disable_if(RK__DICT_INIT(K, V, init_cap, alloc))
@@ -8065,8 +8132,8 @@ typedef size_t RK__hashprobe_t;
 #define RK__SET_INIT3(K, init_cap, alloc)     rk_disable_if(RK__SET_INIT(K, init_cap, alloc))
 #define RK__SET_INIT2(K, init_cap)            RK__SET_INIT(K, init_cap, alloc_ctx)
 
-#define RK__SET_PUB(K, FNAME)                 setf_##FNAME##_##K
-#define RK__SET_PRI(K, FNAME)                 RK__set##_##K##_##FNAME
+#define RK__SET_PUB(K, FNAME)                 set_##K##_##FNAME
+#define RK__SET_PRI(K, FNAME)                 RK__set_##K##_##FNAME
 
 #define RK__SET_PUB_I(K, V, FNAME)            RK__SET_PUB(K, FNAME)
 #define RK__SET_PRI_I(K, V, FNAME)            RK__SET_PRI(K, FNAME)
@@ -8088,6 +8155,15 @@ typedef size_t RK__hashprobe_t;
     IF_DICT(V* vals;)                                                                                \
     RK_IFALLOC(Allocator alloc;)                                                                     \
   } DSTYPE(K, V);                                                                                    \
+  static_fun rk_pure size_t    PUBF(K, V, count)(const DSTYPE(K, V) * self) { return self->count; }  \
+  static_fun rk_pure size_t    PUBF(K, V, cap)(const DSTYPE(K, V) * self) { return self->cap; }      \
+  static_fun rk_pure Allocator PUBF(K, V, allocator)(const DSTYPE(K, V) * self) {                    \
+    return RK__allocatorof(self);                                                                    \
+  }                                                                                                  \
+  static_fun rk_pure bool  PUBF(K, V, is_empty)(const DSTYPE(K, V) * self) { return !self->count; }  \
+  static_fun rk_pure float PUBF(K, V, load_factor)(const DSTYPE(K, V) * self) {                      \
+    return RK__ds_load_factor(&self->hdr);                                                           \
+  }                                                                                                  \
   static_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {               \
     rk_assert_allocator_valid(alloc);                                                                \
     cap = stdc_bit_ceil(rk_MAX(16u, cap));                                                           \
@@ -8141,8 +8217,8 @@ typedef size_t RK__hashprobe_t;
                        (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap);   \
     }                                                                                                \
   }                                                                                                  \
-  static_fun RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,           \
-                                                 u64 hash) {                                         \
+  static_fun rk_pure RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,   \
+                                                         u64 hash) {                                 \
     u8           fp   = RK__DS_fp(hash);                                                             \
     const size_t mask = self->cap - 1;                                                               \
     size_t       i = RK__DS_home(mask, hash), fd = RK_DS_NOTIN;                                      \
@@ -8157,7 +8233,7 @@ typedef size_t RK__hashprobe_t;
     }                                                                                                \
     return (fd != RK_DS_NOTIN) ? RK__PROBE_MAKE(0, 1, fd) : RK__PROBE_MAKE(0, 0, i);                 \
   }                                                                                                  \
-  static_fun bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {                   \
+  static_fun rk_pure bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {           \
     if rk_unlikely (!self->cap) { return false; }                                                    \
     return RK__PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                        \
   }                                                                                                  \
@@ -8222,25 +8298,24 @@ typedef size_t RK__hashprobe_t;
       } /*                                                           */                            \
       static_fun V* PUBF(K, V, get_or_add)(DSTYPE(K, V)* restrict self, K key, V val,              \
                                            bool* restrict inserted_out) {                          \
-        rk_assert_ptr_nonnull(inserted_out);                                                       \
         PRIF(K, V, ensure_cap)(self);                                                              \
         u64             hash = (u64)hash_f(key);                                                   \
         RK__hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
         if (!RK__PROBE_FOUND(r)) {                                                                 \
           PRIF(K, V, insert_f)(self, key, val, RK__DS_fp(hash), RK__PROBE_TOMBSTONE(r),            \
                                RK__PROBE_IDX(r));                                                  \
-          *inserted_out = true;                                                                    \
+          if(inserted_out){ *inserted_out = true; }                                                \
         } else {                                                                                   \
-          *inserted_out = false;                                                                   \
+          if(inserted_out){ *inserted_out = false; }                                               \
         }                                                                                          \
         return &self->vals[RK__PROBE_IDX(r)];                                                      \
       } /*                                                           */                            \
-      static_fun const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {        \
+      static_fun rk_pure const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {\
         if rk_unlikely (!self->cap) { return rk_null; }                                            \
         RK__hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
         return RK__PROBE_FOUND(r) ? &self->vals[RK__PROBE_IDX(r)] : rk_null;                       \
       } /*                                                           */                            \
-      static_fun V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                          \
+      static_fun rk_pure V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                  \
         return (V*)PUBF(K, V, get_const)(self, key);                                               \
       } /*                                                           */                            \
       static_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V * out_ptr) {       \
@@ -8259,9 +8334,9 @@ typedef size_t RK__hashprobe_t;
         return PUBF(K, V, extract)(self, key, &_);                                                 \
       } /*                                                           */                            \
       static_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,     \
-                                                    const V* vals, size_t n) {                      \
+                                                    const V* vals, size_t n) {                     \
         PUBF(K, V, clear)(self);                                                                   \
-        for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                 \
+        for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                \
         return self;                                                                               \
       }) \
   IF_SET(                                                                                          \
@@ -8298,7 +8373,6 @@ typedef size_t RK__hashprobe_t;
 /// @endcond
 
 static_fun rk_pure float RK__ds_load_factor(const RK__ds_header* hdr) {
-  rk_assert(hdr && "hdr must not be null");
   return hdr->cap ? (float)hdr->count / (float)hdr->cap : 0.0f;
 }
 static_fun rk_pure bool RK__ds_needs_rehash(const RK__ds_header* hdr) {
