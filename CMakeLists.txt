@@ -241,8 +241,8 @@ if(BUILD_TESTING)
         target_link_libraries(rk_clib-selftest-c-noalloc PRIVATE rk_clib-sanitizers)
     endif()
 
-    add_test(NAME rk_clib-c COMMAND rk_clib-selftest-c --no-color)
-    add_test(NAME rk_clib-c-noalloc COMMAND rk_clib-selftest-c-noalloc --no-color)
+    add_test(NAME rk_clib-c COMMAND rk_clib-selftest-c --no-color --text=stdout)
+    add_test(NAME rk_clib-c-noalloc COMMAND rk_clib-selftest-c-noalloc --no-color --text=stdout)
 
     # rk_clib's C++ support is Clang-only (see rk_defs.h's own header comment):
     # its headers lean on _Generic pervasively, which only Clang's C++
@@ -266,7 +266,7 @@ if(BUILD_TESTING)
         if(TARGET rk_clib-sanitizers)
             target_link_libraries(rk_clib-selftest-cpp PRIVATE rk_clib-sanitizers)
         endif()
-        add_test(NAME rk_clib-cpp COMMAND rk_clib-selftest-cpp --no-color)
+        add_test(NAME rk_clib-cpp COMMAND rk_clib-selftest-cpp --no-color --text=stdout)
     else()
         message(
             STATUS
