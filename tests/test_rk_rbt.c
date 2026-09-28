@@ -112,7 +112,10 @@ triax_test(rbt, get_or_add) {
   triax_expect_false(inserted);
   triax_expect_eq(*p2, 'e');
   triax_expect_eq(rbt_count(&r), 1u);
-  triax_expect_eq(p1, p2);
+  // cast to void*: triax_expect_eq treats char* as a C-string (via strlen), but p1/p2 point at a
+  // single, non-null-terminated char field inside the Rbt node -- this must be a pointer-identity
+  // check (same address returned for an already-present key), not a string comparison.
+  triax_expect_eq((void*)p1, (void*)p2);
 
   // a second, distinct key still triggers a real insertion
   inserted = false;
