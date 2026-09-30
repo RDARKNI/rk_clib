@@ -6,7 +6,7 @@
 #include "../include/rklib.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 DEQUE_DEFINE(int)
 
@@ -497,6 +497,6 @@ triax_test(deque, large_randomized_stress) {
   }
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

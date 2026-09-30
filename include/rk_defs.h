@@ -50,15 +50,15 @@
 #define rk_has_c_cpp_attribute(x) (rk_has_c_attribute(x) || rk_has_cpp_attribute(x))
 
 #if defined(__has_attribute)
-# define rk___attribute__(attr) __attribute__((attr))
+# define rk_attribute(attr) __attribute__((attr))
 #else
-# define rk___attribute__(attr)
+# define rk_attribute(attr)
 #endif
 
 #ifdef _MSC_VER
-# define rk___declspec(attr) __declspec(attr)
+# define rk_declspec(attr) __declspec(attr)
 #else
-# define rk___declspec(attr)
+# define rk_declspec(attr)
 #endif
 
 #ifdef _MSC_VER
@@ -107,7 +107,7 @@
 /// - Warnings about c2x, c2y and c23 extensions (namely countof, for which a fallback exists and
 ///   attribute syntax), since they're used conditionally and portably.
 /// - Warnings about unknown attributes (for the previous two)
-# define RK__SILENCE_WARNINGS_BEG                                                                  \
+# define RKI_SILENCE_WARNINGS_BEG                                                                  \
    RK_DO_PRAGMA(clang diagnostic push)                                                             \
    RK_DO_PRAGMA(clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments")                    \
    RK_DO_PRAGMA(clang diagnostic ignored "-Wkeyword-macro")                                        \
@@ -118,19 +118,19 @@
    RK_DO_PRAGMA(clang diagnostic ignored "-Wunknown-attributes")                                   \
    RK_DO_PRAGMA(clang diagnostic ignored "-Wc++17-extensions")
 
-# define RK__SILENCE_WARNINGS_END RK_DO_PRAGMA(clang diagnostic pop)
+# define RKI_SILENCE_WARNINGS_END RK_DO_PRAGMA(clang diagnostic pop)
 
-# define RK__IGNWARN_CLANG_BEG(warn)                                                               \
+# define RKI_IGNWARN_CLANG_BEG(warn)                                                               \
    RK_DO_PRAGMA(clang diagnostic push)                                                             \
    RK_DO_PRAGMA(clang diagnostic ignored warn)
-# define RK__IGNWARN_CLANG_END() RK_DO_PRAGMA(clang diagnostic pop)
-# define RK__IGNWARN_CLANG(warn, ...)                                                              \
-   RK__IGNWARN_CLANG_BEG(warn)                                                                     \
-   (__VA_ARGS__) RK__IGNWARN_CLANG_END()
+# define RKI_IGNWARN_CLANG_END() RK_DO_PRAGMA(clang diagnostic pop)
+# define RKI_IGNWARN_CLANG(warn, ...)                                                              \
+   RKI_IGNWARN_CLANG_BEG(warn)                                                                     \
+   (__VA_ARGS__) RKI_IGNWARN_CLANG_END()
 #else
-# define RK__IGNWARN_CLANG_BEG(warn)
-# define RK__IGNWARN_CLANG_END()
-# define RK__IGNWARN_CLANG(warn, ...) (__VA_ARGS__)
+# define RKI_IGNWARN_CLANG_BEG(warn)
+# define RKI_IGNWARN_CLANG_END()
+# define RKI_IGNWARN_CLANG(warn, ...) (__VA_ARGS__)
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -138,21 +138,21 @@
 /// on every targeted platform) 4116 Warnings about anonymous compound literals (not an issue in C11
 /// mode) 4141 Warnings about inline used twice (due to forceinline macro)
 /// @note excludes clang-cl (defines both __clang__ and _MSC_VER): it already gets
-/// RK__SILENCE_WARNINGS_BEG/END from the __clang__ branch above, and this branch must not redefine
+/// RKI_SILENCE_WARNINGS_BEG/END from the __clang__ branch above, and this branch must not redefine
 /// them with different (MSVC-pragma) bodies.
-# define RK__SILENCE_WARNINGS_BEG                                                                  \
+# define RKI_SILENCE_WARNINGS_BEG                                                                  \
    __pragma(warning(push)) __pragma(warning(disable : 4200 4116 4141))
-# define RK__SILENCE_WARNINGS_END   __pragma(warning(pop))
-# define RK__IGNWARN_MSC_BEG(warn)  __pragma(warning(push)) __pragma(warning(disable : warn))
-# define RK__IGNWARN_MSC_END()      __pragma(warning(pop))
-# define RK__IGNWARN_MSC(warn, ...) RK__IGNWARN_MSC_BEG(warn) __VA_ARGS__ __pragma(warning(pop))
+# define RKI_SILENCE_WARNINGS_END   __pragma(warning(pop))
+# define RKI_IGNWARN_MSC_BEG(warn)  __pragma(warning(push)) __pragma(warning(disable : warn))
+# define RKI_IGNWARN_MSC_END()      __pragma(warning(pop))
+# define RKI_IGNWARN_MSC(warn, ...) RKI_IGNWARN_MSC_BEG(warn) __VA_ARGS__ __pragma(warning(pop))
 #else
-# define RK__IGNWARN_MSC_BEG(warn)
-# define RK__IGNWARN_MSC_END()
-# define RK__IGNWARN_MSC(warn, ...) __VA_ARGS__
-# ifndef RK__SILENCE_WARNINGS_BEG
-#  define RK__SILENCE_WARNINGS_BEG
-#  define RK__SILENCE_WARNINGS_END
+# define RKI_IGNWARN_MSC_BEG(warn)
+# define RKI_IGNWARN_MSC_END()
+# define RKI_IGNWARN_MSC(warn, ...) __VA_ARGS__
+# ifndef RKI_SILENCE_WARNINGS_BEG
+#  define RKI_SILENCE_WARNINGS_BEG
+#  define RKI_SILENCE_WARNINGS_END
 # endif
 #endif
 
@@ -168,53 +168,72 @@
 /////////////////////////////////// Linkage Compatibility //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef __cplusplus
-# define static_fun inline
-# define extern_fun inline
-# if defined(__cpp_inline_variables) && __cpp_inline_variables >= 201606L
-#  define extern_var      inline
-#  define extern_def(...) = __VA_ARGS__
-# else
-#  if !defined(RK_MULTI_TU)
-#   define extern_var      static
-#   define extern_def(...) = __VA_ARGS__
-#  elif defined(RK_IMPL)
-#   define extern_var
-#   define extern_def(...) = __VA_ARGS__
-#  else
-#   define extern_var extern
-#   define extern_def(...)
-#  endif
-# endif
+#if !defined(_WIN32) && defined(RK_MULTI_TU)
+# define RK_HIDDEN __attribute__((visibility("hidden")))
 #else
-# define static_fun /*rk_unused*/ static inline
-# if !defined(RK_MULTI_TU)
-#  define extern_fun      extern inline
-#  define extern_var      static
-#  define extern_def(...) = __VA_ARGS__
-# else
-#  if defined(RK_IMPL)
-#   define extern_var
-#   define extern_def(...) = __VA_ARGS__
-#   ifndef __GNUC_GNU_INLINE__
-#    define extern_fun extern inline
-#   else
-#    define extern_fun inline
-#   endif
-#  else
-#   define extern_var extern
-#   define extern_def(...)
-#   ifndef __GNUC_GNU_INLINE__
-#    define extern_fun inline
-#   else
-#    define extern_fun extern inline
-#   endif
-#  endif
-# endif
+# define RK_HIDDEN
 #endif
 
-#define RK_HEADER_BEGIN RK__SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
-#define RK_HEADER_END   RK_EXTERNC_END RK__SILENCE_WARNINGS_END
+#define static_fun static inline
+#if !defined(RK_MULTI_TU)
+# define extern_fun      static inline
+# define extern_var      static
+# define extern_def(...) = __VA_ARGS__
+# define rklib_fun       extern_fun
+#else
+# ifdef RK_IMPL
+#  ifndef __cplusplus
+#   ifndef __GNUC_GNU_INLINE__
+#    define extern_fun extern inline
+#   else
+#    define extern_fun inline
+#   endif
+#  else
+// C's `extern inline` (or, under the older GNU inline dialect, plain `inline`) guarantees that the
+// RK_IMPL translation unit emits a real, callable definition regardless of whether that TU calls
+// the function itself -- other TUs are relying on this one to provide it. C++ has no inline form
+// with that guarantee: plain `inline` only *permits* emitting a definition, it never requires one,
+// so a function this file happens not to call itself would silently vanish, breaking any other TU
+// that calls it. __attribute__((used)) closes that gap by forcing emission unconditionally, while
+// keeping `inline` itself so the definition stays ODR-mergeable if it ever does end up duplicated
+// across translation units (this project's C++ support is Clang-only, so no non-GNU-attribute
+// fallback is needed here).
+#   if rk_has_gnu_attribute(used)
+#    define extern_fun __attribute__((used)) inline
+#   else
+#    define extern_fun inline
+#   endif
+#  endif
+#  if defined(__cpp_inline_variables) && __cpp_inline_variables >= 201606L
+#   define extern_var      inline
+#   define extern_def(...) = __VA_ARGS__
+#  else
+#   define extern_var
+#   define extern_def(...) = __VA_ARGS__
+#  endif
+# else
+#  ifndef __cplusplus
+#   ifndef __GNUC_GNU_INLINE__
+#    define extern_fun inline
+#   else
+#    define extern_fun extern inline
+#   endif
+#  else
+#   define extern_fun inline
+#  endif
+#  if defined(__cpp_inline_variables) && __cpp_inline_variables >= 201606L
+#   define extern_var      inline
+#   define extern_def(...) = __VA_ARGS__
+#  else
+#   define extern_var extern
+#   define extern_def(...)
+#  endif
+# endif
+# define rklib_fun RK_HIDDEN extern_fun
+#endif
+
+#define RK_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
+#define RK_HEADER_END   RK_EXTERNC_END RKI_SILENCE_WARNINGS_END
 
 RK_HEADER_BEGIN
 
@@ -399,7 +418,7 @@ RK_HEADER_BEGIN
 #  define rk_COUNTOF(...) (sizeof(__VA_ARGS__) / sizeof((__VA_ARGS__)[0]))
 #  define countof(...)    (static_assert_expr(rk_is_array((__VA_ARGS__))) + rk_COUNTOF(__VA_ARGS__))
 # else
-#  define countof(...)    RK__countof(__VA_ARGS__)
+#  define countof(...)    RKI_countof(__VA_ARGS__)
 #  define rk_COUNTOF(...) countof(__VA_ARGS__)
 # endif
 #else
@@ -416,13 +435,13 @@ RK_HEADER_BEGIN
 # elif defined(__GNUC__)
 #  define unreachable() __builtin_unreachable()
 # elif defined(_MSC_VER)
-static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
+rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
 #  if defined(_DEBUG)
   __debugbreak();
 #  endif
   __assume(0);
 }
-#  define unreachable() RK__unreachable_impl()
+#  define unreachable() RKI_unreachable_impl()
 # else
 #  define unreachable() (assert(!"unreachable code reached"), abort())
 # endif
@@ -438,7 +457,7 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 # define rk_null ((void*)0)
 #endif
 /// @brief The maximum fundamental alignment.
-#define align_max     alignof(RK__max_align_type)
+#define align_max     alignof(RKI_max_align_t)
 
 /// @brief Aligns an object to the maximum fundamental alignment.
 #define alignas_max   alignas(align_max)
@@ -450,10 +469,10 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 #define lenof(strlit) (sizeof("" strlit "") - 1)
 
 /// @brief Returns the minimum value of any C integral type.
-#define minof(T)      RK__minof_impl(T)
+#define minof(T)      RKI_MINOF(T)
 
 /// @brief Returns the maximum value of any C integral type.
-#define maxof(T)      RK__maxof_impl(T)
+#define maxof(T)      RKI_MAXOF(T)
 
 /// @brief Like the Kernel's container_of_const macro but portable
 #define containerof(ptr, type, member)                                                             \
@@ -465,7 +484,7 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 /// @brief Overflow-checked `size_t` multiplication; `abort()`s instead of wrapping. Not used by
 /// default — see the `rk_mult` config hook in `rk_config.h` to opt every size/count computation in
 /// the library into this behaviour (`#define rk_mult(x, y) rk_mult_safe(x, y)`).
-static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
+rklib_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
   return rk_likely(x == 0 || y <= SIZE_MAX / x) ? x * y : (abort(), (size_t)0);
 }
 
@@ -509,7 +528,7 @@ static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
 #endif
 
 #ifndef __cplusplus
-# define RK__pun_cast(to_type, expr)                                                               \
+# define RKI_pun_cast(to_type, expr)                                                               \
    rk_static_if(!rk_is_array(expr),                                                                \
                 (union {                                                                           \
                  static_assert(sizeof(typeof(expr)) == sizeof(to_type),                            \
@@ -527,9 +546,9 @@ static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
                                      sizeof(to_type)))
 
 # ifndef _MSC_VER
-#  define pun_cast(to_type, ...) RK__pun_cast(to_type, (__VA_ARGS__))
+#  define pun_cast(to_type, ...) RKI_pun_cast(to_type, (__VA_ARGS__))
 # else
-#  define pun_cast(to_type, expr) RK__IGNWARN_MSC(4116, RK__pun_cast(to_type, expr))
+#  define pun_cast(to_type, expr) RKI_IGNWARN_MSC(4116, RKI_pun_cast(to_type, expr))
 # endif
 
 #elif __cplusplus >= 202002L
@@ -572,35 +591,35 @@ typedef int64_t   s64;
 __extension__ typedef unsigned __int128 u128;
 __extension__ typedef __int128          s128;
 # pragma GCC diagnostic pop
-# define RK__IFHAS_INT128(...) __VA_ARGS__
+# define RKI_IFHAS_INT128(...) __VA_ARGS__
 #else
-# define RK__IFHAS_INT128(...)
+# define RKI_IFHAS_INT128(...)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////   Function Wrappers   //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static_fun rk_const size_t rk_align_up(size_t size, size_t align);
+rklib_fun rk_const size_t      rk_align_up(size_t size, size_t align);
 
-static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align);
+rklib_fun rk_const size_t      rk_align_pad(const void* ptr, size_t align);
 
-static_fun rk_const bool   rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
-                                           const void* end2);
+rklib_fun rk_const bool        rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
+                                               const void* end2);
 
-static_fun rk_const bool   rk_ptr_in_range(const void* ptr, const void* beg, const void* end);
+rklib_fun rk_const bool        rk_ptr_in_range(const void* ptr, const void* beg, const void* end);
 
-static_fun rk_forceinline void* rk_memcpy(void* const restrict dst, const void* const restrict src,
-                                          size_t nbytes) {
+rklib_fun rk_forceinline void* rk_memcpy(void* const restrict dst, const void* const restrict src,
+                                         size_t nbytes) {
   return nbytes ? memcpy(dst, src, nbytes) : dst;
 }
-static_fun rk_forceinline void* rk_memmove(void* dst, const void* src, size_t nbytes) {
+rklib_fun rk_forceinline void* rk_memmove(void* dst, const void* src, size_t nbytes) {
   return nbytes ? memmove(dst, src, nbytes) : dst;
 }
-static_fun rk_forceinline void* rk_memset(void* dst, int value, size_t nbytes) {
+rklib_fun rk_forceinline void* rk_memset(void* dst, int value, size_t nbytes) {
   return nbytes ? memset(dst, value, nbytes) : dst;
 }
-static_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
+rklib_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
   return nbytes ? memcmp(a, b, nbytes) : 0;
 }
 
@@ -623,8 +642,8 @@ static_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, si
 # define rk_assert(...)                                                                            \
    (rk_likely((__VA_ARGS__)) ? (void)0 : RK_assertfail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
 /// print to stderr if RKLIB_DEBUG is defined
-rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, int line,
-                                          const char* func) {
+rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int line,
+                                         const char* func) {
   fprintf(stderr, "Assertion failed: (%s), function %s, file %s, line %d.\n", expr, func, file,
           line);
   abort();
@@ -654,96 +673,97 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 
 /// @brief Returns the absolute value of `x`. For signed integers, the result is undefined/overflow
 /// if `x` is the minimum representable value (e.g. `INT_MIN`), matching typical `abs` semantics.
-#define rk_abs(x)                RK__abs_impl(x)
+#define rk_abs(x)                RKI_ABS(x)
 
 /// @brief Returns the smaller of `x` and `y`.
-#define rk_min(x, y)             RK__twonum_macro(min_, RK_NUM_TYPES, x, y)
+#define rk_min(x, y)             RKI_twonum_macro(min_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_min()` but not type-safe and may double-evaluate args.
 #define rk_MIN(a, b)             ((a) < (b) ? (a) : (b))
 
 /// @brief Returns the larger of `x` and `y`.
-#define rk_max(x, y)             RK__twonum_macro(max_, RK_NUM_TYPES, x, y)
+#define rk_max(x, y)             RKI_twonum_macro(max_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_max()` but not type-safe and may double-evaluate args.
 #define rk_MAX(a, b)             ((a) > (b) ? (a) : (b))
 
 /// @brief Clamps `num` to the inclusive range [`low`, `high`]. Requires `low <= high`.
-#define rk_clamp(num, low, high) RK__threenum_macro(clamp_, RK_NUM_TYPES, num, low, high)
+#define rk_clamp(num, low, high) RKI_threenum_macro(clamp_, RKI_NUM_TYPES, num, low, high)
 /// @brief Like `rk_clamp()` but not type-safe and may double-evaluate args.
 #define rk_CLAMP(num, low, high) ((num) < (low) ? (low) : ((num) > (high) ? (high) : (num)))
 
 /// @brief Saturating addition, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_add(x, y)         RK__twonum_macro(rk_sat_add_, RK_SU_TYPES, x, y)
+#define rk_sat_add(x, y)         RKI_twonum_macro(rk_sat_add_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating subtraction, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_sub(x, y)         RK__twonum_macro(rk_sat_sub_, RK_SU_TYPES, x, y)
+#define rk_sat_sub(x, y)         RKI_twonum_macro(rk_sat_sub_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating multiplication, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_mul(x, y)         RK__twonum_macro(rk_sat_mul_, RK_SU_TYPES, x, y)
+#define rk_sat_mul(x, y)         RKI_twonum_macro(rk_sat_mul_, RKI_SU_TYPES, x, y)
 
 #define rk_SWAP(a, b)                                                                              \
   do {                                                                                             \
     typeof(a)* _a      = &(a);                                                                     \
     typeof(b)* _b      = &(b);                                                                     \
-    typeof(a)  RK__TMP = *_a;                                                                      \
+    typeof(a)  RKI_TMP = *_a;                                                                      \
     *_a                = *_b;                                                                      \
-    *_b                = RK__TMP;                                                                  \
+    *_b                = RKI_TMP;                                                                  \
   } while (0)
 
 /// @}
 
 #if RK_STDBIT_FALLBACK
 # define stdc_leading_zeros(...)                                                                   \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
 # define stdc_leading_ones(...)                                                                    \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_leading_ones_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_ones_))(__VA_ARGS__)
 # define stdc_trailing_zeros(...)                                                                  \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
 # define stdc_trailing_ones(...)                                                                   \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
 # define stdc_count_zeros(...)                                                                     \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_count_zeros_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_zeros_))(__VA_ARGS__)
 # define stdc_count_ones(...)                                                                      \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_count_ones_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_ones_))(__VA_ARGS__)
 # define stdc_first_leading_zero(...)                                                              \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
 # define stdc_first_leading_one(...)                                                               \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
 # define stdc_first_trailing_zero(...)                                                             \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
 # define stdc_first_trailing_one(...)                                                              \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
 # define stdc_bit_floor(...)                                                                       \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_bit_floor_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_floor_))(__VA_ARGS__)
 # define stdc_bit_ceil(...)                                                                        \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
 # define stdc_bit_width(...)                                                                       \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_bit_width_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
 # define stdc_has_single_bit(...)                                                                  \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
 #endif /* RK_STDBIT_FALLBACK */
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__CONC(a, b)         a##b
+#define RKI_CONC(a, b)         a##b
 
 #define rk_EXP(x)              x
-#define rk_CONC(a, b)          RK__CONC(a, b)
+#define rk_CONC(a, b)          RKI_CONC(a, b)
 #define rk_UNIQUE_NAME(prefix) rk_CONC(prefix, __LINE__)
 
-#define RK__ARGCOUNT(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16,    \
+#define RKI_ARGCOUNT(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16,    \
                      _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31,    \
                      _32, N, ...)                                                                  \
   N
 #if __STDC_VERSION__ >= 202000L || (defined(__cplusplus) && __cplusplus >= 202002L)
 # define rk_ARGCOUNT(...)                                                                          \
-   RK__ARGCOUNT(dummy __VA_OPT__(, ) __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21,  \
+   RKI_ARGCOUNT(dummy __VA_OPT__(, ) __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21,  \
                 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #else
 # define rk_ARGCOUNT(...)                                                                          \
-   RK__ARGCOUNT(dummy, ##__VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,  \
+   RKI_ARGCOUNT(dummy, ##__VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,  \
                 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #endif
 
@@ -753,10 +773,10 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 # define RK_ZINIT
 #endif
 
-#define RK__GENCASE(T, N, fun_name) , T : fun_name##N
+#define RKI_GENCASE(T, N, fun_name) , T : fun_name##N
 
-#define RK__contrav(T, x)           _Generic(x, T: x, default: (T){RK_ZINIT})
-#define RK__contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
+#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RK_ZINIT})
+#define RKI_contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
 
 #ifndef __cplusplus
 # define rk_dummyof(v)     ((typeof(v)){RK_ZINIT})
@@ -837,12 +857,12 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 #define rk_overload_(m, ...)  rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 #define rk_overload__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 
-static_fun rk_const bool rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
-                                         const void* end2) {
+rklib_fun rk_const bool rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
+                                        const void* end2) {
   rk_assert(((uptr)beg1 <= (uptr)end1 && (uptr)beg2 <= (uptr)end2) && "Invalid Memory Region");
   return (uptr)beg1 < (uptr)end2 && (uptr)end1 > (uptr)beg2;
 }
-static_fun rk_const bool rk_ptr_in_range(const void* ptr, const void* beg, const void* end) {
+rklib_fun rk_const bool rk_ptr_in_range(const void* ptr, const void* beg, const void* end) {
   rk_assert((uptr)beg <= (uptr)end && "Invalid Memory Region");
   return (uptr)ptr >= (uptr)beg && (uptr)ptr < (uptr)end;
 }
@@ -869,99 +889,99 @@ typedef struct {
   long double ld;
   long long   ll;
   void*       vp;
-} RK__max_align_type;
+} RKI_max_align_t;
 #else
-typedef max_align_t RK__max_align_type;
+typedef max_align_t RKI_max_align_t;
 #endif
 
 /// bug prior to 17.44 that treated char == (un)signed char for _Generic
 #if defined(_MSC_VER) && _MSC_VER < 1944
-# define RK__IFNMSVC_CHARBUG(...)
+# define RKI_IFNMSVC_CHARBUG(...)
 #else
-# define RK__IFNMSVC_CHARBUG(...) __VA_ARGS__
+# define RKI_IFNMSVC_CHARBUG(...) __VA_ARGS__
 #endif
 
-enum {                 // NOLINT
-  RK_numclass_b = 0xF, ///< Boolean types  (0b1111)
-  RK_numclass_o = 0x0, ///< Other types    (0b0000)
-  RK_numclass_u = 0x1, ///< Unsigned types (0b0001)
-  RK_numclass_s = 0x2, ///< Signed types   (0b0010)
-  RK_numclass_f = 0x4, ///< Float types    (0b0100)
-  RK_numclass_c = 0x8, ///< Char type      (0b1000)
+enum {                  // NOLINT
+  RKI_NUMCLASS_b = 0xF, ///< Boolean types  (0b1111)
+  RKI_NUMCLASS_o = 0x0, ///< Other types    (0b0000)
+  RKI_NUMCLASS_u = 0x1, ///< Unsigned types (0b0001)
+  RKI_NUMCLASS_s = 0x2, ///< Signed types   (0b0010)
+  RKI_NUMCLASS_f = 0x4, ///< Float types    (0b0100)
+  RKI_NUMCLASS_c = 0x8, ///< Char type      (0b1000)
 };
 
-#define RK__numclassof_(T, N, class)                                                               \
+#define RKI_numclassof_(T, N, class)                                                               \
 T:                                                                                                 \
   class,
 
 #define RK_numclassof(x)                                                                           \
   _Generic(rk_ensure_type_is_num(typeof(x)),                                                       \
-      RK_F_TYPES(RK__numclassof_, RK_numclass_f) bool: RK_numclass_b,                              \
-      RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: (1 + !(((typeof(x))-1) > 0)))
+      RKI_F_TYPES(RKI_numclassof_, RKI_NUMCLASS_f) bool: RKI_NUMCLASS_b,                           \
+      RKI_IFNMSVC_CHARBUG(char : RKI_NUMCLASS_c, ) default: (1 + !(((typeof(x))-1) > 0)))
 
-#define RK_TOSIGNED(x)                                                                             \
+#define RKI_TOSIGNED(x)                                                                            \
   _Generic((x),                                                                                    \
       unsigned char: (signed char)(x),                                                             \
       unsigned short: (short)(x),                                                                  \
       unsigned: (int)(x),                                                                          \
       unsigned long: (long)(x),                                                                    \
-      unsigned long long: (long long)(x)RK__IFHAS_INT128(, u128 : (s128)(x)))
+      unsigned long long: (long long)(x)RKI_IFHAS_INT128(, u128 : (s128)(x)))
 
-#define RK_U_TYPES(X, ...)                                                                         \
+#define RKI_U_TYPES(X, ...)                                                                        \
   X(unsigned char, uc, ##__VA_ARGS__)                                                              \
   X(unsigned short, us, ##__VA_ARGS__)                                                             \
   X(unsigned, ui, ##__VA_ARGS__)                                                                   \
   X(unsigned long, ul, ##__VA_ARGS__)                                                              \
   X(unsigned long long, ull, ##__VA_ARGS__)                                                        \
-  RK__IFHAS_INT128(X(u128, ullx, ##__VA_ARGS__))
+  RKI_IFHAS_INT128(X(u128, ullx, ##__VA_ARGS__))
 
-#define RK_S_TYPES(X, ...)                                                                         \
+#define RKI_S_TYPES(X, ...)                                                                        \
   X(signed char, sc, ##__VA_ARGS__)                                                                \
   X(short, ss, ##__VA_ARGS__)                                                                      \
   X(int, si, ##__VA_ARGS__)                                                                        \
   X(long, sl, ##__VA_ARGS__)                                                                       \
   X(long long, sll, ##__VA_ARGS__)                                                                 \
-  RK__IFHAS_INT128(X(s128, sllx, ##__VA_ARGS__))
+  RKI_IFHAS_INT128(X(s128, sllx, ##__VA_ARGS__))
 
-#define RK_SU_TYPES(X, ...)                                                                        \
-  RK_U_TYPES(X, ##__VA_ARGS__)                                                                     \
-  RK_S_TYPES(X, ##__VA_ARGS__)
+#define RKI_SU_TYPES(X, ...)                                                                       \
+  RKI_U_TYPES(X, ##__VA_ARGS__)                                                                    \
+  RKI_S_TYPES(X, ##__VA_ARGS__)
 
-#define RK_INTEGRAL_TYPES(X, ...)                                                                  \
-  RK__IFNMSVC_CHARBUG(X(char, c, ##__VA_ARGS__))                                                   \
+#define RKI_INT_TYPES(X, ...)                                                                      \
+  RKI_IFNMSVC_CHARBUG(X(char, c, ##__VA_ARGS__))                                                   \
   X(bool, b, ##__VA_ARGS__)                                                                        \
-  RK_SU_TYPES(X, ##__VA_ARGS__)
+  RKI_SU_TYPES(X, ##__VA_ARGS__)
 
-#define RK_F_TYPES(X, ...)                                                                         \
+#define RKI_F_TYPES(X, ...)                                                                        \
   X(float, f, ##__VA_ARGS__)                                                                       \
   X(double, d, ##__VA_ARGS__)                                                                      \
   X(long double, ld, ##__VA_ARGS__)
 
-#define RK_NUM_TYPES(X, ...)                                                                       \
-  RK_INTEGRAL_TYPES(X, ##__VA_ARGS__)                                                              \
-  RK_F_TYPES(X, ##__VA_ARGS__)
+#define RKI_NUM_TYPES(X, ...)                                                                      \
+  RKI_INT_TYPES(X, ##__VA_ARGS__)                                                                  \
+  RKI_F_TYPES(X, ##__VA_ARGS__)
 
-#define RK__wider_t(x, y)                                                                          \
+#define RKI_wider_t(x, y)                                                                          \
   rk_static_if(rk_ensure_numclass_compatible(x, y) + sizeof(typeof(x)) >= sizeof(typeof(y)),       \
                (typeof(x))0, (typeof(y))0)
 
-#define RK__wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(rk_ensure_numclass_compatible(RK__wider_t(a1, a2), a3)                              \
-                       + sizeof(RK__wider_t(a1, a2))                                               \
+#define RKI_wider_t3(a1, a2, a3)                                                                   \
+  rk_static_if(rk_ensure_numclass_compatible(RKI_wider_t(a1, a2), a3)                              \
+                       + sizeof(RKI_wider_t(a1, a2))                                               \
                    >= sizeof(typeof(a3)),                                                          \
-               RK__wider_t(a1, a2), (typeof(a3))0)
+               RKI_wider_t(a1, a2), (typeof(a3))0)
 
-#define RK__twonum_macro(pref, classes, x, y)                                                      \
-  _Generic(RK__wider_t(x, y) classes(RK__GENCASE, pref))(x, y)
+#define RKI_twonum_macro(pref, classes, x, y)                                                      \
+  _Generic(RKI_wider_t(x, y) classes(RKI_GENCASE, pref))(x, y)
 
-#define RK__threenum_macro(pref, classes, x, y, z)                                                 \
-  _Generic(RK__wider_t3(x, y, z) classes(RK__GENCASE, pref))(x, y, z)
+#define RKI_threenum_macro(pref, classes, x, y, z)                                                 \
+  _Generic(RKI_wider_t3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
 
-RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
+RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   return x < 0 ? -x : x; // UB if v == I128_MIN
 })
 
-#define RK__abs_impl(x)                                                                            \
+#define RKI_ABS(x)                                                                                 \
   _Generic(rk_ensure_type_is_num(typeof(x)),                                                       \
       signed char: (signed char)abs((signed char)(x)),                                             \
       short: (short)abs((short)(x)),                                                               \
@@ -971,69 +991,69 @@ RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
       float: fabsf((float)(x)),                                                                    \
       double: fabs((double)(x)),                                                                   \
       long double: fabsl((long double)(x)),                                                        \
-      RK__IFHAS_INT128(s128 : abs_llx(x), ) default: (x))
+      RKI_IFHAS_INT128(s128 : abs_llx(x), ) default: (x))
 
-#define RK__minof_impl(T)                                                                          \
+#define RKI_MINOF(T)                                                                               \
   ((T) _Generic(rk_ensure_type_is_num(T),                                                          \
        signed char: SCHAR_MIN,                                                                     \
        short: SHRT_MIN,                                                                            \
        int: INT_MIN,                                                                               \
        long: LONG_MIN,                                                                             \
        long long: LLONG_MIN,                                                                       \
-       RK__IFNMSVC_CHARBUG(char : CHAR_MIN, )                                                      \
-           RK__IFHAS_INT128(s128 : -((s128)(((u128) - 1) >> 1)) - 1, ) default: 0))
+       RKI_IFNMSVC_CHARBUG(char : CHAR_MIN, )                                                      \
+           RKI_IFHAS_INT128(s128 : -((s128)(((u128) - 1) >> 1)) - 1, ) default: 0))
 
-#define RK__maxof_impl(T)                                                                          \
+#define RKI_MAXOF(T)                                                                               \
   ((T) _Generic(rk_ensure_type_is_num(T),                                                          \
        signed char: SCHAR_MAX,                                                                     \
        short: SHRT_MAX,                                                                            \
        int: INT_MAX,                                                                               \
        long: LONG_MAX,                                                                             \
        long long: LLONG_MAX,                                                                       \
-       RK__IFNMSVC_CHARBUG(char : CHAR_MAX, )                                                      \
-           RK__IFHAS_INT128(s128 : ((u128)(~(u128)0)) >> 1, ) default: ((T)(~(T)0))))
+       RKI_IFNMSVC_CHARBUG(char : CHAR_MAX, )                                                      \
+           RKI_IFHAS_INT128(s128 : ((u128)(~(u128)0)) >> 1, ) default: ((T)(~(T)0))))
 
-#define RK__CHELPER         static_fun rk_const rk_forceinline
-#define RK__UNSEQUENCED_NOW rk_unsequenced
+#define RKI_CHELPER         rklib_fun rk_const rk_forceinline
+#define RKI_UNSEQUENCED_NOW rk_unsequenced
 #define RK_DEFINE_STUFF(T, N)                                                                      \
-  RK__CHELPER T min_##N(T x, T y) RK__UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
-  RK__CHELPER T max_##N(T x, T y) RK__UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
-  RK__CHELPER T clamp_##N(T arg, T low, T high) RK__UNSEQUENCED_NOW {                              \
+  RKI_CHELPER T min_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
+  RKI_CHELPER T max_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
+  RKI_CHELPER T clamp_##N(T arg, T low, T high) RKI_UNSEQUENCED_NOW {                              \
     return rk_CLAMP(arg, low, high);                                                               \
   }
 
-// RK_INTEGRAL_TYPES
-RK_INTEGRAL_TYPES(RK_DEFINE_STUFF)
-#undef RK__UNSEQUENCED_NOW
-#define RK__UNSEQUENCED_NOW
-#undef RK__CHELPER
-#define RK__CHELPER static_fun rk_forceinline
-RK_F_TYPES(RK_DEFINE_STUFF)
+// RKI_INT_TYPES
+RKI_INT_TYPES(RK_DEFINE_STUFF)
+#undef RKI_UNSEQUENCED_NOW
+#define RKI_UNSEQUENCED_NOW
+#undef RKI_CHELPER
+#define RKI_CHELPER rklib_fun rk_forceinline
+RKI_F_TYPES(RK_DEFINE_STUFF)
 #undef RK_DEFINE_STUFF
-#undef RK__CHELPER
-#define RK__CHELPER static_fun rk_const rk_forceinline
+#undef RKI_CHELPER
+#define RKI_CHELPER rklib_fun rk_const rk_forceinline
 
-#define RK__DEF_SAT_U(T, N)                                                                        \
-  RK__CHELPER T rk_sat_add_##N(T glob_a, T b) rk_unsequenced {                                     \
+#define RKI_DEF_SAT_U(T, N)                                                                        \
+  RKI_CHELPER T rk_sat_add_##N(T glob_a, T b) rk_unsequenced {                                     \
     T sum = (T)(glob_a + b);                                                                       \
     return sum >= glob_a ? sum : (T) - 1;                                                          \
   }                                                                                                \
-  RK__CHELPER T rk_sat_sub_##N(T glob_a, T b) rk_unsequenced {                                     \
+  RKI_CHELPER T rk_sat_sub_##N(T glob_a, T b) rk_unsequenced {                                     \
     return (T)(glob_a < b ? 0 : glob_a - b);                                                       \
   }                                                                                                \
-  RK__CHELPER T rk_sat_mul_##N(T glob_a, T b) rk_unsequenced {                                     \
+  RKI_CHELPER T rk_sat_mul_##N(T glob_a, T b) rk_unsequenced {                                     \
     return (b != 0 && glob_a > (T)(maxof(T) / b)) ? maxof(T) : (T)(glob_a * b);                    \
   }
-RK_U_TYPES(RK__DEF_SAT_U)
-#undef RK__DEF_SAT_U
+RKI_U_TYPES(RKI_DEF_SAT_U)
+#undef RKI_DEF_SAT_U
 
 #if rk_has_builtin(__builtin_add_overflow)
-# define RK__DEF_SA_S_(T)                                                                          \
+# define RKI_DEF_SA_S_(T)                                                                          \
    T s;                                                                                            \
    if (__builtin_add_overflow(glob_a, b, &s)) { return (b < 0) ? minof(T) : maxof(T); }            \
    return s;
 #else
-# define RK__DEF_SA_S_(T)                                                                          \
+# define RKI_DEF_SA_S_(T)                                                                          \
    T min = minof(T), max = maxof(T);                                                               \
    if (b > 0 && glob_a > max - b) { return max; }                                                  \
    if (b < 0 && glob_a < min - b) { return min; }                                                  \
@@ -1041,19 +1061,19 @@ RK_U_TYPES(RK__DEF_SAT_U)
 #endif
 
 #if rk_has_builtin(__builtin_sub_overflow)
-# define RK__DEF_SS_S_(T)                                                                          \
+# define RKI_DEF_SS_S_(T)                                                                          \
    T s;                                                                                            \
    if (__builtin_sub_overflow(glob_a, b, &s)) { return (b < 0) ? maxof(T) : minof(T); }            \
    return s;
 #else
-# define RK__DEF_SS_S_(T)                                                                          \
+# define RKI_DEF_SS_S_(T)                                                                          \
    const T min = minof(T), max = maxof(T);                                                         \
    if (b > 0 && glob_a < min + b) { return min; }                                                  \
    if (b < 0 && glob_a > max + b) { return max; }                                                  \
    return (T)(glob_a - b);
 #endif
 #if rk_has_builtin(__builtin_mul_overflow)
-# define RK__DEF_SM_S_(T)                                                                          \
+# define RKI_DEF_SM_S_(T)                                                                          \
    if (glob_a == 0 || b == 0) return (T)0;                                                         \
    T glob_point;                                                                                   \
    if (__builtin_mul_overflow(glob_a, b, &glob_point)) {                                           \
@@ -1061,7 +1081,7 @@ RK_U_TYPES(RK__DEF_SAT_U)
    }                                                                                               \
    return glob_point;
 #else
-# define RK__DEF_SM_S_(T)                                                                          \
+# define RKI_DEF_SM_S_(T)                                                                          \
    const T min = minof(T), max = maxof(T);                                                         \
    if (glob_a == 0 || b == 0) return (T)0;                                                         \
    if (glob_a == (T) - 1) { return b == min ? max : (T)(-b); }                                     \
@@ -1082,45 +1102,45 @@ RK_U_TYPES(RK__DEF_SAT_U)
    return (T)(glob_a * b);
 #endif
 
-#define RK__DEF_SAT_S(T, N)                                                                        \
-  RK__CHELPER T                                          rk_sat_add_##N(T glob_a, T b)             \
-      rk_unsequenced{RK__DEF_SA_S_(T)} RK__CHELPER T     rk_sat_sub_##N(T glob_a, T b)             \
-          rk_unsequenced{RK__DEF_SS_S_(T)} RK__CHELPER T rk_sat_mul_##N(T glob_a, T b)             \
+#define RKI_DEF_SAT_S(T, N)                                                                        \
+  RKI_CHELPER T                                          rk_sat_add_##N(T glob_a, T b)             \
+      rk_unsequenced{RKI_DEF_SA_S_(T)} RKI_CHELPER T     rk_sat_sub_##N(T glob_a, T b)             \
+          rk_unsequenced{RKI_DEF_SS_S_(T)} RKI_CHELPER T rk_sat_mul_##N(T glob_a, T b)             \
               rk_unsequenced {                                                                     \
-    RK__DEF_SM_S_(T)                                                                               \
+    RKI_DEF_SM_S_(T)                                                                               \
   }
 
-RK_S_TYPES(RK__DEF_SAT_S)
-#undef RK__DEF_SS_S_
-#undef RK__DEF_SA_S_
-#undef RK__DEF_SM_S_
-#undef RK__DEF_SAT_S
+RKI_S_TYPES(RKI_DEF_SAT_S)
+#undef RKI_DEF_SS_S_
+#undef RKI_DEF_SA_S_
+#undef RKI_DEF_SM_S_
+#undef RKI_DEF_SAT_S
 
 #if RK_STDBIT_FALLBACK
 # ifdef __GNUC__
 #  if rk_has_builtin(__builtin_clzg)
-#   define RK__DEF_LZ__(V) __builtin_clzg(V)
+#   define RKI_DEF_LZ__(V) __builtin_clzg(V)
 #  else
-#   define RK__DEF_LZ__(V)                                                                         \
+#   define RKI_DEF_LZ__(V)                                                                         \
      _Generic(V,                                                                                   \
          default: (unsigned)__builtin_clz(V) - (bitsof(unsigned) - bitsof(V)),                     \
          unsigned long: __builtin_clzl(V),                                                         \
-         unsigned long long: __builtin_clzll(V) RK__IFHAS_INT128(                                  \
+         unsigned long long: __builtin_clzll(V) RKI_IFHAS_INT128(                                  \
                   , u128 : (u64)((u128)V >> 64) ? __builtin_clzll((u64)((u128)V >> 64))            \
                                                 : 64 + __builtin_clzll((u64)V)))
 #  endif
-#  define RK__DEF_LZ_(T, V) return V ? (unsigned)RK__DEF_LZ__(V) : bitsof(V);
+#  define RKI_DEF_LZ_(T, V) return V ? (unsigned)RKI_DEF_LZ__(V) : bitsof(V);
 
 # elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
 #  ifdef _M_X64
-#   define RK__DEF_LZ__(V) _BitScanReverse64(&idx, (unsigned long long)V), 63u - (unsigned)idx
+#   define RKI_DEF_LZ__(V) _BitScanReverse64(&idx, (unsigned long long)V), 63u - (unsigned)idx
 #  elif defined(_M_IX86)
-#   define RK__DEF_LZ__(V)                                                                         \
+#   define RKI_DEF_LZ__(V)                                                                         \
      (hi = (unsigned)((unsigned long long)V >> 32))                                                \
          ? (_BitScanReverse(&idx, (unsigned long)hi), 31u - (unsigned)idx)                         \
          : (_BitScanReverse(&idx, (unsigned long)(unsigned)V), 63u - (unsigned)idx)
 #  endif
-#  define RK__DEF_LZ_(T, V)                                                                        \
+#  define RKI_DEF_LZ_(T, V)                                                                        \
     if (!V) return bitsof(V);                                                                      \
     unsigned long idx;                                                                             \
     unsigned      hi;                                                                              \
@@ -1128,9 +1148,9 @@ RK_S_TYPES(RK__DEF_SAT_S)
     return rk_static_if(sizeof(T) <= 4,                                                            \
                         (_BitScanReverse(&idx, (unsigned long)V),                                  \
                          31u - (unsigned)idx - (bitsof(unsigned) - bitsof(T))),                    \
-                        (RK__DEF_LZ__(V)));
+                        (RKI_DEF_LZ__(V)));
 # else
-#  define RK__DEF_LZ_(T, V)                                                                        \
+#  define RKI_DEF_LZ_(T, V)                                                                        \
     if (!V) { return bitsof(T); }                                                                  \
     unsigned count = 0;                                                                            \
     T        mask  = (T)1 << (bitsof(T) - 1);                                                      \
@@ -1139,39 +1159,39 @@ RK_S_TYPES(RK__DEF_SAT_S)
 # endif
 
 # if rk_has_builtin(__builtin_ctzg)
-#  define RK__DEF_TZ_(V) return V ? (unsigned)__builtin_ctzg(V) : bitsof(V);
+#  define RKI_DEF_TZ_(V) return V ? (unsigned)__builtin_ctzg(V) : bitsof(V);
 # elif defined(__GNUC__)
-#  define RK__DEF_TZ_(V)                                                                           \
+#  define RKI_DEF_TZ_(V)                                                                           \
     return V ? (unsigned)_Generic(V,                                                               \
                    default: __builtin_ctz(V),                                                      \
                    unsigned long: __builtin_ctzl(V),                                               \
                    unsigned long long: __builtin_ctzll(V)                                          \
-                       RK__IFHAS_INT128(, u128 : (u64)(V)                                          \
+                       RKI_IFHAS_INT128(, u128 : (u64)(V)                                          \
                                               ? __builtin_ctzll((u64)V)                            \
                                               : 64 + __builtin_ctzll((u64)((u128)V >> 64))))       \
              : bitsof(V);
 
 # elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
 #  ifdef _M_X64
-#   define RK__DEF_TZ__(V) _BitScanForward64(&idx, (unsigned long long)V), (unsigned)idx
+#   define RKI_DEF_TZ__(V) _BitScanForward64(&idx, (unsigned long long)V), (unsigned)idx
 
 #  elif defined(_M_IX86)
-#   define RK__DEF_TZ__(V)                                                                         \
+#   define RKI_DEF_TZ__(V)                                                                         \
      (lo = (unsigned)(V))                                                                          \
          ? (_BitScanForward(&idx, (unsigned long)lo), (unsigned)idx)                               \
          : (_BitScanForward(&idx, (unsigned long)(unsigned)((unsigned long long)V >> 32)),         \
             32u + (unsigned)idx)
 #  endif
-#  define RK__DEF_TZ_(V)                                                                           \
+#  define RKI_DEF_TZ_(V)                                                                           \
     if (!V) { return bitsof(V); }                                                                  \
     unsigned long idx;                                                                             \
     unsigned      lo;                                                                              \
     (void)lo;                                                                                      \
     return rk_static_if(sizeof(V) <= 4,                                                            \
                         (_BitScanForward(&idx, (unsigned long)(unsigned)V), (unsigned)idx),        \
-                        (RK__DEF_TZ__(V)));
+                        (RKI_DEF_TZ__(V)));
 # else
-#  define RK__DEF_TZ_(V)                                                                           \
+#  define RKI_DEF_TZ_(V)                                                                           \
     if (!V) { return bitsof(V); }                                                                  \
     unsigned count = 0;                                                                            \
     while (!(V & 1)) { ++count, V >>= 1; }                                                         \
@@ -1179,74 +1199,72 @@ RK_S_TYPES(RK__DEF_SAT_S)
 # endif
 
 # if rk_has_builtin(__builtin_popcountg)
-#  define RK__DEF_CO_(V) return (unsigned)__builtin_popcountg(V);
+#  define RKI_DEF_CO_(V) return (unsigned)__builtin_popcountg(V);
 # elif defined(__GNUC__)
-#  define RK__DEF_CO_(V)                                                                           \
+#  define RKI_DEF_CO_(V)                                                                           \
     return (unsigned)_Generic(V,                                                                   \
         default: __builtin_popcount(V),                                                            \
         unsigned long: __builtin_popcountl(V),                                                     \
         unsigned long long: __builtin_popcountll(V)                                                \
-            RK__IFHAS_INT128(, u128 : __builtin_popcountll((u64)V)                                 \
+            RKI_IFHAS_INT128(, u128 : __builtin_popcountll((u64)V)                                 \
                                    + __builtin_popcountll((u64)((u128)V >> 64))));
 # else
-#  define RK__DEF_CO_(V)                                                                           \
+#  define RKI_DEF_CO_(V)                                                                           \
     unsigned count = 0;                                                                            \
     while (V) { count++, V &= (V - 1); }                                                           \
     return count;
 # endif
 
-# define RK__DEF_STDCBIT_FUNS(T, N)                                                                 \
-   static_fun rk_const unsigned stdc_leading_zeros_##N(T value) rk_unsequenced{RK__DEF_LZ_(         \
-       T, value)} static_fun rk_const unsigned stdc_trailing_zeros_##N(T value) rk_unsequenced{     \
-       RK__DEF_TZ_(value)} static_fun rk_const unsigned                stdc_count_ones_##N(T value) \
-       rk_unsequenced{RK__DEF_CO_(value)} static_fun rk_const unsigned stdc_count_zeros_##N(        \
-           T value) rk_unsequenced {                                                                \
-     return bitsof(T) - stdc_count_ones_##N(value);                                                 \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_trailing_one_##N(T value) rk_unsequenced {               \
-     return value ? stdc_trailing_zeros_##N(value) + 1u : 0u;                                       \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_leading_ones_##N(T value) rk_unsequenced {                     \
-     return stdc_leading_zeros_##N((T)~value);                                                      \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_trailing_ones_##N(T value) rk_unsequenced {                    \
-     return stdc_trailing_zeros_##N((T)~value);                                                     \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_leading_zero_##N(T value) rk_unsequenced {               \
-     return value == (T) ~(T)0u ? 0u : stdc_leading_zeros_##N((T)~value) + 1u;                      \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_leading_one_##N(T value) rk_unsequenced {                \
-     return value ? stdc_leading_zeros_##N(value) + 1u : 0u;                                        \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_trailing_zero_##N(T value) rk_unsequenced {              \
-     return value == (T) ~(T)0u ? 0u : stdc_trailing_zeros_##N((T)~value) + 1u;                     \
-   }                                                                                                \
-   static_fun rk_const bool stdc_has_single_bit_##N(T value) rk_unsequenced {                       \
-     return stdc_count_ones_##N(value) == 1u;                                                       \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_bit_width_##N(T value) rk_unsequenced {                        \
-     return bitsof(T) - stdc_leading_zeros_##N(value);                                              \
-   }                                                                                                \
-   static_fun rk_const T stdc_bit_floor_##N(T value) rk_unsequenced {                               \
-     return (T)(value ? ((T)1u << (stdc_bit_width_##N(value) - 1u)) : (T)0u);                       \
-   }                                                                                                \
-   static_fun rk_const T stdc_bit_ceil_##N(T value) rk_unsequenced {                                \
-     if (!value) { return (T)1u; }                                                                  \
-     size_t shift = bitsof(T) - stdc_leading_zeros_##N((T)(value - 1u));                            \
-     return shift < bitsof(T) ? (T)((T)1u << shift) : (T)0u;                                        \
+# define RKI_DEF_STDCBIT_FUNS(T, N)                                                                \
+   rklib_fun rk_const unsigned stdc_leading_zeros_##N(T value) rk_unsequenced{                     \
+       RKI_DEF_LZ_(T, value)} rklib_fun rk_const unsigned stdc_trailing_zeros_##N(T value)         \
+       rk_unsequenced{RKI_DEF_TZ_(value)} rklib_fun rk_const unsigned stdc_count_ones_##N(T value) \
+           rk_unsequenced{RKI_DEF_CO_(value)} rklib_fun rk_const unsigned stdc_count_zeros_##N(    \
+               T value) rk_unsequenced {                                                           \
+     return bitsof(T) - stdc_count_ones_##N(value);                                                \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_trailing_one_##N(T value) rk_unsequenced {               \
+     return value ? stdc_trailing_zeros_##N(value) + 1u : 0u;                                      \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_leading_ones_##N(T value) rk_unsequenced {                     \
+     return stdc_leading_zeros_##N((T)~value);                                                     \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_trailing_ones_##N(T value) rk_unsequenced {                    \
+     return stdc_trailing_zeros_##N((T)~value);                                                    \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_leading_zero_##N(T value) rk_unsequenced {               \
+     return value == (T) ~(T)0u ? 0u : stdc_leading_zeros_##N((T)~value) + 1u;                     \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_leading_one_##N(T value) rk_unsequenced {                \
+     return value ? stdc_leading_zeros_##N(value) + 1u : 0u;                                       \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_trailing_zero_##N(T value) rk_unsequenced {              \
+     return value == (T) ~(T)0u ? 0u : stdc_trailing_zeros_##N((T)~value) + 1u;                    \
+   }                                                                                               \
+   rklib_fun rk_const bool stdc_has_single_bit_##N(T value) rk_unsequenced {                       \
+     return stdc_count_ones_##N(value) == 1u;                                                      \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_bit_width_##N(T value) rk_unsequenced {                        \
+     return bitsof(T) - stdc_leading_zeros_##N(value);                                             \
+   }                                                                                               \
+   rklib_fun rk_const T stdc_bit_floor_##N(T value) rk_unsequenced {                               \
+     return (T)(value ? ((T)1u << (stdc_bit_width_##N(value) - 1u)) : (T)0u);                      \
+   }                                                                                               \
+   rklib_fun rk_const T stdc_bit_ceil_##N(T value) rk_unsequenced {                                \
+     if (!value) { return (T)1u; }                                                                 \
+     size_t shift = bitsof(T) - stdc_leading_zeros_##N((T)(value - 1u));                           \
+     return shift < bitsof(T) ? (T)((T)1u << shift) : (T)0u;                                       \
    }
 
-RK_U_TYPES(RK__DEF_STDCBIT_FUNS)
-# undef RK__DEF_LZ_
-# undef RK__DEF_LZ__
-# undef RK__DEF_TZ_
-# undef RK__DEF_TZ__
-# undef RK__DEF_CO_
-# undef RK__DEF_STDCBIT_FUNS
+RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
+# undef RKI_DEF_LZ_
+# undef RKI_DEF_LZ__
+# undef RKI_DEF_TZ_
+# undef RKI_DEF_TZ__
+# undef RKI_DEF_CO_
+# undef RKI_DEF_STDCBIT_FUNS
 
 #endif /* RK_STDBIT_FALLBACK */
-
-/// @endcond
 
 #define rk_assert_ptr_nonnull(ptr) rk_assert(((ptr) != rk_null) && #ptr " must not be rk_null.")
 
@@ -1256,7 +1274,7 @@ RK_U_TYPES(RK__DEF_STDCBIT_FUNS)
 #define rk_assert_valid_align(T, align)                                                            \
   rk_assert(alignof(T) <= (align) && #align " must be >= alignof(" #T ").")
 
-static_fun rk_const size_t rk_align_up(size_t size, size_t align) {
+rklib_fun rk_const size_t rk_align_up(size_t size, size_t align) {
   rk_assert_align_pow2(align);
 #if rk_has_builtin(__builtin_align_up)
   return __builtin_align_up(size, align);
@@ -1267,7 +1285,7 @@ static_fun rk_const size_t rk_align_up(size_t size, size_t align) {
 #endif
 }
 
-static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
+rklib_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   rk_assert_align_pow2(align);
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
@@ -1276,12 +1294,15 @@ RK_HEADER_END
 
 #ifdef __cplusplus
 template <class T, size_t N>
-constexpr inline size_t RK__countof(T (&)[N]) noexcept {
+constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
   return N;
 }
 #endif
-/// @}
 
+/// @endcond
+#pragma endregion implementation
+
+/// @}
 #endif // RK_DEFS_H
 
 // MIT License

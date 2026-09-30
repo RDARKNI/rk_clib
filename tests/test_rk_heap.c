@@ -6,7 +6,7 @@
 #include "../include/rklib.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 extern_fun int heap_int_cmp(int a, int b) { return (a > b) - (a < b); }
 
@@ -367,6 +367,6 @@ triax_test(heap, large_worst_case_order) {
   heap_release(&h);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

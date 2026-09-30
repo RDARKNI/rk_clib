@@ -20,7 +20,7 @@
 #define RK_ARENA_H
 #include "rk_alloc.h"
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wreturn-type-c-linkage")
+RKI_IGNWARN_CLANG_BEG("-Wreturn-type-c-linkage")
 
 /// @brief Linear / stack allocator for fast, temporary memory management.
 /// @details The Arena allocator manages a region of memory where allocations increment a pointer,
@@ -36,7 +36,7 @@ typedef struct Arena {
 /// @param arr The byte array to serve as the arena's backing memory
 /// @param len The length of `arr`, in bytes
 /// @return New Arena using the array as backing storage
-static_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
+rklib_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
   return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
 }
 
@@ -47,54 +47,54 @@ static_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
 /// @return New Arena with the array as backing storage
 /// @warning Do not use with compound literals; use `arena_init()` instead.
 #define arena_init_static(array_non_compound_literal)                                              \
-  RK__arena_init_static(array_non_compound_literal)
+  RKI_ARENA_INIT_STATIC(array_non_compound_literal)
 
 /// @brief Resets the arena, marking all of its allocations as free.
 /// @return `self`, for chaining
-static_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
+rklib_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
 /// @brief Returns the number of bytes an Arena can allocate in total, or 0 if `self` was never
 /// initialized.
-static_fun rk_pure size_t arena_cap(const Arena* self) {
+rklib_fun rk_pure size_t arena_cap(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->end - self->beg) : 0;
 }
 
 /// @brief Returns the number of bytes an Arena has allocated, or 0 if `self` was never initialized.
-static_fun rk_pure size_t arena_used(const Arena* self) {
+rklib_fun rk_pure size_t arena_used(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
 /// @brief Returns the number of bytes an Arena can still allocate before running out of space, or 0
 /// if `self` was never initialized.
-static_fun rk_pure size_t arena_remaining(const Arena* self) {
+rklib_fun rk_pure size_t arena_remaining(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
 /// @brief Returns whether the arena has no allocations. Returns `true` if `self` was never
 /// initialized.
-static_fun rk_pure bool arena_is_empty(const Arena* self) {
+rklib_fun rk_pure bool arena_is_empty(const Arena* self) {
   return rk_likely(self->beg) ? self->cur == self->beg : true;
 }
 
-typedef struct ArenaMark     ArenaMark;
+typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
 
 /// @brief Returns the current position of the arena as an opaque marker. Pass to `arena_rewind_to`
 /// to restore the arena to this state.
 /// @return Pointer to the current position in the arena
-static_fun rk_pure ArenaMark arena_mark(const Arena* self);
+rklib_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
 
 /// @brief Rewinds the arena's current pointer to `mark`, marking memory starting from `mark` as
 /// free.
 /// @return `self`, for chaining
 /// @attention Behavior is undefined if `mark` was not allocated by the arena.
-static_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
+rklib_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
 
 /// @brief Returns whether `ptr` is the most recently made allocation of the given `size`, i.e.
 /// whether it ends exactly at the arena's current position.
 /// @param ptr The allocation to check. Must be an allocation made by the arena.
 /// @param size Size of the allocation in bytes
 /// @return `true` if `ptr` is the top allocation, `false` otherwise
-static_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
+rklib_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
   return (const unsigned char*)ptr + size == self->cur;
 }
 
@@ -105,12 +105,12 @@ static_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* p
 /// @param align  Desired alignment; must be a power of two
 /// @param self   Pointer to the arena to allocate from
 /// @return Pointer to the allocated memory
-static_fun void* arena_allocate(size_t nbytes, size_t align, Arena* self);
+rklib_fun void* arena_allocate(size_t nbytes, size_t align, Arena* self);
 
 /// @brief `void* arena_try_allocate(size_t nbytes, size_t align, Arena* self)`
 /// - like `arena_allocate()` but returns NULL if the arena does not have enough space instead of
 ///   invoking the failure handler.
-static_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
+rklib_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
 
 /// @brief `void* arena_resize_top(size_t old_size, size_t new_size, Arena* self)` - Resizes the
 /// most recent allocation in the arena by moving the cursor. Aborts on failure via `RK_ARENA_FAIL`.
@@ -119,12 +119,12 @@ static_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
 /// @param new_size Desired size of the allocation in bytes
 /// @param self     Pointer to the arena owning the allocation
 /// @return `ptr` on success
-static_fun void* arena_resize_top(size_t old_size, size_t new_size, Arena* self);
+rklib_fun void* arena_resize_top(size_t old_size, size_t new_size, Arena* self);
 
 /// @brief `void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self)` - Like
 /// `arena_resize_top()` but returns NULL if the arena does not have enough space instead of
 /// invoking the failure handler.
-static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self);
+rklib_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self);
 
 /// @brief `T* arena_new(T, size_t count, Arena* arena)` - Creates a new allocation in the arena for
 /// a given type and count.
@@ -132,7 +132,7 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @param  count Number of elements of type T to allocate
 /// @param  arena Pointer to the arena to allocate from
 /// @return T* Pointer to the allocated memory
-#define arena_new(T, count, arena)                RK__arena_NEW(T, count, arena)
+#define arena_new(T, count, arena)                RKI_ARENA_NEW(T, count, arena)
 
 /// @brief `T* arena_try_new(T, size_t count, Arena* arena)` - Like `arena_new()`, but returns
 /// `NULL` if the arena does not have enough space instead of invoking the failure handler.
@@ -146,7 +146,7 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @param arena  Pointer to the arena to allocate from
 /// @return Pointer to the allocated memory.
 /// @note Alignment must be a power of two.
-#define arena_new_aligned(T, count, align, arena) RK__arena_ALIGNED_NEW(T, count, align, arena)
+#define arena_new_aligned(T, count, align, arena) RKI_ARENA_ALIGNED_NEW(T, count, align, arena)
 
 /// @brief `T* arena_try_new_aligned(T, size_t count, size_t align, Arena* arena)` like
 /// `arena_new_aligned()`, but returns `NULL` if the arena does not have enough space instead of
@@ -163,22 +163,22 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @param arena     Arena owning the allocation
 /// @return `ptr` on success, cast to the same pointer type
 #define arena_extend(ptr, old_count, new_count, arena)                                             \
-  ((typeof(ptr))RK__arena_extend(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
+  ((typeof(ptr))rki_arena_extend(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
                                  arena))
 
 /// @brief `T* arena_try_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Like
 /// `arena_extend()` but returns `NULL` if the arena does not have enough space instead of invoking
 /// the failure handler.
 #define arena_try_extend(ptr, old_count, new_count, arena)                                         \
-  ((typeof(ptr))RK__arena_try_extend(ptr, sizeof_n(*(ptr), old_count),                             \
+  ((typeof(ptr))rki_arena_try_extend(ptr, sizeof_n(*(ptr), old_count),                             \
                                      sizeof_n(*(ptr), new_count), arena))
 
-static_fun alloc_allocation_f   RK__arena_allocate;
-static_fun alloc_reallocation_f RK__arena_reallocate;
-static_fun alloc_deallocation_f RK__arena_deallocate;
-static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena_allocate,
-                                                          .realloc_f = RK__arena_reallocate,
-                                                          .dealloc_f = RK__arena_deallocate};
+rklib_fun alloc_allocation_f   rki_arena_allocate;
+rklib_fun alloc_reallocation_f rki_arena_reallocate;
+rklib_fun alloc_deallocation_f rki_arena_deallocate;
+static const AllocatorVTable   arena_allocator_vtable = {.alloc_f   = rki_arena_allocate,
+                                                         .realloc_f = rki_arena_reallocate,
+                                                         .dealloc_f = rki_arena_deallocate};
 
 /// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
 /// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
@@ -229,28 +229,21 @@ static_fun rk_const Allocator arena_to_alloc(Arena* arena) {
 /// ```
 #define arr_allocator_create(name, size) arr_allocator(size) name = arr_allocator_init(&name)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
-
-static_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
-
-#define rk_assert_ptr_in_arena(arena, ptr)                                                         \
-  rk_assert(rk_ptr_in_range(ptr, (arena)->beg, (arena)->cur)                                       \
-            && "Pointer was not allocated by this Arena")
-
-static_fun Arena* arena_rewind_to(Arena* self, ArenaMark mark) {
+rklib_fun Arena* arena_rewind_to(Arena* self, ArenaMark mark) {
   if (mark.pos == self->cur) { return self; }
-  rk_assert_ptr_in_arena(self, mark.pos);
+  rk_assert(rk_ptr_in_range(mark.pos, self->beg, self->cur) && "Pointer is outside this Arena");
   self->cur = mark.pos;
   return self;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size_t align,
-                                                             Arena* self) {
+rklib_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size_t align,
+                                                            Arena* self) {
   if rk_unlikely (!self->cur) { return rk_null; }
   size_t pad = rk_align_pad(self->cur, align), avail = arena_remaining(self);
   if (avail < pad || avail - pad < nbytes) { return rk_null; }
@@ -259,78 +252,78 @@ static_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size
   return ptr;
 }
 
-static_fun rk_alloc_size(2) void* arena_try_resize_top(size_t old_size, size_t new_size,
-                                                       Arena* self) {
+rklib_fun rk_alloc_size(2) void* arena_try_resize_top(size_t old_size, size_t new_size,
+                                                      Arena* self) {
   if (arena_remaining(self) + old_size < new_size) { return rk_null; }
   unsigned char* ptr = self->cur - old_size;
   self->cur          = ptr + new_size;
   return ptr;
 }
 
-static_fun rk_alloc_size(2) void* arena_resize_top(size_t old_size, size_t new_size, Arena* self) {
+rklib_fun rk_alloc_size(2) void* arena_resize_top(size_t old_size, size_t new_size, Arena* self) {
   void* res = arena_try_resize_top(old_size, new_size, self);
   RK_ARENA_FAIL(res, self, (self->cur - old_size), align_max, new_size);
   return res;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* RK__arena_allocate(size_t nbytes, size_t align,
-                                                             void* ctx) {
+rklib_fun rk_alloc_alignsize(2, 1) void* rki_arena_allocate(size_t nbytes, size_t align,
+                                                            void* ctx) {
   void* ptr = arena_try_allocate(nbytes, align, (Arena*)ctx);
   RK_ARENA_FAIL(ptr, (Arena*)ctx, rk_null, align, nbytes);
   return ptr;
 }
 
-static_fun void RK__arena_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
-                                     void* ctx) {
+rklib_fun void rki_arena_deallocate(void* ptr, size_t old_size, size_t align rk_unused, void* ctx) {
   if (arena_is_top_allocation((Arena*)ctx, ptr, old_size)) {
     (void)arena_try_resize_top(old_size, 0, (Arena*)ctx);
   }
 }
 
-static_fun rk_alloc_alignsize(4, 3) void* RK__arena_reallocate(void* ptr, size_t old_size,
-                                                               size_t new_size, size_t align,
-                                                               void* ctx) {
+rklib_fun rk_alloc_alignsize(4, 3) void* rki_arena_reallocate(void* ptr, size_t old_size,
+                                                              size_t new_size, size_t align,
+                                                              void* ctx) {
   rk_assert_align_pow2(align);
   Arena* self = (Arena*)ctx;
-  if (!old_size) { return RK__arena_allocate(new_size, align, self); }
+  if (!old_size) { return rki_arena_allocate(new_size, align, self); }
   if ((arena_is_top_allocation(self, ptr, old_size)
        && arena_try_resize_top(old_size, new_size, self))
       || new_size <= old_size) { // non-top shrinks are no-ops
     return ptr;
   }
-  void* res = RK__arena_allocate(new_size, align, ctx);
+  void* res = rki_arena_allocate(new_size, align, ctx);
   rk_memcpy(res, ptr, rk_min(old_size, new_size));
   return res;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* arena_allocate(size_t nbytes, size_t align, Arena* self) {
-  return RK__arena_allocate(nbytes, align, self);
+rklib_fun rk_alloc_alignsize(2, 1) void* arena_allocate(size_t nbytes, size_t align, Arena* self) {
+  return rki_arena_allocate(nbytes, align, self);
 }
-static_fun rk_alloc_size(3) void* RK__arena_try_extend(void* ptr, size_t old_size, size_t new_size,
-                                                       Arena* self) {
+rklib_fun rk_alloc_size(3) void* rki_arena_try_extend(void* ptr, size_t old_size, size_t new_size,
+                                                      Arena* self) {
   rk_assert(arena_is_top_allocation(self, ptr, old_size)
             && "Can only resize the top allocation of the arena");
   return arena_try_resize_top(old_size, new_size, self);
 }
 
-static_fun rk_alloc_size(3) void* RK__arena_extend(void* ptr, size_t old_size, size_t new_size,
-                                                   Arena* self) {
-  void* r = RK__arena_try_extend(ptr, old_size, new_size, self);
+rklib_fun rk_alloc_size(3) void* rki_arena_extend(void* ptr, size_t old_size, size_t new_size,
+                                                  Arena* self) {
+  void* r = rki_arena_try_extend(ptr, old_size, new_size, self);
   RK_ARENA_FAIL(r, self, (self->cur - old_size), align_max, new_size);
   return r;
 }
 
-#define RK__arena_init_static(arr)                                                                 \
+#define RKI_ARENA_INIT_STATIC(arr)                                                                 \
   {.beg = (arr) + rk_ensure_valid_storage_type(arr), .cur = (arr), .end = (arr) + sizeof(arr)}
 
-#define RK__arena_ALIGNED_NEW(T, count, align, arena)                                              \
+#define RKI_ARENA_ALIGNED_NEW(T, count, align, arena)                                              \
   ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
                 arena_allocate(sizeof_n(T, count), align, arena)))
-#define RK__arena_NEW(T, count, arena)                                                             \
+#define RKI_ARENA_NEW(T, count, arena)                                                             \
   ((typeof(T)*)(alloc_log_new, arena_allocate(sizeof_n(T, count), alignof(T), arena)))
+RKI_IGNWARN_CLANG_END()
 
 /// @endcond
-RK__IGNWARN_CLANG_END()
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_ARENA_H

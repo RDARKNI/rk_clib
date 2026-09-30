@@ -252,9 +252,9 @@ if(BUILD_TESTING)
     # only wired in here when the C++ compiler actually is Clang.
     if(CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang)$")
         # tests/cli.cpp does not aggregate the C test suite (tests/conf.hpp's
-        # equivalent #include block is commented out) — it carries its own,
-        # separate set of triax_test registrations exercising the C++-specific
-        # formatting path.
+        # equivalent #include block is commented out) and currently carries no
+        # triax_test registrations of its own; it exists to confirm the
+        # headers compile clean as C++ under Clang.
         add_executable(rk_clib-selftest-cpp tests/cli.cpp)
         target_link_libraries(
             rk_clib-selftest-cpp
@@ -273,5 +273,71 @@ if(BUILD_TESTING)
             "Skipping rk_clib-selftest-cpp: rk_clib's C++ support requires "
             "Clang (CMAKE_CXX_COMPILER_ID is '${CMAKE_CXX_COMPILER_ID}')"
         )
+    endif()
+
+    # RK_MULTI_TU linkage tests. Every other rk_clib-selftest-* executable above builds every
+    # test_rk_*.c file into a single translation unit (see the comment on rk_clib-selftest-c's own
+    # add_executable call) and never defines RK_MULTI_TU at all, so none of them ever exercise the
+    # extern_fun/extern_var/RK_IMPL machinery that makes it possible to spread rk_clib usage across
+    # more than one .c/.cpp file. These targets are the only place that machinery is actually
+    # compiled and linked, in every C/C++ combination the library claims to support: which one of
+    # the two non-main TUs defines RK_IMPL, C's two historically-different inline dialects (C99's
+    # "extern inline" vs. the older GNU89 dialect, selected here via -fgnu89-inline), and mixing a
+    # C-compiled TU with a C++-compiled one in both directions.
+    #
+    # Each scenario compiles tests/multi_tu/mtu_impl.{c,cpp} (defines RK_IMPL; provides the real
+    # definitions), tests/multi_tu/mtu_use.{c,cpp} (does not; calls back into them, proving the
+    # linker actually resolved the calls rather than each TU silently getting its own private
+    # copy), and tests/multi_tu/mtu_main.{c,cpp} (wires the two together and checks the result).
+    add_executable(
+        rk_clib-mtu-c-c99
+        tests/multi_tu/mtu_impl.c
+        tests/multi_tu/mtu_use.c
+        tests/multi_tu/mtu_main.c
+    )
+    target_link_libraries(rk_clib-mtu-c-c99 PRIVATE rk_clib::rk_clib)
+    add_test(NAME rk_clib-mtu-c-c99 COMMAND rk_clib-mtu-c-c99)
+
+    if(CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+        add_executable(
+            rk_clib-mtu-c-gnu89
+            tests/multi_tu/mtu_impl.c
+            tests/multi_tu/mtu_use.c
+            tests/multi_tu/mtu_main.c
+        )
+        target_link_libraries(rk_clib-mtu-c-gnu89 PRIVATE rk_clib::rk_clib)
+        target_compile_options(rk_clib-mtu-c-gnu89 PRIVATE -fgnu89-inline)
+        add_test(NAME rk_clib-mtu-c-gnu89 COMMAND rk_clib-mtu-c-gnu89)
+    endif()
+
+    # The three C++-involving scenarios share rk_clib-selftest-cpp's own Clang-only restriction:
+    # _Generic in C++ mode is a Clang extension that GCC and MSVC reject outright.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang)$")
+        add_executable(
+            rk_clib-mtu-cpp
+            tests/multi_tu/mtu_impl.cpp
+            tests/multi_tu/mtu_use.cpp
+            tests/multi_tu/mtu_main.cpp
+        )
+        target_link_libraries(rk_clib-mtu-cpp PRIVATE rk_clib::rk_clib)
+        add_test(NAME rk_clib-mtu-cpp COMMAND rk_clib-mtu-cpp)
+
+        add_executable(
+            rk_clib-mtu-c-impl-cpp-use
+            tests/multi_tu/mtu_impl.c
+            tests/multi_tu/mtu_use.cpp
+            tests/multi_tu/mtu_main.cpp
+        )
+        target_link_libraries(rk_clib-mtu-c-impl-cpp-use PRIVATE rk_clib::rk_clib)
+        add_test(NAME rk_clib-mtu-c-impl-cpp-use COMMAND rk_clib-mtu-c-impl-cpp-use)
+
+        add_executable(
+            rk_clib-mtu-cpp-impl-c-use
+            tests/multi_tu/mtu_impl.cpp
+            tests/multi_tu/mtu_use.c
+            tests/multi_tu/mtu_main.c
+        )
+        target_link_libraries(rk_clib-mtu-cpp-impl-c-use PRIVATE rk_clib::rk_clib)
+        add_test(NAME rk_clib-mtu-cpp-impl-c-use COMMAND rk_clib-mtu-cpp-impl-c-use)
     endif()
 endif()

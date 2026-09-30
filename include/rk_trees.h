@@ -65,14 +65,14 @@
 #include "rk_alloc.h"
 RK_HEADER_BEGIN
 
-/// @brief Type-erased node header shared by every tree type's concrete node (`RK__BstNode`,
-/// `RK__AvlNode`, `RK__RbtNode` all start with the same `l`/`r` layout). This is the type a caller
+/// @brief Type-erased node header shared by every tree type's concrete node (`RKI_BstNode`,
+/// `RKI_AvlNode`, `RKI_RbtNode` all start with the same `l`/`r` layout). This is the type a caller
 /// declares a traversal stack buffer as, e.g. `tree_node* stack[64];` for `bst_foreach()`.
 /// @note Deliberately just the two pointers, with no `alignas_max`-forced over-alignment: the
 /// shared primitives below only ever touch `l`/`r` through this type (entry data is reached via an
-/// explicit byte offset into the real, per-(K,V) node -- see `RK__tree_min_off`/`RK__tree_max_off`
+/// explicit byte offset into the real, per-(K,V) node -- see `rki_tree_min_off`/`rki_tree_max_off`
 /// -- never via a member of `tree_node` itself). A concrete node's actual allocation is only ever
-/// guaranteed to meet *its own* alignment (e.g. `alignof(RK__AvlNode(K, V))`, which can be less
+/// guaranteed to meet *its own* alignment (e.g. `alignof(RKI_AvlNode(K, V))`, which can be less
 /// than `align_max`), so giving `tree_node` a stricter alignment than plain pointers would make
 /// every `(tree_node*)` cast of such a node technically misaligned.
 typedef struct tree_node { struct tree_node *l, *r; } tree_node;
@@ -97,7 +97,7 @@ typedef struct tree_iter {
 /// `Bst`/`Avl`/`Rbt` (also reachable as `bst_release`/`avl_release`/`rbt_release`) since it only
 /// ever needs to walk `l`/`r` and deallocate -- no rebalancing-specific logic applies here.
 #define tree_release(self)                                                                         \
-  RK__tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
+  rki_tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
 
 /// @brief `size_t tree_count(self)` - Returns the number of key-value pairs stored. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
@@ -108,7 +108,7 @@ typedef struct tree_iter {
 /// @brief `Allocator tree_allocator(self)` - Returns the Allocator the tree was constructed with,
 /// or `alloc_ctx` if the tree was never initialized or custom allocators are disabled. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_allocator`/`avl_allocator`/`rbt_allocator`).
-#define tree_allocator(self) RK__allocatorof(self)
+#define tree_allocator(self) RKI_allocatorof(self)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
 #define tree_is_empty(self)  (tree_count(self) == 0)
@@ -118,12 +118,12 @@ typedef struct tree_iter {
 /// real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
 /// `Avl`/`Rbt` nodes carry extra bookkeeping (height/color) that `Bst` nodes don't.
 #define tree_min(self)                                                                             \
-  ((typeof((self)->root->entry)*)RK__tree_min_off((self)->_tree.root,                              \
+  ((typeof((self)->root->entry)*)rki_tree_min_off((self)->_tree.root,                              \
                                                   offsetof(typeof(*(self)->root), entry)))
 
 /// @brief Like `tree_min()`, but for the largest key.
 #define tree_max(self)                                                                             \
-  ((typeof((self)->root->entry)*)RK__tree_max_off((self)->_tree.root,                              \
+  ((typeof((self)->root->entry)*)rki_tree_max_off((self)->_tree.root,                              \
                                                   offsetof(typeof(*(self)->root), entry)))
 
 //////////////////////////////////// Bst: unbalanced BST //////////////////////////////////////////
@@ -150,7 +150,7 @@ typedef struct tree_iter {
 /// int int_cmp(int a, int b) { return a - b; }
 /// BST_DEFINE(int, cstr, int_cmp);
 /// ```
-#define BST_DEFINE(K, V, CMP_FUN)       RK__BST_DEFINE(K, V, CMP_FUN)
+#define BST_DEFINE(K, V, CMP_FUN)       RKI_BST_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific BST struct name.
 #define Bst(K, V)                       Bst_##K##_##V
@@ -163,7 +163,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Bst(K, V)`
-#define bst_init(K, V, ...)             rk_overload(RK__bst_init, K, V, ##__VA_ARGS__)
+#define bst_init(K, V, ...)             rk_overload(RKI_BST_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void bst_release(K, V, Bst(K, V)* self)` - Frees all nodes in the BST and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -191,22 +191,22 @@ typedef struct tree_iter {
 /// @brief `V* bst_get(K, V, Bst(K, V)* self, K key)` - Looks up a key and returns a pointer to its
 /// associated value, or `NULL` if not found.
 /// @return Pointer to the value, or `NULL` if the key is absent
-#define bst_get(K, V, self, key)        RK__BST_PUB(K, V, get)(self, key)
+#define bst_get(K, V, self, key)        RKI_BST_PUB(K, V, get)(self, key)
 
 /// @brief `bool bst_contains(K, V, Bst(K, V)* self, K key)` - Returns `true` iff the BST contains
 /// an entry with the given key.
-#define bst_contains(K, V, self, key)   RK__BST_PUB(K, V, contains)(self, key)
+#define bst_contains(K, V, self, key)   RKI_BST_PUB(K, V, contains)(self, key)
 
 /// @brief `bool bst_set(K, V, Bst(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair. If `key` is already present, its value is overwritten. If not, a new node is allocated and
 /// inserted.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define bst_set(K, V, self, key, value) RK__BST_PUB(K, V, set)(self, key, value)
+#define bst_set(K, V, self, key, value) RKI_BST_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* bst_add(K, V, Bst(K, V)* self, K key, V value)` - Inserts a key-value pair only if
 /// `key` is not already present. Existing values are not overwritten.
 /// @return Pointer to the added object, if added, or `NULL`, if not
-#define bst_add(K, V, self, key, value) RK__BST_PUB(K, V, add)(self, key, value)
+#define bst_add(K, V, self, key, value) RKI_BST_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* bst_get_or_add(K, V, Bst(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
@@ -216,18 +216,18 @@ typedef struct tree_iter {
 /// inserted and `false` if the key already existed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define bst_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool bst_extract(K, V, Bst(K, V)* self, K key, V* out)` - Removes the entry
 /// with `key` from the BST and writes its value to `out`.
 /// @param out Non-null pointer; where the removed value is written, if found
 /// @return `true` if the key was found and removed, `false` otherwise
-#define bst_extract(K, V, self, key, out) RK__BST_PUB(K, V, extract)(self, key, out)
+#define bst_extract(K, V, self, key, out) RKI_BST_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool bst_remove(K, V, Bst(K, V)* self, K key)` - Removes the entry with `key` from the
 /// BST, discarding its value.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define bst_remove(K, V, self, key)       RK__BST_PUB(K, V, remove)(self, key)
+#define bst_remove(K, V, self, key)       RKI_BST_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the BST in ascending key order.
 ///
@@ -263,7 +263,7 @@ typedef struct tree_iter {
 /// @param V       Value type (same constraint as `K`)
 /// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
 /// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-#define AVL_DEFINE(K, V, CMP_FUN)       RK__AVL_DEFINE(K, V, CMP_FUN)
+#define AVL_DEFINE(K, V, CMP_FUN)       RKI_AVL_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Avl struct name.
 #define Avl(K, V)                       Avl_##K##_##V
@@ -276,7 +276,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Avl(K, V)`
-#define avl_init(K, V, ...)             rk_overload(RK__avl_init, K, V, ##__VA_ARGS__)
+#define avl_init(K, V, ...)             rk_overload(RKI_AVL_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void avl_release(K, V, Avl(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -302,7 +302,7 @@ typedef struct tree_iter {
 #define avl_max(self)                   tree_max(self)
 
 /// @brief `V* avl_get(K, V, Avl(K, V)* self, K key)` - See `bst_get()`.
-#define avl_get(K, V, self, key)        RK__AVL_PUB(K, V, get)(self, key)
+#define avl_get(K, V, self, key)        RKI_AVL_PUB(K, V, get)(self, key)
 
 /// @brief `bool avl_contains(K, V, Avl(K, V)* self, K key)` - See `bst_contains()`.
 #define avl_contains(K, V, self, key)   (!!avl_get(K, V, self, key))
@@ -310,28 +310,28 @@ typedef struct tree_iter {
 /// @brief `bool avl_set(K, V, Avl(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define avl_set(K, V, self, key, value) RK__AVL_PUB(K, V, set)(self, key, value)
+#define avl_set(K, V, self, key, value) RKI_AVL_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* avl_add(K, V, Avl(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
 /// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
-#define avl_add(K, V, self, key, value) RK__AVL_PUB(K, V, add)(self, key, value)
+#define avl_add(K, V, self, key, value) RKI_AVL_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* avl_get_or_add(K, V, Avl(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define avl_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__AVL_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_AVL_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool avl_extract(K, V, Avl(K, V)* self, K key, V* out)` - See `bst_extract()`;
 /// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define avl_extract(K, V, self, key, out) RK__AVL_PUB(K, V, extract)(self, key, out)
+#define avl_extract(K, V, self, key, out) RKI_AVL_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool avl_remove(K, V, Avl(K, V)* self, K key)` - See `bst_remove()`; rebalances as
 /// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define avl_remove(K, V, self, key)       RK__AVL_PUB(K, V, remove)(self, key)
+#define avl_remove(K, V, self, key)       RKI_AVL_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Avl tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
@@ -346,7 +346,7 @@ typedef struct tree_iter {
 /// @param V       Value type (same constraint as `K`)
 /// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
 /// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-#define RBT_DEFINE(K, V, CMP_FUN)       RK__RBT_DEFINE(K, V, CMP_FUN)
+#define RBT_DEFINE(K, V, CMP_FUN)       RKI_RBT_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Rbt struct name.
 #define Rbt(K, V)                       Rbt_##K##_##V
@@ -355,7 +355,7 @@ typedef struct tree_iter {
 
 /// @brief `Rbt(K, V) rbt_init(K, V, Allocator alloc = alloc_ctx)` - Initialises and returns an
 /// empty Rbt tree.
-#define rbt_init(K, V, ...)             rk_overload(RK__rbt_init, K, V, ##__VA_ARGS__)
+#define rbt_init(K, V, ...)             rk_overload(RKI_RBT_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void rbt_release(K, V, Rbt(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -381,7 +381,7 @@ typedef struct tree_iter {
 #define rbt_max(self)                   tree_max(self)
 
 /// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
-#define rbt_get(K, V, self, key)        RK__RBT_PUB(K, V, get)(self, key)
+#define rbt_get(K, V, self, key)        RKI_RBT_PUB(K, V, get)(self, key)
 
 /// @brief `bool rbt_contains(K, V, Rbt(K, V)* self, K key)` - See `bst_contains()`.
 #define rbt_contains(K, V, self, key)   (!!rbt_get(K, V, self, key))
@@ -389,51 +389,51 @@ typedef struct tree_iter {
 /// @brief `bool rbt_set(K, V, Rbt(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define rbt_set(K, V, self, key, value) RK__RBT_PUB(K, V, set)(self, key, value)
+#define rbt_set(K, V, self, key, value) RKI_RBT_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* rbt_add(K, V, Rbt(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
 /// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
-#define rbt_add(K, V, self, key, value) RK__RBT_PUB(K, V, add)(self, key, value)
+#define rbt_add(K, V, self, key, value) RKI_RBT_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* rbt_get_or_add(K, V, Rbt(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define rbt_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__RBT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_RBT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool rbt_extract(K, V, Rbt(K, V)* self, K key, V* out)` - See `bst_extract()`;
 /// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_extract(K, V, self, key, out) RK__RBT_PUB(K, V, extract)(self, key, out)
+#define rbt_extract(K, V, self, key, out) RKI_RBT_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool rbt_remove(K, V, Rbt(K, V)* self, K key)` - See `bst_remove()`; rebalances as
 /// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_remove(K, V, self, key)       RK__RBT_PUB(K, V, remove)(self, key)
+#define rbt_remove(K, V, self, key)       RKI_RBT_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Rbt tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
 #define rbt_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-////////////////////////////// Shared node/iterator primitives (`tree_*`)
-///////////////////////////////
+////////////////////////////// Shared node/iterator primitives (`tree_*`) //////////////////////////
 
-/// @brief Type-erased view of any of this file's concrete node types (`RK__BstNode`,
-/// `RK__AvlNode`, `RK__RbtNode`), used by the shared release/iteration primitives below, which only
+/// @brief Type-erased view of any of this file's concrete node types (`RKI_BstNode`,
+/// `RKI_AvlNode`, `RKI_RbtNode`), used by the shared release/iteration primitives below, which only
 /// ever need to walk `l`/`r` -- never touch `data`/`entry` directly (that's only ever done after
 /// re-casting to the real, per-(K,V) node type, since the entry's offset differs by node type: it
 /// sits right after `l`/`r` for `Bst`, but after an extra height/color bookkeeping field for
 /// `Avl`/`Rbt`). Where the entry itself must be reached generically (`_min`/`_max`), the real
-/// offset is passed explicitly rather than assumed -- see `RK__tree_min_off`/`RK__tree_max_off`.
-static_fun void RK__tree_release_nodes(size_t nodesize, size_t nodealign,
-                                       tree_node* restrict node RK_IFALLOC(, Allocator alloc)) {
+/// offset is passed explicitly rather than assumed -- see `rki_tree_min_off`/`rki_tree_max_off`.
+rklib_fun void rki_tree_release_nodes(size_t nodesize, size_t nodealign,
+                                      tree_node* restrict node RK_IFALLOC(, Allocator alloc)) {
   while (node) {
     if (node->l) {
       tree_node* left = node->l;
@@ -448,8 +448,8 @@ static_fun void RK__tree_release_nodes(size_t nodesize, size_t nodealign,
   }
 }
 
-static_fun void RK__tree_release(size_t nodesize, size_t nodealign, tree_data* self) {
-  RK__tree_release_nodes(nodesize, nodealign, self->root RK_IFALLOC(, self->alloc));
+rklib_fun void rki_tree_release(size_t nodesize, size_t nodealign, tree_data* self) {
+  rki_tree_release_nodes(nodesize, nodealign, self->root RK_IFALLOC(, self->alloc));
   self->root = rk_null, self->count = 0;
 }
 
@@ -457,28 +457,26 @@ static_fun void RK__tree_release(size_t nodesize, size_t nodealign, tree_data* s
 /// node. Passing the real offset (rather than assuming entry data sits right after `l`/`r`, as a
 /// bare `tree_node*` would) is what makes this safe to reuse for node types that carry extra
 /// bookkeeping (e.g. an AVL height or a red-black color bit) between the pointers and the entry.
-static_fun rk_pure void* RK__tree_min_off(tree_node* node, size_t entry_off) {
+rklib_fun rk_pure void* rki_tree_min_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->l) { node = node->l; }
   return (char*)node + entry_off;
 }
 
-/// @brief Like `RK__tree_min_off()`, but for the rightmost (maximum) node.
-static_fun rk_pure void* RK__tree_max_off(tree_node* node, size_t entry_off) {
+/// @brief Like `rki_tree_min_off()`, but for the rightmost (maximum) node.
+rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
 }
 
-static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out) {
+rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) {
   while (it->curr) {
     rk_assert(it->top < it->cap && "Tree iterator stack overflow");
     it->stack[it->top++] = it->curr;
     it->curr             = it->curr->l;
   }
-
   if (!it->top) { return false; }
-
   tree_node* node = it->stack[--it->top];
   *node_out       = node;
   it->curr        = node->r;
@@ -489,44 +487,43 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 /// normally used directly -- prefer the tree-specific macro, which documents its own parameters;
 /// the shape is identical across all three.
 #define tree_foreach(self, stack_buf, stack_cap, entry_)                                           \
-  for (typeof(*(self))*const RK__rs = (self), *RK__once = RK__rs; RK__once;)                       \
-    for (tree_node * RK__node; RK__once; RK__once = 0)                                             \
-      for (tree_iter RK__it = {.stack = (stack_buf),                                               \
-                               .curr  = (tree_node*)RK__rs->root,                                  \
+  for (typeof(*(self))*const RKI_rs = (self), *RKI_once = RKI_rs; RKI_once;)                       \
+    for (tree_node * RKI_node; RKI_once; RKI_once = 0)                                             \
+      for (tree_iter RKI_it = {.stack = (stack_buf),                                               \
+                               .curr  = (tree_node*)RKI_rs->root,                                  \
                                .cap   = (stack_cap),                                               \
                                .top   = 0};                                                        \
-           RK__tree_iter_next(&RK__it, &RK__node);)                                                \
-        for (typeof(RK__rs->root->entry)*const entry_ = &((typeof(RK__rs->root))RK__node)->entry,  \
-                                               *RK__once1 = entry_;                                \
-             RK__once1; RK__once1                         = 0)
+           rki_tree_iter_next(&RKI_it, &RKI_node);)                                                \
+        for (typeof(RKI_rs->root->entry)*const entry_ = &((typeof(RKI_rs->root))RKI_node)->entry,  \
+                                               *RKI_once1 = entry_;                                \
+             RKI_once1; RKI_once1                         = 0)
 
-//////////////////////////////////////////// Bst internals
-//////////////////////////////////////////////
+//////////////////////////////////////////// Bst internals /////////////////////////////////////////
 
-#define RK__BstEntryPriv(K, V)      RK__bst_entry_##K##_##V
+#define RKI_BstEntryPriv(K, V)      RKI_bst_entry_##K##_##V
 
-#define RK__bst_init(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
-#define RK__bst_init3(K, V, _Alloc) rk_disable_if(RK__bst_init(K, V, _Alloc))
-#define RK__bst_init2(K, V)         RK__bst_init(K, V, alloc_ctx)
+#define RKI_BST_INIT(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
+#define RKI_BST_INIT3(K, V, _Alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, _Alloc))
+#define RKI_BST_INIT2(K, V)         RKI_BST_INIT(K, V, alloc_ctx)
 
-#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
-#define RK__BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
-#define RK__BST_PRI(K, V, FNAME)    RK__bst_##K##_##V##_##FNAME
+#define RKI_BstNode(K, V)           RKI_bst_node_##K##_##V
+#define RKI_BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
+#define RKI_BST_PRI(K, V, FNAME)    rki_bst_##K##_##V##_##FNAME
 
-#define RK__BST_DEFINE(K, V, CMP_FUN)                                                              \
+#define RKI_BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct BstEntry(K, V) {                                                                  \
     K const key;                                                                                   \
     V       val;                                                                                   \
   } BstEntry(K, V);                                                                                \
-  typedef struct RK__BstEntryPriv(K, V) {                                                          \
+  typedef struct RKI_BstEntryPriv(K, V) {                                                          \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__BstEntryPriv(K, V);                                                                        \
-  struct RK__BstNode(K, V) {                                                                       \
-    struct RK__BstNode(K, V) * l, *r;                                                              \
+  } RKI_BstEntryPriv(K, V);                                                                        \
+  struct RKI_BstNode(K, V) {                                                                       \
+    struct RKI_BstNode(K, V) * l, *r;                                                              \
     union {                                                                                        \
-      RK__BstEntryPriv(K, V) entry_mod;                                                            \
+      RKI_BstEntryPriv(K, V) entry_mod;                                                            \
       BstEntry(K, V) entry;                                                                        \
     };                                                                                             \
   };                                                                                               \
@@ -536,25 +533,25 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         size_t count;                                                                              \
-        struct RK__BstNode(K, V) * root;                                                           \
+        struct RKI_BstNode(K, V) * root;                                                           \
       };                                                                                           \
     };                                                                                             \
   } Bst(K, V);                                                                                     \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); bst_count()/bst_is_empty()/bst_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
-  static_fun rk_pure size_t RK__BST_PUB(K, V, count)(const Bst(K, V) * self) {                     \
+  rklib_fun rk_pure size_t RKI_BST_PUB(K, V, count)(const Bst(K, V) * self) {                      \
     return tree_count(self);                                                                       \
   }                                                                                                \
-  static_fun rk_pure bool RK__BST_PUB(K, V, is_empty)(const Bst(K, V) * self) {                    \
+  rklib_fun rk_pure bool RKI_BST_PUB(K, V, is_empty)(const Bst(K, V) * self) {                     \
     return tree_is_empty(self);                                                                    \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__BST_PUB(K, V, allocator)(const Bst(K, V) * self) {              \
+  rklib_fun rk_pure Allocator RKI_BST_PUB(K, V, allocator)(const Bst(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  static_fun rk_pure struct RK__BstNode(K, V)                                                      \
-      * *RK__BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
+  rklib_fun rk_pure struct RKI_BstNode(K, V)                                                       \
+      * *RKI_BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
     node_t** curr = &self->root;                                                                   \
     for (; *curr;) {                                                                               \
       int cmp_res = CMP_FUN(key, (*curr)->entry.key);                                              \
@@ -563,23 +560,23 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return curr;                                                                                   \
   }                                                                                                \
-  static_fun rk_pure V* RK__BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                          \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** node = RK__BST_PRI(K, V, search_ptr)(self, key);                                      \
+  rklib_fun rk_pure V* RKI_BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                           \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** node = RKI_BST_PRI(K, V, search_ptr)(self, key);                                      \
     return *node ? &((*node)->entry.val) : rk_null;                                                \
   }                                                                                                \
-  static_fun rk_pure bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                   \
-    return !!(*RK__BST_PRI(K, V, search_ptr)(self, key));                                          \
+  rklib_fun rk_pure bool RKI_BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                    \
+    return !!(*RKI_BST_PRI(K, V, search_ptr)(self, key));                                          \
   }                                                                                                \
-  static_fun V* RK__BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,      \
-                                           V val) {                                                \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
+  rklib_fun V* RKI_BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,       \
+                                          V val) {                                                 \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
       if (always_insert) { (*lnk)->entry.val = val; }                                              \
       return rk_null;                                                                              \
     }                                                                                              \
-    rk_set_alloc_fallback(self->alloc);                                                            \
+    RKI_set_alloc_fallback(self->alloc);                                                           \
     node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
     n->r = n->l  = rk_null;                                                                        \
     n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
@@ -587,21 +584,21 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     ++self->count;                                                                                 \
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                         \
-    return !!RK__BST_PRI(K, V, set_add)(true, self, key, val);                                     \
+  rklib_fun bool RKI_BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                          \
+    return !!RKI_BST_PRI(K, V, set_add)(true, self, key, val);                                     \
   }                                                                                                \
-  static_fun V* RK__BST_PUB(K, V, add)(Bst(K, V) * self, K key, V val) {                           \
-    return RK__BST_PRI(K, V, set_add)(false, self, key, val);                                      \
+  rklib_fun V* RKI_BST_PUB(K, V, add)(Bst(K, V) * self, K key, V val) {                            \
+    return RKI_BST_PRI(K, V, set_add)(false, self, key, val);                                      \
   }                                                                                                \
-  static_fun V* RK__BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                      \
-                                              bool* restrict inserted_out) {                       \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
+  rklib_fun V* RKI_BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                       \
+                                             bool* restrict inserted_out) {                        \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
       if (inserted_out) { *inserted_out = false; }                                                 \
       return &((*lnk)->entry_mod.val);                                                             \
     }                                                                                              \
-    rk_set_alloc_fallback(self->alloc);                                                            \
+    RKI_set_alloc_fallback(self->alloc);                                                           \
     node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
     n->r = n->l  = rk_null;                                                                        \
     n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
@@ -610,10 +607,10 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     if (inserted_out) { *inserted_out = true; }                                                    \
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {               \
+  rklib_fun bool RKI_BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {                \
     rk_assert_ptr_nonnull(val_out);                                                                \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (!*lnk) { return false; }                                                                   \
     --self->count;                                                                                 \
     node_t* curr = *lnk;                                                                           \
@@ -631,106 +628,106 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     alloc_delete(curr, 1 RK_IFALLOC(, self->alloc));                                               \
     return true;                                                                                   \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, remove)(Bst(K, V) * self, K key) {                             \
+  rklib_fun bool RKI_BST_PUB(K, V, remove)(Bst(K, V) * self, K key) {                              \
     V _;                                                                                           \
-    return RK__BST_PUB(K, V, extract)(self, key, &_);                                              \
+    return RKI_BST_PUB(K, V, extract)(self, key, &_);                                              \
   }                                                                                                \
   RK_EXTERNC_END
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RK__avl_init(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__avl_init3(K, V, A)   rk_disable_if(RK__avl_init(K, V, A))
-#define RK__avl_init2(K, V)      RK__avl_init(K, V, alloc_ctx)
+#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_AVL_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_AVL_INIT(K, V, A))
+#define RKI_AVL_INIT2(K, V)      RKI_AVL_INIT(K, V, alloc_ctx)
 
-#define RK__AvlNode(K, V)        RK__avl_node_##K##_##V
-#define RK__AVL_PUB(K, V, FNAME) avl_##K##_##V##_##FNAME
-#define RK__AVL_PRI(K, V, FNAME) RK__avl_##K##_##V##_##FNAME
+#define RKI_AvlNode(K, V)        RKI_avl_node_##K##_##V
+#define RKI_AVL_PUB(K, V, FNAME) avl_##K##_##V##_##FNAME
+#define RKI_AVL_PRI(K, V, FNAME) rki_avl_##K##_##V##_##FNAME
 
-#define RK__AVL_DEFINE(K, V, CMP_FUN)                                                              \
+#define RKI_AVL_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct AvlEntry(K, V) {                                                                  \
     K const key;                                                                                   \
     V       val;                                                                                   \
   } AvlEntry(K, V);                                                                                \
-  typedef struct RK__AVL_PRI(K, V, entry) {                                                        \
+  typedef struct RKI_AVL_PRI(K, V, entry) {                                                        \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__AVL_PRI(K, V, entry);                                                                      \
-  typedef struct RK__AvlNode(K, V) {                                                               \
-    struct RK__AvlNode(K, V) * l, *r;                                                              \
+  } RKI_AVL_PRI(K, V, entry);                                                                      \
+  typedef struct RKI_AvlNode(K, V) {                                                               \
+    struct RKI_AvlNode(K, V) * l, *r;                                                              \
     int height;                                                                                    \
     union {                                                                                        \
-      RK__AVL_PRI(K, V, entry) entry_mod;                                                          \
+      RKI_AVL_PRI(K, V, entry) entry_mod;                                                          \
       AvlEntry(K, V) entry;                                                                        \
     };                                                                                             \
-  } RK__AvlNode(K, V);                                                                             \
+  } RKI_AvlNode(K, V);                                                                             \
   typedef struct Avl(K, V) {                                                                       \
     union {                                                                                        \
       tree_data _tree;                                                                             \
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         size_t count;                                                                              \
-        RK__AvlNode(K, V) * root;                                                                  \
+        RKI_AvlNode(K, V) * root;                                                                  \
       };                                                                                           \
     };                                                                                             \
   } Avl(K, V);                                                                                     \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); avl_count()/avl_is_empty()/avl_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
-  static_fun rk_pure size_t RK__AVL_PUB(K, V, count)(const Avl(K, V) * self) {                     \
+  rklib_fun rk_pure size_t RKI_AVL_PUB(K, V, count)(const Avl(K, V) * self) {                      \
     return tree_count(self);                                                                       \
   }                                                                                                \
-  static_fun rk_pure bool RK__AVL_PUB(K, V, is_empty)(const Avl(K, V) * self) {                    \
+  rklib_fun rk_pure bool RKI_AVL_PUB(K, V, is_empty)(const Avl(K, V) * self) {                     \
     return tree_is_empty(self);                                                                    \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__AVL_PUB(K, V, allocator)(const Avl(K, V) * self) {              \
+  rklib_fun rk_pure Allocator RKI_AVL_PUB(K, V, allocator)(const Avl(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  static_fun rk_pure int RK__AVL_PRI(K, V, h)(RK__AvlNode(K, V) * n) { return n ? n->height : 0; } \
-  static_fun void        RK__AVL_PRI(K, V, fixh)(RK__AvlNode(K, V) * n) {                          \
-    int a = RK__AVL_PRI(K, V, h)(n->l), b = RK__AVL_PRI(K, V, h)(n->r);                            \
+  rklib_fun rk_pure int RKI_AVL_PRI(K, V, h)(RKI_AvlNode(K, V) * n) { return n ? n->height : 0; }  \
+  rklib_fun void        RKI_AVL_PRI(K, V, fixh)(RKI_AvlNode(K, V) * n) {                           \
+    int a = RKI_AVL_PRI(K, V, h)(n->l), b = RKI_AVL_PRI(K, V, h)(n->r);                            \
     n->height = 1 + (a > b ? a : b);                                                               \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V) * RK__AVL_PRI(K, V, rotl)(RK__AvlNode(K, V) * x) {                  \
-    RK__AvlNode(K, V)* y = x->r;                                                                   \
+  rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotl)(RKI_AvlNode(K, V) * x) {                   \
+    RKI_AvlNode(K, V)* y = x->r;                                                                   \
     x->r                 = y->l;                                                                   \
     y->l                 = x;                                                                      \
-    RK__AVL_PRI(K, V, fixh)(x);                                                                    \
-    RK__AVL_PRI(K, V, fixh)(y);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
     return y;                                                                                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V) * RK__AVL_PRI(K, V, rotr)(RK__AvlNode(K, V) * y) {                  \
-    RK__AvlNode(K, V)* x = y->l;                                                                   \
+  rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotr)(RKI_AvlNode(K, V) * y) {                   \
+    RKI_AvlNode(K, V)* x = y->l;                                                                   \
     y->l                 = x->r;                                                                   \
     x->r                 = y;                                                                      \
-    RK__AVL_PRI(K, V, fixh)(y);                                                                    \
-    RK__AVL_PRI(K, V, fixh)(x);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V) * RK__AVL_PRI(K, V, balance)(RK__AvlNode(K, V) * n) {               \
-    RK__AVL_PRI(K, V, fixh)(n);                                                                    \
-    int bf = RK__AVL_PRI(K, V, h)(n->l) - RK__AVL_PRI(K, V, h)(n->r);                              \
+  rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, balance)(RKI_AvlNode(K, V) * n) {                \
+    RKI_AVL_PRI(K, V, fixh)(n);                                                                    \
+    int bf = RKI_AVL_PRI(K, V, h)(n->l) - RKI_AVL_PRI(K, V, h)(n->r);                              \
     if (bf > 1) {                                                                                  \
-      if (RK__AVL_PRI(K, V, h)(n->l->l) < RK__AVL_PRI(K, V, h)(n->l->r)) {                         \
-        n->l = RK__AVL_PRI(K, V, rotl)(n->l);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(n->l->l) < RKI_AVL_PRI(K, V, h)(n->l->r)) {                         \
+        n->l = RKI_AVL_PRI(K, V, rotl)(n->l);                                                      \
       }                                                                                            \
-      return RK__AVL_PRI(K, V, rotr)(n);                                                           \
+      return RKI_AVL_PRI(K, V, rotr)(n);                                                           \
     }                                                                                              \
     if (bf < -1) {                                                                                 \
-      if (RK__AVL_PRI(K, V, h)(n->r->r) < RK__AVL_PRI(K, V, h)(n->r->l)) {                         \
-        n->r = RK__AVL_PRI(K, V, rotr)(n->r);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(n->r->r) < RKI_AVL_PRI(K, V, h)(n->r->l)) {                         \
+        n->r = RKI_AVL_PRI(K, V, rotr)(n->r);                                                      \
       }                                                                                            \
-      return RK__AVL_PRI(K, V, rotl)(n);                                                           \
+      return RKI_AVL_PRI(K, V, rotl)(n);                                                           \
     }                                                                                              \
     return n;                                                                                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V)                                                                     \
-      * RK__AVL_PRI(K, V, put)(Avl(K, V) * self, RK__AvlNode(K, V) * n, K key, V val,              \
+  rklib_fun RKI_AvlNode(K, V)                                                                      \
+      * RKI_AVL_PRI(K, V, put)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V val,              \
                                bool overwrite, V** out, bool* added) {                             \
     if (!n) {                                                                                      \
-      rk_set_alloc_fallback(self->alloc);                                                          \
-      n    = alloc_new(RK__AvlNode(K, V), 1 RK_IFALLOC(, self->alloc));                            \
+      RKI_set_alloc_fallback(self->alloc);                                                         \
+      n    = alloc_new(RKI_AvlNode(K, V), 1 RK_IFALLOC(, self->alloc));                            \
       n->l = n->r  = rk_null;                                                                      \
       n->height    = 1;                                                                            \
       n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                               \
@@ -745,14 +742,14 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       return n;                                                                                    \
     }                                                                                              \
     if (c < 0) {                                                                                   \
-      n->l = RK__AVL_PRI(K, V, put)(self, n->l, key, val, overwrite, out, added);                  \
+      n->l = RKI_AVL_PRI(K, V, put)(self, n->l, key, val, overwrite, out, added);                  \
     } else {                                                                                       \
-      n->r = RK__AVL_PRI(K, V, put)(self, n->r, key, val, overwrite, out, added);                  \
+      n->r = RKI_AVL_PRI(K, V, put)(self, n->r, key, val, overwrite, out, added);                  \
     }                                                                                              \
-    return RK__AVL_PRI(K, V, balance)(n);                                                          \
+    return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
-  static_fun rk_pure V* RK__AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                          \
-    RK__AvlNode(K, V)* n = self->root;                                                             \
+  rklib_fun rk_pure V* RKI_AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                           \
+    RKI_AvlNode(K, V)* n = self->root;                                                             \
     while (n) {                                                                                    \
       int c = CMP_FUN(key, n->entry.key);                                                          \
       if (!c) { return &n->entry_mod.val; }                                                        \
@@ -760,185 +757,185 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
-  static_fun V* RK__AVL_PRI(K, V, setadd)(Avl(K, V) * self, K key, V val, bool overwrite,          \
-                                          bool* added) {                                           \
+  rklib_fun V* RKI_AVL_PRI(K, V, setadd)(Avl(K, V) * self, K key, V val, bool overwrite,           \
+                                         bool* added) {                                            \
     V* out     = rk_null;                                                                          \
     *added     = false;                                                                            \
-    self->root = RK__AVL_PRI(K, V, put)(self, self->root, key, val, overwrite, &out, added);       \
+    self->root = RKI_AVL_PRI(K, V, put)(self, self->root, key, val, overwrite, &out, added);       \
     if (*added) { ++self->count; }                                                                 \
     return out;                                                                                    \
   }                                                                                                \
-  static_fun bool RK__AVL_PUB(K, V, set)(Avl(K, V) * self, K key, V val) {                         \
+  rklib_fun bool RKI_AVL_PUB(K, V, set)(Avl(K, V) * self, K key, V val) {                          \
     bool added;                                                                                    \
-    (void)RK__AVL_PRI(K, V, setadd)(self, key, val, true, &added);                                 \
+    (void)RKI_AVL_PRI(K, V, setadd)(self, key, val, true, &added);                                 \
     return added;                                                                                  \
   }                                                                                                \
-  static_fun V* RK__AVL_PUB(K, V, add)(Avl(K, V) * self, K key, V val) {                           \
+  rklib_fun V* RKI_AVL_PUB(K, V, add)(Avl(K, V) * self, K key, V val) {                            \
     bool added;                                                                                    \
-    V*   p = RK__AVL_PRI(K, V, setadd)(self, key, val, false, &added);                             \
+    V*   p = RKI_AVL_PRI(K, V, setadd)(self, key, val, false, &added);                             \
     return added ? p : rk_null;                                                                    \
   }                                                                                                \
-  static_fun V* RK__AVL_PUB(K, V, get_or_add)(Avl(K, V) * self, K key, V val,                      \
-                                              bool* restrict inserted_out) {                       \
+  rklib_fun V* RKI_AVL_PUB(K, V, get_or_add)(Avl(K, V) * self, K key, V val,                       \
+                                             bool* restrict inserted_out) {                        \
     bool ignored;                                                                                  \
-    return RK__AVL_PRI(K, V, setadd)(self, key, val, false,                                        \
+    return RKI_AVL_PRI(K, V, setadd)(self, key, val, false,                                        \
                                      inserted_out ? inserted_out : &ignored);                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V)                                                                     \
-      * RK__AVL_PRI(K, V, detach_min)(RK__AvlNode(K, V) * n, RK__AvlNode(K, V) * *out) {           \
+  rklib_fun RKI_AvlNode(K, V)                                                                      \
+      * RKI_AVL_PRI(K, V, detach_min)(RKI_AvlNode(K, V) * n, RKI_AvlNode(K, V) * *out) {           \
     if (!n->l) {                                                                                   \
       *out = n;                                                                                    \
       return n->r;                                                                                 \
     }                                                                                              \
-    n->l = RK__AVL_PRI(K, V, detach_min)(n->l, out);                                               \
-    return RK__AVL_PRI(K, V, balance)(n);                                                          \
+    n->l = RKI_AVL_PRI(K, V, detach_min)(n->l, out);                                               \
+    return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V)                                                                     \
-      * RK__AVL_PRI(K, V, erase)(Avl(K, V) * self, RK__AvlNode(K, V) * n, K key, V * out,          \
+  rklib_fun RKI_AvlNode(K, V)                                                                      \
+      * RKI_AVL_PRI(K, V, erase)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V * out,          \
                                  bool* removed) {                                                  \
     if (!n) return rk_null;                                                                        \
     int c = CMP_FUN(key, n->entry.key);                                                            \
     if (c < 0) {                                                                                   \
-      n->l = RK__AVL_PRI(K, V, erase)(self, n->l, key, out, removed);                              \
+      n->l = RKI_AVL_PRI(K, V, erase)(self, n->l, key, out, removed);                              \
     } else if (c > 0) {                                                                            \
-      n->r = RK__AVL_PRI(K, V, erase)(self, n->r, key, out, removed);                              \
+      n->r = RKI_AVL_PRI(K, V, erase)(self, n->r, key, out, removed);                              \
     } else {                                                                                       \
       *out                 = n->entry_mod.val;                                                     \
       *removed             = true;                                                                 \
-      RK__AvlNode(K, V)* l = n->l, *r = n->r;                                                      \
+      RKI_AvlNode(K, V)* l = n->l, *r = n->r;                                                      \
       if (!r) {                                                                                    \
         alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                              \
         return l;                                                                                  \
       }                                                                                            \
-      RK__AvlNode(K, V) * m;                                                                       \
-      r    = RK__AVL_PRI(K, V, detach_min)(r, &m);                                                 \
+      RKI_AvlNode(K, V) * m;                                                                       \
+      r    = RKI_AVL_PRI(K, V, detach_min)(r, &m);                                                 \
       m->l = l;                                                                                    \
       m->r = r;                                                                                    \
       alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                                \
-      return RK__AVL_PRI(K, V, balance)(m);                                                        \
+      return RKI_AVL_PRI(K, V, balance)(m);                                                        \
     }                                                                                              \
-    return *removed ? RK__AVL_PRI(K, V, balance)(n) : n;                                           \
+    return *removed ? RKI_AVL_PRI(K, V, balance)(n) : n;                                           \
   }                                                                                                \
-  static_fun bool RK__AVL_PUB(K, V, extract)(Avl(K, V) * self, K key, V * out) {                   \
+  rklib_fun bool RKI_AVL_PUB(K, V, extract)(Avl(K, V) * self, K key, V * out) {                    \
     rk_assert_ptr_nonnull(out);                                                                    \
     bool removed = false;                                                                          \
-    self->root   = RK__AVL_PRI(K, V, erase)(self, self->root, key, out, &removed);                 \
+    self->root   = RKI_AVL_PRI(K, V, erase)(self, self->root, key, out, &removed);                 \
     if (removed) { --self->count; }                                                                \
     return removed;                                                                                \
   }                                                                                                \
-  static_fun bool RK__AVL_PUB(K, V, remove)(Avl(K, V) * self, K key) {                             \
+  rklib_fun bool RKI_AVL_PUB(K, V, remove)(Avl(K, V) * self, K key) {                              \
     V tmp;                                                                                         \
-    return RK__AVL_PUB(K, V, extract)(self, key, &tmp);                                            \
+    return RKI_AVL_PUB(K, V, extract)(self, key, &tmp);                                            \
   }                                                                                                \
   RK_EXTERNC_END
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RK__rbt_init(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__rbt_init3(K, V, A)   rk_disable_if(RK__rbt_init(K, V, A))
-#define RK__rbt_init2(K, V)      RK__rbt_init(K, V, alloc_ctx)
+#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_RBT_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_RBT_INIT(K, V, A))
+#define RKI_RBT_INIT2(K, V)      RKI_RBT_INIT(K, V, alloc_ctx)
 
 /* Left-leaning red-black tree: red links lean left and no node has two red links in a row. */
 
-#define RK__RbtNode(K, V)        RK__rbt_node_##K##_##V
-#define RK__RBT_PUB(K, V, FNAME) rbt_##K##_##V##_##FNAME
-#define RK__RBT_PRI(K, V, FNAME) RK__rbt_##K##_##V##_##FNAME
+#define RKI_RbtNode(K, V)        RKI_rbt_node_##K##_##V
+#define RKI_RBT_PUB(K, V, FNAME) rbt_##K##_##V##_##FNAME
+#define RKI_RBT_PRI(K, V, FNAME) rki_rbt_##K##_##V##_##FNAME
 
-#define RK__RBT_DEFINE(K, V, CMP)                                                                  \
+#define RKI_RBT_DEFINE(K, V, CMP)                                                                  \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct RbtEntry(K, V) {                                                                  \
     K const key;                                                                                   \
     V       val;                                                                                   \
   } RbtEntry(K, V);                                                                                \
-  typedef struct RK__RBT_PRI(K, V, E) {                                                            \
+  typedef struct RKI_RBT_PRI(K, V, E) {                                                            \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__RBT_PRI(K, V, E);                                                                          \
-  typedef struct RK__RbtNode(K, V) {                                                               \
-    struct RK__RbtNode(K, V) * l, *r;                                                              \
+  } RKI_RBT_PRI(K, V, E);                                                                          \
+  typedef struct RKI_RbtNode(K, V) {                                                               \
+    struct RKI_RbtNode(K, V) * l, *r;                                                              \
     bool red;                                                                                      \
     union {                                                                                        \
-      RK__RBT_PRI(K, V, E) entry_mod;                                                              \
+      RKI_RBT_PRI(K, V, E) entry_mod;                                                              \
       RbtEntry(K, V) entry;                                                                        \
     };                                                                                             \
-  } RK__RbtNode(K, V);                                                                             \
+  } RKI_RbtNode(K, V);                                                                             \
   typedef struct Rbt(K, V) {                                                                       \
     union {                                                                                        \
       tree_data _tree;                                                                             \
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         size_t count;                                                                              \
-        RK__RbtNode(K, V) * root;                                                                  \
+        RKI_RbtNode(K, V) * root;                                                                  \
       };                                                                                           \
     };                                                                                             \
   } Rbt(K, V);                                                                                     \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); rbt_count()/rbt_is_empty()/rbt_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
-  static_fun rk_pure size_t RK__RBT_PUB(K, V, count)(const Rbt(K, V) * self) {                     \
+  rklib_fun rk_pure size_t RKI_RBT_PUB(K, V, count)(const Rbt(K, V) * self) {                      \
     return tree_count(self);                                                                       \
   }                                                                                                \
-  static_fun rk_pure bool RK__RBT_PUB(K, V, is_empty)(const Rbt(K, V) * self) {                    \
+  rklib_fun rk_pure bool RKI_RBT_PUB(K, V, is_empty)(const Rbt(K, V) * self) {                     \
     return tree_is_empty(self);                                                                    \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__RBT_PUB(K, V, allocator)(const Rbt(K, V) * self) {              \
+  rklib_fun rk_pure Allocator RKI_RBT_PUB(K, V, allocator)(const Rbt(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  static_fun rk_pure bool RK__RBT_PRI(K, V, red)(RK__RbtNode(K, V) * n) { return n && n->red; }    \
-  static_fun              RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rl)(RK__RbtNode(K, V) * h) {       \
-    RK__RbtNode(K, V)* x = h->r;                                                                   \
+  rklib_fun rk_pure bool RKI_RBT_PRI(K, V, red)(RKI_RbtNode(K, V) * n) { return n && n->red; }     \
+  rklib_fun              RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rl)(RKI_RbtNode(K, V) * h) {        \
+    RKI_RbtNode(K, V)* x = h->r;                                                                   \
     h->r                 = x->l;                                                                   \
     x->l                 = h;                                                                      \
     x->red               = h->red;                                                                 \
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rr)(RK__RbtNode(K, V) * h) {                    \
-    RK__RbtNode(K, V)* x = h->l;                                                                   \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rr)(RKI_RbtNode(K, V) * h) {                     \
+    RKI_RbtNode(K, V)* x = h->l;                                                                   \
     h->l                 = x->r;                                                                   \
     x->r                 = h;                                                                      \
     x->red               = h->red;                                                                 \
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun void RK__RBT_PRI(K, V, flip)(RK__RbtNode(K, V) * h) {                                 \
+  rklib_fun void RKI_RBT_PRI(K, V, flip)(RKI_RbtNode(K, V) * h) {                                  \
     h->red    = !h->red;                                                                           \
     h->l->red = !h->l->red;                                                                        \
     h->r->red = !h->r->red;                                                                        \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, fix)(RK__RbtNode(K, V) * h) {                   \
-    if (RK__RBT_PRI(K, V, red)(h->r)) { h = RK__RBT_PRI(K, V, rl)(h); }                            \
-    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->l->l)) {                         \
-      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, fix)(RKI_RbtNode(K, V) * h) {                    \
+    if (RKI_RBT_PRI(K, V, red)(h->r)) { h = RKI_RBT_PRI(K, V, rl)(h); }                            \
+    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->l->l)) {                         \
+      h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
     }                                                                                              \
-    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->r)) {                            \
-      RK__RBT_PRI(K, V, flip)(h);                                                                  \
-    }                                                                                              \
-    return h;                                                                                      \
-  }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, ml)(RK__RbtNode(K, V) * h) {                    \
-    RK__RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RK__RBT_PRI(K, V, red)(h->r->l)) {                                                         \
-      h->r = RK__RBT_PRI(K, V, rr)(h->r);                                                          \
-      h    = RK__RBT_PRI(K, V, rl)(h);                                                             \
-      RK__RBT_PRI(K, V, flip)(h);                                                                  \
+    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->r)) {                            \
+      RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mr)(RK__RbtNode(K, V) * h) {                    \
-    RK__RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RK__RBT_PRI(K, V, red)(h->l->l)) {                                                         \
-      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
-      RK__RBT_PRI(K, V, flip)(h);                                                                  \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, ml)(RKI_RbtNode(K, V) * h) {                     \
+    RKI_RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RKI_RBT_PRI(K, V, red)(h->r->l)) {                                                         \
+      h->r = RKI_RBT_PRI(K, V, rr)(h->r);                                                          \
+      h    = RKI_RBT_PRI(K, V, rl)(h);                                                             \
+      RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_PRI(K, V, put)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mr)(RKI_RbtNode(K, V) * h) {                     \
+    RKI_RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RKI_RBT_PRI(K, V, red)(h->l->l)) {                                                         \
+      h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
+      RKI_RBT_PRI(K, V, flip)(h);                                                                  \
+    }                                                                                              \
+    return h;                                                                                      \
+  }                                                                                                \
+  rklib_fun RKI_RbtNode(K, V)                                                                      \
+      * RKI_RBT_PRI(K, V, put)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
                                bool* added) {                                                      \
     if (!h) {                                                                                      \
-      rk_set_alloc_fallback(s->alloc);                                                             \
-      h    = alloc_new(RK__RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
+      RKI_set_alloc_fallback(s->alloc);                                                            \
+      h    = alloc_new(RKI_RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
       h->l = h->r  = rk_null;                                                                      \
       h->red       = true;                                                                         \
       h->entry_mod = (typeof(h->entry_mod)){.key = k, .val = v};                                   \
@@ -948,17 +945,17 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     int c = CMP(k, h->entry.key);                                                                  \
     if (c < 0) {                                                                                   \
-      h->l = RK__RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
+      h->l = RKI_RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
     } else if (c > 0) {                                                                            \
-      h->r = RK__RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
+      h->r = RKI_RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
     } else {                                                                                       \
       if (ow) { h->entry_mod.val = v; }                                                            \
       *out = &h->entry_mod.val;                                                                    \
     }                                                                                              \
-    return RK__RBT_PRI(K, V, fix)(h);                                                              \
+    return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun rk_pure V* RK__RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                               \
-    RK__RbtNode(K, V)* n = s->root;                                                                \
+  rklib_fun rk_pure V* RKI_RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                                \
+    RKI_RbtNode(K, V)* n = s->root;                                                                \
     while (n) {                                                                                    \
       int c = CMP(k, n->entry.key);                                                                \
       if (!c) { return &n->entry_mod.val; }                                                        \
@@ -966,55 +963,55 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
-  static_fun V* RK__RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {         \
+  rklib_fun V* RKI_RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {          \
     V* out       = rk_null;                                                                        \
     *added       = false;                                                                          \
-    s->root      = RK__RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
+    s->root      = RKI_RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
     s->root->red = false;                                                                          \
     if (*added) { ++s->count; }                                                                    \
     return out;                                                                                    \
   }                                                                                                \
-  static_fun bool RK__RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                \
+  rklib_fun bool RKI_RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                 \
     bool a;                                                                                        \
-    (void)RK__RBT_PRI(K, V, insert)(s, k, v, true, &a);                                            \
+    (void)RKI_RBT_PRI(K, V, insert)(s, k, v, true, &a);                                            \
     return a;                                                                                      \
   }                                                                                                \
-  static_fun V* RK__RBT_PUB(K, V, add)(Rbt(K, V) * s, K k, V v) {                                  \
+  rklib_fun V* RKI_RBT_PUB(K, V, add)(Rbt(K, V) * s, K k, V v) {                                   \
     bool a;                                                                                        \
-    V*   p = RK__RBT_PRI(K, V, insert)(s, k, v, false, &a);                                        \
+    V*   p = RKI_RBT_PRI(K, V, insert)(s, k, v, false, &a);                                        \
     return a ? p : rk_null;                                                                        \
   }                                                                                                \
-  static_fun V* RK__RBT_PUB(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                             \
-                                              bool* restrict inserted_out) {                       \
+  rklib_fun V* RKI_RBT_PUB(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                              \
+                                             bool* restrict inserted_out) {                        \
     bool ignored;                                                                                  \
-    return RK__RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
+    return RKI_RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
   }                                                                                                \
-  static_fun rk_pure RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mn)(RK__RbtNode(K, V) * h) {            \
+  rklib_fun rk_pure RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mn)(RKI_RbtNode(K, V) * h) {             \
     while (h->l) { h = h->l; }                                                                     \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, dm)(Rbt(K, V) * s, RK__RbtNode(K, V) * h) {     \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, dm)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h) {      \
     if (!h->l) {                                                                                   \
       alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                   \
       return rk_null;                                                                              \
     }                                                                                              \
-    if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                       \
-      h = RK__RBT_PRI(K, V, ml)(h);                                                                \
+    if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                       \
+      h = RKI_RBT_PRI(K, V, ml)(h);                                                                \
     }                                                                                              \
-    h->l = RK__RBT_PRI(K, V, dm)(s, h->l);                                                         \
-    return RK__RBT_PRI(K, V, fix)(h);                                                              \
+    h->l = RKI_RBT_PRI(K, V, dm)(s, h->l);                                                         \
+    return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_PRI(K, V, del)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
+  rklib_fun RKI_RbtNode(K, V)                                                                      \
+      * RKI_RBT_PRI(K, V, del)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
     if (CMP(k, h->entry.key) < 0) {                                                                \
       if (h->l) {                                                                                  \
-        if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                   \
-          h = RK__RBT_PRI(K, V, ml)(h);                                                            \
+        if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                   \
+          h = RKI_RBT_PRI(K, V, ml)(h);                                                            \
         }                                                                                          \
-        h->l = RK__RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
+        h->l = RKI_RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
       }                                                                                            \
     } else {                                                                                       \
-      if (RK__RBT_PRI(K, V, red)(h->l)) { h = RK__RBT_PRI(K, V, rr)(h); }                          \
+      if (RKI_RBT_PRI(K, V, red)(h->l)) { h = RKI_RBT_PRI(K, V, rr)(h); }                          \
       int c = CMP(k, h->entry.key);                                                                \
       if (!c && !h->r) {                                                                           \
         *out  = h->entry_mod.val;                                                                  \
@@ -1023,43 +1020,43 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
         return rk_null;                                                                            \
       }                                                                                            \
       if (h->r) {                                                                                  \
-        if (!RK__RBT_PRI(K, V, red)(h->r) && !RK__RBT_PRI(K, V, red)(h->r->l)) {                   \
-          h = RK__RBT_PRI(K, V, mr)(h);                                                            \
+        if (!RKI_RBT_PRI(K, V, red)(h->r) && !RKI_RBT_PRI(K, V, red)(h->r->l)) {                   \
+          h = RKI_RBT_PRI(K, V, mr)(h);                                                            \
         }                                                                                          \
         c = CMP(k, h->entry.key);                                                                  \
         if (!c) {                                                                                  \
-          RK__RbtNode(K, V)* m = RK__RBT_PRI(K, V, mn)(h->r);                                      \
+          RKI_RbtNode(K, V)* m = RKI_RBT_PRI(K, V, mn)(h->r);                                      \
           *out                 = h->entry_mod.val;                                                 \
           *gone                = true;                                                             \
           h->entry_mod         = m->entry_mod;                                                     \
-          h->r                 = RK__RBT_PRI(K, V, dm)(s, h->r);                                   \
+          h->r                 = RKI_RBT_PRI(K, V, dm)(s, h->r);                                   \
         } else {                                                                                   \
-          h->r = RK__RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
+          h->r = RKI_RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
         }                                                                                          \
       }                                                                                            \
     }                                                                                              \
-    return RK__RBT_PRI(K, V, fix)(h);                                                              \
+    return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun bool RK__RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                        \
+  rklib_fun bool RKI_RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                         \
     rk_assert_ptr_nonnull(out);                                                                    \
-    if (!s->root || !RK__RBT_PUB(K, V, get)(s, k)) { return false; }                               \
+    if (!s->root || !RKI_RBT_PUB(K, V, get)(s, k)) { return false; }                               \
     bool gone = false;                                                                             \
-    if (!RK__RBT_PRI(K, V, red)(s->root->l) && !RK__RBT_PRI(K, V, red)(s->root->r)) {              \
+    if (!RKI_RBT_PRI(K, V, red)(s->root->l) && !RKI_RBT_PRI(K, V, red)(s->root->r)) {              \
       s->root->red = true;                                                                         \
     }                                                                                              \
-    s->root = RK__RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
+    s->root = RKI_RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
     if (s->root) { s->root->red = false; }                                                         \
     if (gone) { --s->count; }                                                                      \
     return gone;                                                                                   \
   }                                                                                                \
-  static_fun bool RK__RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                  \
+  rklib_fun bool RKI_RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                   \
     V x;                                                                                           \
-    return RK__RBT_PUB(K, V, extract)(s, k, &x);                                                   \
+    return RKI_RBT_PUB(K, V, extract)(s, k, &x);                                                   \
   }                                                                                                \
   RK_EXTERNC_END
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_TREES_H

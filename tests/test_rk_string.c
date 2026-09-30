@@ -3,7 +3,7 @@
 #include "conf.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 triax_test(string, str_len) {
   triax_expect_eq(str_len("hello"), lenof("hello"));
@@ -585,19 +585,19 @@ triax_test(string, str_tok_all_3) {
 }
 
 #if 0
-# define str_front(strlike)      (*RK__qcharptr(strlike, RK__str_front_ptr(strv_from(strlike))))
+# define str_front(strlike)      (*RKI_qcharptr(strlike, RKI_str_front_ptr(strv_from(strlike))))
 
-# define str_back(strlike)       (*RK__qcharptr(strlike, RK__str_back_ptr(strv_from(strlike))))
+# define str_back(strlike)       (*RKI_qcharptr(strlike, RKI_str_back_ptr(strv_from(strlike))))
 
 // ----------------------------------------
 // Section: String Lifetime/Ownership
 // ----------------------------------------
 
-# define str_init(init_cap, ...) rk_overload(RK__str_init, init_cap, ##__VA_ARGS__)
+# define str_init(init_cap, ...) rk_overload(RKI_str_init, init_cap, ##__VA_ARGS__)
 
-# define str_from(strlike, ...)  rk_overload(RK__str_from, strlike, ##__VA_ARGS__)
+# define str_from(strlike, ...)  rk_overload(RKI_str_from, strlike, ##__VA_ARGS__)
 
-# define str_from_literal(strlit, ...)     rk_overload(RK__str_fromlit, strlit, ##__VA_ARGS__)
+# define str_from_literal(strlit, ...)     rk_overload(RKI_str_fromlit, strlit, ##__VA_ARGS__)
 
 static_fun void str_release(Str* restrict self) {
   alloc_delete(self->str, self->cap, self->alloc);
@@ -619,24 +619,24 @@ static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
 static_fun Str* str_null_terminate(Str* restrict self);
 static_fun Str* str_null_terminate_unchecked(Str* restrict self);
 
-# define str_terminate(self, suffix)       RK__str_terminate(self, suffix)
+# define str_terminate(self, suffix)       RKI_str_terminate(self, suffix)
 static_fun Str* str_push(Str* restrict self, char c);
 static_fun Str* str_push_unchecked(Str* restrict self, char c);
 static_fun Str* str_push_raw(Str* restrict self, char c);
 static_fun Str* str_push_unchecked_raw(Str* restrict self, char c);
 
-# define str_cat(self, strlike)            RK__str_cat(self, strlike)
+# define str_cat(self, strlike)            RKI_str_cat(self, strlike)
 
-# define str_cat_mayalias(self, strlike)   RK__str_cat_mayalias(self, strlike)
+# define str_cat_mayalias(self, strlike)   RKI_str_cat_mayalias(self, strlike)
 
 # define str_cat_literal(self, strlit)     str_cat_strv(self, (Strv)strv_from_literal(strlit))
 
 
 extern_fun Str* str_cat_fmt(Str* self, const char* fmt, ...);
 
-# define str_insert_at(self, idx, strlike) RK__str_insert_at(self, idx, strlike)
+# define str_insert_at(self, idx, strlike) RKI_str_insert_at(self, idx, strlike)
 
-# define str_insert_at_mayalias(self, idx, strlike) RK__str_insert_at_mayalias(self, idx, strlike)
+# define str_insert_at_mayalias(self, idx, strlike) RKI_str_insert_at_mayalias(self, idx, strlike)
 
 
 static_fun char str_pop(Str* restrict self);
@@ -659,14 +659,14 @@ extern_fun Str* str_reverse(Str* restrict self);
 
 # define strv_from_literal(strlit)                  {.str = strlit, .len = lenof(strlit)}
 
-# define strv_from(strlike)                         RK__strv_from(strlike)
+# define strv_from(strlike)                         RKI_strv_from(strlike)
 
 # define strv_slice(strlike, start, end)            strv_slice_strv(strv_from(strlike), start, end)
 
 # define strv_slice_static(arr, start, end)                                                        \
    {.str = (const char*)((arr) + (start)), .len = (end) - (start)}
 
-# define str_split(strvptr, delims) RK__str_split(strvptr, delims)
+# define str_split(strvptr, delims) RKI_str_split(strvptr, delims)
 
 # define STR_SPLIT_END              ((size_t)-1) // todo use
 
@@ -675,7 +675,7 @@ extern_fun Str* str_reverse(Str* restrict self);
 # define str_trimmed_right(strlike) str_trimmed_right_strv(strv_from(strlike))
 
 # define str_split_alloc(strlike, delims, out_count, ...)                                          \
-   rk_overload(RK__str_tok_alloc, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
+   rk_overload(RKI_str_tok_alloc, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
 
 // ----------------------------------------
 // Section: Strlike Query/Search Functions
@@ -685,15 +685,15 @@ extern_fun Str* str_reverse(Str* restrict self);
 
 # define str_equals(strlike1, strlike2)  str_equals_strv(strv_from(strlike1), strv_from(strlike2))
 
-# define str_find(strlike, subs)         RK__str_find(strlike, subs)
+# define str_find(strlike, subs)         RKI_str_find(strlike, subs)
 
-# define str_findr(strlike, subs)        RK__str_findr(strlike, subs)
+# define str_findr(strlike, subs)        RKI_str_findr(strlike, subs)
 
-# define str_contains(strlike, subs)     RK__str_contains(strlike, subs)
+# define str_contains(strlike, subs)     RKI_str_contains(strlike, subs)
 
-# define str_starts_with(strlike, pre)   RK__str_starts_with(strlike, pre)
+# define str_starts_with(strlike, pre)   RKI_str_starts_with(strlike, pre)
 
-# define str_ends_with(strlike, suf)     RK__str_ends_with(strlike, suf)
+# define str_ends_with(strlike, suf)     RKI_str_ends_with(strlike, suf)
 
 #endif
 triax_test(string, string_test_fmt) {
@@ -755,6 +755,6 @@ triax_test(string, string_test_empty) {
   // triax_expect_strv_neq(s1, s4);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

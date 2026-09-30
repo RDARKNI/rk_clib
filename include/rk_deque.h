@@ -35,7 +35,7 @@ RK_HEADER_BEGIN
 /// or struct type.
 /// @attention Must be invoked at file scope, once per `T`.
 /// @note Allocator functions handle allocation failures according to `rk_alloc.h`.
-#define DEQUE_DEFINE(T)               RK__DEQUE_DEFINE(T)
+#define DEQUE_DEFINE(T)               RKI_DEQUE_DEFINE(T)
 
 /// @brief Macro to indicate that an object is a Deque.
 /// @param T The type of elements stored in the Deque
@@ -49,7 +49,7 @@ RK_HEADER_BEGIN
 /// @return An initialised, empty `Deque(T)`
 /// @note A zero-initialized `Deque(T)` is also a valid, empty deque; it allocates using `alloc_ctx`
 /// on first insertion.
-#define deque_init(T, cap, ...)       rk_overload(RK__DEQUE_INIT, T, cap, ##__VA_ARGS__)
+#define deque_init(T, cap, ...)       rk_overload(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
 
 /// @brief `Deque(T) deque_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` -
 /// Constructs a new Deque by copying `n` values from `arr`, in front-to-back order.
@@ -58,13 +58,13 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Deque(T)` containing a copy of `arr`'s first `n` values
-#define deque_from(T, arr, n, ...)    rk_overload(RK__DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
+#define deque_from(T, arr, n, ...)    rk_overload(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `void deque_release(T, Deque(T)* self)` - Frees the backing buffer and resets the Deque
 /// to an empty state.
 /// @param T Element type
 /// @note Safe to call on a zero-initialized Deque.
-#define deque_release(T, self)        RK__DEQUE_PUB(T, release)(self)
+#define deque_release(T, self)        RKI_DEQUE_PUB(T, release)(self)
 
 /// @brief `size_t deque_count(Deque(T)* self)` - Returns the number of elements stored in the
 /// Deque.
@@ -81,7 +81,7 @@ RK_HEADER_BEGIN
 /// @brief `Allocator deque_allocator(Deque(T)* self)` - Returns the Allocator the Deque was
 /// constructed with, or `alloc_ctx` if the Deque was never initialized or custom allocators are
 /// disabled.
-#define deque_allocator(self)         RK__allocatorof(self)
+#define deque_allocator(self)         RKI_allocatorof(self)
 
 /// @brief `bool deque_is_empty(Deque(T)* self)` - Returns `true` iff the Deque contains no
 /// elements.
@@ -90,14 +90,14 @@ RK_HEADER_BEGIN
 /// @brief `void deque_clear(T, Deque(T)* self)` - Removes all elements without freeing the backing
 /// buffer.
 /// @param T Element type
-#define deque_clear(T, self)          RK__DEQUE_PUB(T, clear)(self)
+#define deque_clear(T, self)          RKI_DEQUE_PUB(T, clear)(self)
 
 /// @brief `void deque_reserve(T, Deque(T)* self, size_t cap)` - Ensures the backing buffer holds at
 /// least `cap` elements without reallocating.
 /// @param T   Element type
 /// @param cap Minimum capacity to reserve (in elements)
 /// @note Existing elements retain their logical order.
-#define deque_reserve(T, self, cap)   RK__DEQUE_PUB(T, reserve)(self, cap)
+#define deque_reserve(T, self, cap)   RKI_DEQUE_PUB(T, reserve)(self, cap)
 
 /// @brief `void deque_shrink_to_fit(T, Deque(T)* self)` - Shrinks the Deque's capacity to the next
 /// power of two greater than or equal to its length, with a floor of 8 for a nonempty Deque
@@ -105,7 +105,7 @@ RK_HEADER_BEGIN
 /// unchanged.
 /// @param T Element type
 /// @note Frees the backing buffer entirely if the Deque is empty.
-#define deque_shrink_to_fit(T, self)  RK__DEQUE_PUB(T, shrink_to_fit)(self)
+#define deque_shrink_to_fit(T, self)  RKI_DEQUE_PUB(T, shrink_to_fit)(self)
 
 /// @brief `void deque_assign(T, Deque(T)* self, const T* arr, size_t n)` - Replaces the Deque's
 /// contents with a copy of `arr`'s first `n` values, reusing the existing backing buffer (growing
@@ -115,7 +115,7 @@ RK_HEADER_BEGIN
 /// @param n   Number of values to copy
 /// @attention `arr[0..n)` must not overlap the Deque's own backing allocation, for the same reasons
 /// documented on `deque_push_back_n()`.
-#define deque_assign(T, self, arr, n) RK__DEQUE_PUB(T, assign)(self, arr, n)
+#define deque_assign(T, self, arr, n) RKI_DEQUE_PUB(T, assign)(self, arr, n)
 
 /// @brief Returns the first element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_front()`, requires a nonempty Deque.
@@ -125,8 +125,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_front(T, self)                                                                       \
   (*_Generic((self),                                                                               \
-       const Deque(T)*: RK__DEQUE_PUB(T, front_const),                                             \
-       default: RK__DEQUE_PUB(T, front))(self))
+       const Deque(T)*: RKI_DEQUE_PUB(T, front_const),                                             \
+       default: RKI_DEQUE_PUB(T, front))(self))
 
 /// @brief Returns the last element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_back()`, requires a nonempty Deque.
@@ -136,8 +136,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_back(T, self)                                                                        \
   (*_Generic((self),                                                                               \
-       const Deque(T)*: RK__DEQUE_PUB(T, back_const),                                              \
-       default: RK__DEQUE_PUB(T, back))(self))
+       const Deque(T)*: RKI_DEQUE_PUB(T, back_const),                                              \
+       default: RKI_DEQUE_PUB(T, back))(self))
 
 /// @brief Returns a pointer to the element at the zero-based logical index (counting from the
 /// front): `T*` for `Deque(T)* self`, `const T*` for `const Deque(T)* self`.
@@ -146,7 +146,7 @@ RK_HEADER_BEGIN
 /// @return Pointer to the element, or `NULL` if `index` is out of bounds
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_at(T, self, index)                                                                   \
-  _Generic((self), const Deque(T)*: RK__DEQUE_PUB(T, at_const), default: RK__DEQUE_PUB(T, at))(    \
+  _Generic((self), const Deque(T)*: RKI_DEQUE_PUB(T, at_const), default: RKI_DEQUE_PUB(T, at))(    \
       (self), (index))
 
 /// @brief Returns a pointer to the first element: `T*` for `Deque(T)* self`, `const T*` for
@@ -156,8 +156,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_peek_front(T, self)                                                                  \
   _Generic((self),                                                                                 \
-      const Deque(T)*: RK__DEQUE_PUB(T, peek_front_const),                                         \
-      default: RK__DEQUE_PUB(T, peek_front))(self)
+      const Deque(T)*: RKI_DEQUE_PUB(T, peek_front_const),                                         \
+      default: RKI_DEQUE_PUB(T, peek_front))(self)
 
 /// @brief Returns a pointer to the last element: `T*` for `Deque(T)* self`, `const T*` for
 /// `const Deque(T)* self`.
@@ -166,15 +166,15 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_peek_back(T, self)                                                                   \
   _Generic((self),                                                                                 \
-      const Deque(T)*: RK__DEQUE_PUB(T, peek_back_const),                                          \
-      default: RK__DEQUE_PUB(T, peek_back))(self)
+      const Deque(T)*: RKI_DEQUE_PUB(T, peek_back_const),                                          \
+      default: RKI_DEQUE_PUB(T, peek_back))(self)
 
 /// @brief `void deque_push_front(T, Deque(T)* self, T value)` - Inserts `value` at the front of the
 /// Deque.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_front(T, self, value)        RK__DEQUE_PUB(T, push_front)(self, value)
+#define deque_push_front(T, self, value)        RKI_DEQUE_PUB(T, push_front)(self, value)
 
 /// @brief `void deque_push_front_n(T, Deque(T)* self, const T* arr, size_t count)` - Prepends
 /// `count` values from `arr` to the front of the Deque, preserving `arr`'s own order (`arr[0]`
@@ -192,14 +192,14 @@ RK_HEADER_BEGIN
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination. To insert elements taken
 /// from the same Deque, copy them into a temporary buffer first.
-#define deque_push_front_n(T, self, arr, count) RK__DEQUE_PUB(T, push_front_n)(self, arr, count)
+#define deque_push_front_n(T, self, arr, count) RKI_DEQUE_PUB(T, push_front_n)(self, arr, count)
 
 /// @brief `void deque_push_back(T, Deque(T)* self, T value)` - Inserts `value` at the back of the
 /// Deque.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_back(T, self, value)         RK__DEQUE_PUB(T, push_back)(self, value)
+#define deque_push_back(T, self, value)         RKI_DEQUE_PUB(T, push_back)(self, value)
 
 /// @brief `void deque_push_back_n(T, Deque(T)* self, const T* arr, size_t count)` - Appends `count`
 /// values from `arr` to the back of the Deque, in order, as a single bulk operation.
@@ -211,33 +211,33 @@ RK_HEADER_BEGIN
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
 /// @attention `arr[0..count)` must not overlap the Deque's own backing allocation, for the same
 /// reasons documented on `deque_push_front_n()`.
-#define deque_push_back_n(T, self, arr, count)  RK__DEQUE_PUB(T, push_back_n)(self, arr, count)
+#define deque_push_back_n(T, self, arr, count)  RKI_DEQUE_PUB(T, push_back_n)(self, arr, count)
 
 /// @brief `T deque_pop_front(T, Deque(T)* self)` - Removes and returns the first element.
 /// @param T Element type
 /// @return The (former) first element
 /// @attention Requires a nonempty Deque.
-#define deque_pop_front(T, self)                RK__DEQUE_PUB(T, pop_front)(self)
+#define deque_pop_front(T, self)                RKI_DEQUE_PUB(T, pop_front)(self)
 
 /// @brief `T deque_pop_back(T, Deque(T)* self)` - Removes and returns the last element.
 /// @param T Element type
 /// @return The (former) last element
 /// @attention Requires a nonempty Deque.
-#define deque_pop_back(T, self)                 RK__DEQUE_PUB(T, pop_back)(self)
+#define deque_pop_back(T, self)                 RKI_DEQUE_PUB(T, pop_back)(self)
 
 /// @brief `bool deque_try_pop_front(T, Deque(T)* self, T* out)` - Removes the first element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_front(T, self, out)       RK__DEQUE_PUB(T, try_pop_front)(self, out)
+#define deque_try_pop_front(T, self, out)       RKI_DEQUE_PUB(T, try_pop_front)(self, out)
 
 /// @brief `bool deque_try_pop_back(T, Deque(T)* self, T* out)` - Removes the last element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_back(T, self, out)        RK__DEQUE_PUB(T, try_pop_back)(self, out)
+#define deque_try_pop_back(T, self, out)        RKI_DEQUE_PUB(T, try_pop_back)(self, out)
 
 /// @brief Visits every element of a Deque in front-to-back order.
 /// @param self The Deque to loop over (a pointer). Evaluated once.
@@ -250,55 +250,56 @@ RK_HEADER_BEGIN
 /// deque_foreach(&q, it) { printf("%d\n", *it); }
 /// ```
 #define deque_foreach(self, it)                                                                    \
-  for (typeof(self) RK___DEQUE = (self); RK___DEQUE; RK___DEQUE = rk_null)                         \
-    for (size_t RK___i = 0; RK___i < RK___DEQUE->count; ++RK___i)                                  \
-      for (typeof(RK__DEQUE_ITER_PTR(RK___DEQUE)) it                                               \
-           = &RK___DEQUE->data[(RK___DEQUE->head + RK___i) & (RK___DEQUE->cap - 1)],               \
-           RK___once            = it;                                                              \
-           RK___once; RK___once = rk_null)
+  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
+    for (size_t RKI__i = 0; RKI__i < RKI__DEQUE->count; ++RKI__i)                                  \
+      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
+           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
+           RKI__once            = it;                                                              \
+           RKI__once; RKI__once = rk_null)
 
 /// @brief Like `deque_foreach()`, visiting elements in back-to-front order. Iterator element
 /// constness follows the constness of the Deque pointed to by `self`.
 #define deque_foreach_reversed(self, it)                                                           \
-  for (typeof(self) RK___DEQUE = (self); RK___DEQUE; RK___DEQUE = rk_null)                         \
-    for (size_t RK___i = RK___DEQUE->count; RK___i-- > 0;)                                         \
-      for (typeof(RK__DEQUE_ITER_PTR(RK___DEQUE)) it                                               \
-           = &RK___DEQUE->data[(RK___DEQUE->head + RK___i) & (RK___DEQUE->cap - 1)],               \
-           RK___once            = it;                                                              \
-           RK___once; RK___once = rk_null)
+  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
+    for (size_t RKI__i = RKI__DEQUE->count; RKI__i-- > 0;)                                         \
+      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
+           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
+           RKI__once            = it;                                                              \
+           RKI__once; RKI__once = rk_null)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__DEQUE_PUB(K, FNAME) deque_##K##_##FNAME
-#define RK__DEQUE_PRI(K, FNAME) RK__deque_##K##_##FNAME
+#define RKI_DEQUE_PUB(K, FNAME) deque_##K##_##FNAME
+#define RKI_DEQUE_PRI(K, FNAME) rki_deque_##K##_##FNAME
 
 // The member `data` is a mutable pointer even when the Deque is const; propagate the
 // container's constness explicitly when choosing an iterator pointer type.
-#define RK__DEQUE_ITER_PTR(self)                                                                   \
+#define RKI_DEQUE_ITER_PTR(self)                                                                   \
   _Generic((self),                                                                                 \
       const typeof(*(self))*: (const typeof((self)->data[0])*)0,                                   \
       default: (typeof((self)->data))0)
-#define RK__DEQUE_DEFINE(T)                                                                        \
+#define RKI_DEQUE_DEFINE(T)                                                                        \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct Deque(T) {                                                                        \
     T*     data;                                                                                   \
     size_t head, count, cap;                                                                       \
     RK_IFALLOC(Allocator alloc;)                                                                   \
   } Deque(T);                                                                                      \
-  static_fun size_t rk_pure RK__DEQUE_PUB(T, count)(const Deque(T) * self) { return self->count; } \
-  static_fun size_t rk_pure RK__DEQUE_PUB(T, cap)(const Deque(T) * self) { return self->cap; }     \
-  static_fun bool rk_pure   RK__DEQUE_PUB(T, is_empty)(const Deque(T) * self) {                    \
+  rklib_fun size_t rk_pure RKI_DEQUE_PUB(T, count)(const Deque(T) * self) { return self->count; }  \
+  rklib_fun size_t rk_pure RKI_DEQUE_PUB(T, cap)(const Deque(T) * self) { return self->cap; }      \
+  rklib_fun bool rk_pure   RKI_DEQUE_PUB(T, is_empty)(const Deque(T) * self) {                     \
     return !self->count;                                                                           \
   }                                                                                                \
-  static_fun Allocator rk_pure RK__DEQUE_PUB(T, allocator)(const Deque(T) * self) {                \
-    return RK__allocatorof(self);                                                                  \
+  rklib_fun Allocator rk_pure RKI_DEQUE_PUB(T, allocator)(const Deque(T) * self) {                 \
+    return RKI_allocatorof(self);                                                                  \
   }                                                                                                \
                                                                                                    \
-  static_fun Deque(T) RK__DEQUE_PUB(T, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {           \
-    RK_IFALLOC(rk_assert_allocator_valid(alloc);)                                                  \
+  rklib_fun Deque(T) RKI_DEQUE_PUB(T, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {            \
+    RK_IFALLOC(RKI_assert_allocator_valid(alloc);)                                                 \
     Deque(T) result = {rk_null, 0, 0, 0 RK_IFALLOC(, alloc)};                                      \
     if (cap) {                                                                                     \
       cap = stdc_bit_ceil(rk_MAX((size_t)8, cap));                                                 \
@@ -308,12 +309,12 @@ RK_HEADER_BEGIN
     }                                                                                              \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, release)(Deque(T) * self) {                                     \
+  rklib_fun void RKI_DEQUE_PUB(T, release)(Deque(T) * self) {                                      \
     if (self->data) { alloc_delete(self->data, self->cap RK_IFALLOC(, self->alloc)); }             \
     self->data = rk_null, self->head = self->count = self->cap = 0;                                \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, clear)(Deque(T) * self) { self->head = self->count = 0; }       \
-  static_fun void RK__DEQUE_PRI(T, realloc_to)(Deque(T) * self, size_t new_cap) {                  \
+  rklib_fun void RKI_DEQUE_PUB(T, clear)(Deque(T) * self) { self->head = self->count = 0; }        \
+  rklib_fun void RKI_DEQUE_PRI(T, realloc_to)(Deque(T) * self, size_t new_cap) {                   \
     T* data = alloc_new(T, new_cap RK_IFALLOC(, self->alloc));                                     \
     if (self->count) {                                                                             \
       size_t first = self->count < self->cap - self->head ? self->count : self->cap - self->head;  \
@@ -325,135 +326,137 @@ RK_HEADER_BEGIN
     if (self->data) { alloc_delete(self->data, self->cap RK_IFALLOC(, self->alloc)); }             \
     self->data = data, self->head = 0, self->cap = new_cap;                                        \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, reserve)(Deque(T) * self, size_t requested) {                   \
+  rklib_fun void RKI_DEQUE_PUB(T, reserve)(Deque(T) * self, size_t requested) {                    \
     if (requested <= self->cap) { return; }                                                        \
     size_t cap = stdc_bit_ceil(rk_MAX((size_t)8, requested));                                      \
     rk_assert(cap && "Deque capacity overflow");                                                   \
-    RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
-    RK__DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
+    RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
+    RKI_DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, shrink_to_fit)(Deque(T) * self) {                               \
+  rklib_fun void RKI_DEQUE_PUB(T, shrink_to_fit)(Deque(T) * self) {                                \
     if (!self->count) {                                                                            \
-      RK__DEQUE_PUB(T, release)(self);                                                             \
+      RKI_DEQUE_PUB(T, release)(self);                                                             \
       return;                                                                                      \
     }                                                                                              \
     size_t cap = stdc_bit_ceil(rk_MAX((size_t)8, self->count));                                    \
     if (cap == self->cap) { return; }                                                              \
-    RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
-    RK__DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
+    RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
+    RKI_DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                  \
+  rklib_fun T* RKI_DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                   \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                \
+  rklib_fun const T* RKI_DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                 \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                    \
-    return RK__DEQUE_PUB(T, at)(self, 0);                                                          \
+  rklib_fun T* RKI_DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                     \
+    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                  \
-    return RK__DEQUE_PUB(T, at_const)(self, 0);                                                    \
+  rklib_fun const T* RKI_DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                   \
+    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                     \
-    return self->count ? RK__DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
+  rklib_fun T* RKI_DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                      \
+    return self->count ? RKI_DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
   }                                                                                                \
-  static_fun T const* RK__DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                   \
-    return self->count ? RK__DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
+  rklib_fun T const* RKI_DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                    \
+    return self->count ? RKI_DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, front)(Deque(T) * self) {                                         \
+  rklib_fun T* RKI_DEQUE_PUB(T, front)(Deque(T) * self) {                                          \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RK__DEQUE_PUB(T, at)(self, 0);                                                          \
+    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, front_const)(const Deque(T) * self) {                       \
+  rklib_fun const T* RKI_DEQUE_PUB(T, front_const)(const Deque(T) * self) {                        \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RK__DEQUE_PUB(T, at_const)(self, 0);                                                    \
+    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, back)(Deque(T) * self) {                                          \
+  rklib_fun T* RKI_DEQUE_PUB(T, back)(Deque(T) * self) {                                           \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RK__DEQUE_PUB(T, at)(self, self->count - 1);                                            \
+    return RKI_DEQUE_PUB(T, at)(self, self->count - 1);                                            \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, back_const)(const Deque(T) * self) {                        \
+  rklib_fun const T* RKI_DEQUE_PUB(T, back_const)(const Deque(T) * self) {                         \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RK__DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
+    return RKI_DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                         \
+  rklib_fun void RKI_DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                          \
     if (self->count == self->cap) {                                                                \
       rk_assert(self->cap <= SIZE_MAX / 2 && "Deque capacity overflow");                           \
-      RK__DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
+      RKI_DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
     }                                                                                              \
     self->head             = (self->head - 1) & (self->cap - 1);                                   \
     self->data[self->head] = value;                                                                \
     ++self->count;                                                                                 \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_back)(Deque(T) * self, T value) {                          \
+  rklib_fun void RKI_DEQUE_PUB(T, push_back)(Deque(T) * self, T value) {                           \
     if (self->count == self->cap) {                                                                \
       rk_assert(self->cap <= SIZE_MAX / 2 && "Deque capacity overflow");                           \
-      RK__DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
+      RKI_DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
     }                                                                                              \
     self->data[(self->head + self->count) & (self->cap - 1)] = value;                              \
     ++self->count;                                                                                 \
   }                                                                                                \
-  static_fun T RK__DEQUE_PUB(T, pop_front)(Deque(T) * self) {                                      \
+  rklib_fun T RKI_DEQUE_PUB(T, pop_front)(Deque(T) * self) {                                       \
     rk_assert(self->count && "Cannot pop an empty deque");                                         \
     T result   = self->data[self->head];                                                           \
     self->head = (self->head + 1) & (self->cap - 1);                                               \
     if (!--self->count) { self->head = 0; }                                                        \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun T RK__DEQUE_PUB(T, pop_back)(Deque(T) * self) {                                       \
+  rklib_fun T RKI_DEQUE_PUB(T, pop_back)(Deque(T) * self) {                                        \
     rk_assert(self->count && "Cannot pop an empty deque");                                         \
     T result = self->data[(self->head + self->count - 1) & (self->cap - 1)];                       \
     if (!--self->count) { self->head = 0; }                                                        \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun bool RK__DEQUE_PUB(T, try_pop_front)(Deque(T) * self, T * out) {                      \
-    return self->count ? (*out = RK__DEQUE_PUB(T, pop_front)(self), true) : false;                 \
+  rklib_fun bool RKI_DEQUE_PUB(T, try_pop_front)(Deque(T) * self, T * out) {                       \
+    return self->count ? (*out = RKI_DEQUE_PUB(T, pop_front)(self), true) : false;                 \
   }                                                                                                \
-  static_fun bool RK__DEQUE_PUB(T, try_pop_back)(Deque(T) * self, T * out) {                       \
-    return self->count ? (*out = RK__DEQUE_PUB(T, pop_back)(self), true) : false;                  \
+  rklib_fun bool RKI_DEQUE_PUB(T, try_pop_back)(Deque(T) * self, T * out) {                        \
+    return self->count ? (*out = RKI_DEQUE_PUB(T, pop_back)(self), true) : false;                  \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_front_n)(Deque(T) * self, const T* arr, size_t n) {        \
+  rklib_fun void RKI_DEQUE_PUB(T, push_front_n)(Deque(T) * self, const T* arr, size_t n) {         \
     if (!n) { return; }                                                                            \
     rk_assert(n <= SIZE_MAX - self->count && "Deque capacity overflow");                           \
-    RK__DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
+    RKI_DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
     self->head   = (self->head - n) & (self->cap - 1);                                             \
     size_t first = self->cap - self->head < n ? self->cap - self->head : n;                        \
     rk_memcpy(self->data + self->head, arr, sizeof_n(T, first));                                   \
     if (first < n) { rk_memcpy(self->data, arr + first, sizeof_n(T, n - first)); }                 \
     self->count += n;                                                                              \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_back_n)(Deque(T) * self, const T* arr, size_t n) {         \
+  rklib_fun void RKI_DEQUE_PUB(T, push_back_n)(Deque(T) * self, const T* arr, size_t n) {          \
     if (!n) { return; }                                                                            \
     rk_assert(n <= SIZE_MAX - self->count && "Deque capacity overflow");                           \
-    RK__DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
+    RKI_DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
     size_t start = (self->head + self->count) & (self->cap - 1);                                   \
     size_t first = self->cap - start < n ? self->cap - start : n;                                  \
     rk_memcpy(self->data + start, arr, sizeof_n(T, first));                                        \
     if (first < n) { rk_memcpy(self->data, arr + first, sizeof_n(T, n - first)); }                 \
     self->count += n;                                                                              \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, assign)(Deque(T) * self, const T* arr, size_t n) {              \
-    RK__DEQUE_PUB(T, clear)(self);                                                                 \
-    RK__DEQUE_PUB(T, push_back_n)(self, arr, n);                                                   \
+  rklib_fun void RKI_DEQUE_PUB(T, assign)(Deque(T) * self, const T* arr, size_t n) {               \
+    RKI_DEQUE_PUB(T, clear)(self);                                                                 \
+    RKI_DEQUE_PUB(T, push_back_n)(self, arr, n);                                                   \
   }                                                                                                \
-  static_fun Deque(T)                                                                              \
-      RK__DEQUE_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {               \
-    Deque(T) d = RK__DEQUE_PUB(T, init)(n RK_IFALLOC(, alloc));                                    \
-    RK__DEQUE_PUB(T, push_back_n)(&d, arr, n);                                                     \
+  rklib_fun Deque(T)                                                                               \
+      RKI_DEQUE_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {               \
+    Deque(T) d = RKI_DEQUE_PUB(T, init)(n RK_IFALLOC(, alloc));                                    \
+    RKI_DEQUE_PUB(T, push_back_n)(&d, arr, n);                                                     \
     return d;                                                                                      \
   }                                                                                                \
   RK_EXTERNC_END
 
+#define RKI_DEQUE_INIT(T, cap, alloc)  RKI_DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
+#define RKI_DEQUE_INIT3(T, cap, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_INIT(T, cap, alloc))
+#define RKI_DEQUE_INIT2(T, cap)        RKI_DEQUE_INIT(T, cap, alloc_ctx)
+
+#define RKI_DEQUE_FROM(T, arr, n, alloc) RKI_DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
+#define RKI_DEQUE_FROM4(T, arr, n, alloc)                                                          \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_FROM(T, arr, n, alloc))
+#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
+
+/// @endcond
+#pragma endregion implementation
 RK_HEADER_END
-
-#define RK__DEQUE_INIT(T, cap, alloc)     RK__DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
-#define RK__DEQUE_INIT3(T, cap, alloc)    rk_disable_if(RK__DEQUE_INIT(T, cap, alloc))
-#define RK__DEQUE_INIT2(T, cap)           RK__DEQUE_INIT(T, cap, alloc_ctx)
-
-#define RK__DEQUE_FROM(T, arr, n, alloc)  RK__DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
-#define RK__DEQUE_FROM4(T, arr, n, alloc) rk_disable_if(RK__DEQUE_FROM(T, arr, n, alloc))
-#define RK__DEQUE_FROM3(T, arr, n)        RK__DEQUE_FROM(T, arr, n, alloc_ctx)
-
 /// @}
 #endif // RK_DEQUE_H
 

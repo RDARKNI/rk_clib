@@ -2,7 +2,7 @@
 #define TEST_VEC_H
 #include "conf.h"
 
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 static unsigned char   vec_storage[102400];
 rk_unused static Arena MYARENA = arena_init_static(vec_storage);
@@ -14,14 +14,14 @@ triax_test(vec, vec_init) {
     v = vec_init(int, 4);
     triax_expect_nonnull(v);
     RK_IFALLOC(triax_expect_memeq((Allocator[]){vec_allocator(v)}, &alloc_ctx, sizeof(alloc_ctx));)
-    triax_expect_eq(vec_allocation_size(v), sizeof(RK__VecHdr) + sizeof(int) * 4);
+    triax_expect_eq(vec_allocation_size(v), sizeof(RKI_VecHdr) + sizeof(int) * 4);
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     vec_push(v, 99);
     triax_expect_eq(vec_count(v), 1u), triax_expect_false(vec_is_empty(v));
     (void)vec_pop(v);
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     triax_expect_eq(vec_cap(v), 4);
-    triax_expect_eq(vec_allocation_size(v), sizeof(RK__VecHdr) + sizeof(int) * 4);
+    triax_expect_eq(vec_allocation_size(v), sizeof(RKI_VecHdr) + sizeof(int) * 4);
     vec_release(v);
     triax_expect_null(v);
   }
@@ -33,14 +33,14 @@ triax_test(vec, vec_init) {
     triax_expect_nonnull(v);
     RK_IFALLOC(
         triax_expect_memeq((Allocator[]){vec_allocator(v)}, &used_alloc, sizeof(used_alloc));)
-    triax_expect_eq(vec_allocation_size(v), sizeof(RK__VecHdr) + sizeof(int) * 4);
+    triax_expect_eq(vec_allocation_size(v), sizeof(RKI_VecHdr) + sizeof(int) * 4);
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     vec_push(v, 99);
     triax_expect_eq(vec_count(v), 1u), triax_expect_false(vec_is_empty(v));
     (void)vec_pop(v);
     triax_expect_eq(vec_count(v), 0), triax_expect_true(vec_is_empty(v));
     triax_expect_eq(vec_cap(v), 4);
-    triax_expect_eq(vec_allocation_size(v), sizeof(RK__VecHdr) + sizeof(int) * 4);
+    triax_expect_eq(vec_allocation_size(v), sizeof(RKI_VecHdr) + sizeof(int) * 4);
     vec_release(v);
     triax_expect_null(v);
   }
@@ -55,7 +55,7 @@ triax_test(vec, init_list) {
     RK_IFALLOC(
         triax_expect_memeq((Allocator[]){vec_allocator(v)}, &used_alloc, sizeof(used_alloc));)
     triax_expect_eq(vec_count(v), 6);
-    triax_expect_eq(vec_allocation_size(v), sizeof(RK__VecHdr) + sizeof(int) * vec_count(v));
+    triax_expect_eq(vec_allocation_size(v), sizeof(RKI_VecHdr) + sizeof(int) * vec_count(v));
     triax_expect_true(vec_cap(v) >= vec_count(v));
     for (int i = 0; i < 6; ++i) { triax_expect_eq(v[i], i); }
     vec_release(v);
@@ -69,7 +69,7 @@ triax_test(vec, init_list) {
     RK_IFALLOC(
         triax_expect_memeq((Allocator[]){vec_allocator(v)}, &used_alloc, sizeof(used_alloc));)
     triax_expect_eq(vec_count(v), 6);
-    triax_expect_eq(vec_allocation_size(v), sizeof(RK__VecHdr) + sizeof(int) * vec_count(v));
+    triax_expect_eq(vec_allocation_size(v), sizeof(RKI_VecHdr) + sizeof(int) * vec_count(v));
     triax_expect_true(vec_cap(v) >= vec_count(v));
     for (int i = 0; i < 6; ++i) { triax_expect_eq(v[i], i); }
     vec_release(v);
@@ -494,6 +494,6 @@ triax_test(vec, vec_end) {
   vec_release(v);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 
 #endif

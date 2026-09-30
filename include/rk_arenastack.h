@@ -52,14 +52,14 @@ typedef struct ArenaStack {
 /// @param arena_size  The desired size of each arena
 /// @param alloc       Optional allocator; defaults to `alloc_ctx`
 /// @return A new ArenaStack
-#define arenastack_init(arena_size, ...) rk_overload(RK__ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
+#define arenastack_init(arena_size, ...) rk_overload(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
 /// @brief Releases all arenas within the ArenaStack.
-static_fun void              arenastack_release(ArenaStack* self);
+rklib_fun void              arenastack_release(ArenaStack* self);
 
 /// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` was never
 /// initialized, or custom allocators are disabled.
-static_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
+rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
   return vec_allocator(self->arenas);
 }
 
@@ -67,18 +67,18 @@ static_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
 /// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
 /// the current index are left unchanged until reused.
 /// @return `self`, for chaining.
-static_fun ArenaStack*       arenastack_clear(ArenaStack* self);
+rklib_fun ArenaStack*       arenastack_clear(ArenaStack* self);
 
 /// @brief Returns the current position of the active arena as an opaque marker. Pass to
 /// `arenastack_rewind_to` to restore the ArenaStack to this state.
 /// @note Returns a null marker if `self` was never initialized.
-static_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
+rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
   return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
 }
 /// @brief Rewinds the ArenaStack to a specific mark returned by `arenastack_mark()`, marking every
 /// allocation in every Arena of the Stack as free until the mark is reached.
 /// @return `self`, for chaining.
-static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
+rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
 /// `nbytes` bytes with the given alignment from the ArenaStack, growing into a new arena if
@@ -87,7 +87,7 @@ static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark
 /// @param align  Desired alignment; must be a power of two
 /// @param self   ArenaStack to allocate from
 /// @return Pointer to the allocated memory
-static_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
+rklib_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
 
 /// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Create a new allocation
 /// in the arena for a given type T and count.
@@ -95,7 +95,7 @@ static_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaSta
 /// @param  count       Number of elements of type T to allocate
 /// @param  arena_stack Pointer to the ArenaStack to allocate from
 /// @return Pointer to the allocated memory
-#define arenastack_new(T, count, arena_stack) RK__arenastack_NEW(T, count, arena_stack)
+#define arenastack_new(T, count, arena_stack) RKI_ARENASTACK_NEW(T, count, arena_stack)
 
 /// @brief `T* arenastack_new_aligned(T, size_t count, size_t align, ArenaStack* arena_stack)` -
 /// Create a new, allocation in the ArenaStack for a given type T and count with a given alignment.
@@ -106,32 +106,33 @@ static_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaSta
 /// @return Pointer to the allocated memory.
 /// @note If alignment is not a power of two, behaviour is undefined
 #define arenastack_new_aligned(T, count, align, arena_stack)                                       \
-  RK__arenastack_ALIGNED_NEW(T, count, align, arena_stack)
+  RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)
 
-static_fun alloc_allocation_f   RK__arenastack_allocate;
-static_fun alloc_reallocation_f RK__arenastack_reallocate;
-static_fun alloc_deallocation_f RK__arenastack_deallocate;
-static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = RK__arenastack_allocate,
-                                                            .realloc_f = RK__arenastack_reallocate,
-                                                            .dealloc_f = RK__arenastack_deallocate};
+rklib_fun alloc_allocation_f   rki_arenastack_allocate;
+rklib_fun alloc_reallocation_f rki_arenastack_reallocate;
+rklib_fun alloc_deallocation_f rki_arenastack_deallocate;
+static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = rki_arenastack_allocate,
+                                                            .realloc_f = rki_arenastack_reallocate,
+                                                            .dealloc_f = rki_arenastack_deallocate};
 
 static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__arenastack_ALIGNED_NEW(T, count, align, arena_stack)                                   \
+#define RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)                                   \
   ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
                 arenastack_allocate(sizeof_n(T, count), align, arena_stack)))
 
-#define RK__arenastack_NEW(T, count, arena_stack)                                                  \
+#define RKI_ARENASTACK_NEW(T, count, arena_stack)                                                  \
   ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
-static_fun void arenastack_release(ArenaStack* self) {
+rklib_fun void arenastack_release(ArenaStack* self) {
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
   vec_foreach(self->arenas, arena) {
     alloc_deallocate(arena->beg, (size_t)(arena->end - arena->beg), align_max RK_IFALLOC(, alloc));
@@ -140,13 +141,13 @@ static_fun void arenastack_release(ArenaStack* self) {
   self->arena_size = 0, self->cur = 0;
 }
 
-static_fun ArenaStack* arenastack_clear(ArenaStack* self) {
+rklib_fun ArenaStack* arenastack_clear(ArenaStack* self) {
   if rk_unlikely (!self->arena_size) { return self; }
   for (size_t cur = self->cur, i = 0; i <= cur; ++i) { arena_clear(&self->arenas[i]); }
   return self->cur = 0, self;
 }
 
-static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
+rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
   const unsigned char* ptr = mark.pos;
   if rk_unlikely (!ptr) { return self; }
   for (size_t i = self->cur + 1; i-- > 0;) {
@@ -162,8 +163,8 @@ static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark
   unreachable();
 }
 
-static_fun ArenaStack RK__arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun ArenaStack rki_arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   cap = stdc_bit_ceil(cap); /*1 if cap==0*/
   return (ArenaStack){
       .arena_size = cap,
@@ -172,15 +173,16 @@ static_fun ArenaStack RK__arenastack_init(size_t cap RK_IFALLOC(, Allocator allo
                      (unsigned char*)alloc_allocate(cap, align_max RK_IFALLOC(, alloc)), cap)),
       .cur = 0};
 }
-#define RK__ARENASTACK_INIT(_cap, _alloc)  RK__arenastack_init(_cap RK_IFALLOC(, _alloc))
-#define RK__ARENASTACK_INIT2(_cap, _alloc) rk_disable_if(RK__ARENASTACK_INIT(_cap, _alloc))
-#define RK__ARENASTACK_INIT1(cap)          RK__ARENASTACK_INIT(cap, alloc_ctx)
+#define RKI_ARENASTACK_INIT(cap, alloc) rki_arenastack_init(cap RK_IFALLOC(, alloc))
+#define RKI_ARENASTACK_INIT2(cap, _alloc)                                                          \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ARENASTACK_INIT(cap, alloc))
+#define RKI_ARENASTACK_INIT1(cap) RKI_ARENASTACK_INIT(cap, alloc_ctx)
 
-#define RK__arena_alloc_init(_SIZE, _ALIGN, _ALLOC)                                                \
+#define RKI_ARENA_ALLOC_INIT(_SIZE, _ALIGN, _ALLOC)                                                \
   arena_init((unsigned char*)alloc_allocate(_SIZE, _ALIGN RK_IFALLOC(, _ALLOC)), _SIZE)
 
-static_fun rk_alloc_alignsize(2, 1) void* RK__arenastack_allocate(size_t nbytes, size_t align,
-                                                                  void* ctx) {
+rklib_fun rk_alloc_alignsize(2, 1) void* rki_arenastack_allocate(size_t nbytes, size_t align,
+                                                                 void* ctx) {
   rk_assert_align_pow2(align);
   ArenaStack* self   = (ArenaStack*)ctx;
   size_t      needed = nbytes + (align - 1);
@@ -201,19 +203,19 @@ static_fun rk_alloc_alignsize(2, 1) void* RK__arenastack_allocate(size_t nbytes,
   // out an `align`-aligned pointer from any align_max-aligned chunk.
   // Matches the align_max used to deallocate arenas in arenastack_release().
   vec_insert_at_unordered(self->arenas, self->cur,
-                          RK__arena_alloc_init(stdc_bit_ceil(rk_MAX(needed, self->arena_size)),
+                          RKI_ARENA_ALLOC_INIT(stdc_bit_ceil(rk_MAX(needed, self->arena_size)),
                                                align_max, vec_allocator(self->arenas)));
   return arena_allocate(nbytes, align, &self->arenas[self->cur]);
 }
 
-static_fun void RK__arenastack_deallocate(void* ptr, size_t old_size, size_t align, void* ctx) {
+rklib_fun void rki_arenastack_deallocate(void* ptr, size_t old_size, size_t align, void* ctx) {
   ArenaStack* self = (ArenaStack*)ctx;
-  RK__arena_deallocate(ptr, old_size, align, &self->arenas[self->cur]);
+  rki_arena_deallocate(ptr, old_size, align, &self->arenas[self->cur]);
 }
 
-static_fun rk_alloc_alignsize(4, 3) void* RK__arenastack_reallocate(void* ptr, size_t old_size,
-                                                                    size_t new_size, size_t align,
-                                                                    void* ctx) {
+rklib_fun rk_alloc_alignsize(4, 3) void* rki_arenastack_reallocate(void* ptr, size_t old_size,
+                                                                   size_t new_size, size_t align,
+                                                                   void* ctx) {
   rk_assert_align_pow2(align);
   ArenaStack* self = (ArenaStack*)ctx;
   if (!old_size) { return arenastack_allocate(new_size, align, self); }
@@ -227,15 +229,15 @@ static_fun rk_alloc_alignsize(4, 3) void* RK__arenastack_reallocate(void* ptr, s
   return res;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size_t align,
-                                                              ArenaStack* self) {
-  return RK__arenastack_allocate(nbytes, align, self);
+rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size_t align,
+                                                             ArenaStack* self) {
+  return rki_arenastack_allocate(nbytes, align, self);
 }
 
-#undef RK__arena_alloc_init
+#undef RKI_ARENA_ALLOC_INIT
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_ARENASTACK_H

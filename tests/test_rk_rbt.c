@@ -7,7 +7,7 @@
 #include <limits.h>
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 extern_fun int rbt_int_cmp(int a, int b) { return a < b ? -1 : (a == b ? 0 : 1); }
 
@@ -380,6 +380,6 @@ triax_test(rbt, foreach_stack_too_small_asserts, .isolation = TRIAX_ISOLATION_ON
 rbt_release(int, char, &r);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

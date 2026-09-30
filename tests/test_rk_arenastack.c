@@ -3,7 +3,7 @@
 #include "conf.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 #define ALIST_ARENA_SIZE 128
 
@@ -401,7 +401,7 @@ triax_test(arenastack, allocator_realloc_copy_path) {
 }
 #endif
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 
 #endif

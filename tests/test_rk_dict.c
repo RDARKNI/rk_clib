@@ -5,7 +5,7 @@
 #include <limits.h>
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 // ---- Define concrete key/value dict: int -> const char* ----
 typedef const char* cstr;
@@ -381,9 +381,9 @@ triax_test(dict, single_key_roundtrip, .params = triax_as_params(dict_roundtrip_
 /* default, since getting this wrong would crash the suite.                */
 /* ------------------------------------------------------------------------ */
 triax_test(dict, get_or_add_tolerates_null_inserted_out) {
-  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  Dict(int, cstr) d  = dict_init(int, cstr, 4);
 
-  cstr* v1 = dict_get_or_add(int, cstr, &d, 1, "one", rk_null);
+  cstr*           v1 = dict_get_or_add(int, cstr, &d, 1, "one", rk_null);
   triax_expect_nonnull(v1);
   triax_expect_streq(*v1, "one");
   triax_expect_eq(dict_count(&d), 1u);
@@ -523,6 +523,25 @@ triax_test(arrdup, t0) {
   alloc_delete(dst, 5);
   alloc_delete(dst2, 5);
 }
-RK__IGNWARN_CLANG_END()
+
+triax_test(memdup, t0) {
+  int  src[5] = {1, 2, 3, 4, 5};
+  int* dst    = rk_memdup(src, sizeof(src));
+  triax_expect_memeq(dst, src, sizeof(src));
+  int* dst2 = rk_memdup(dst, sizeof(src));
+  triax_expect_memeq(dst2, src, sizeof(src));
+  triax_expect_neq(dst2, dst); // must be a distinct allocation, not an alias
+  alloc_deallocate(dst, sizeof(src), align_max);
+  alloc_deallocate(dst2, sizeof(src), align_max);
+}
+
+triax_test(memdup, aligned) {
+  int  src[5] = {1, 2, 3, 4, 5};
+  int* dst    = rk_memdup_aligned(src, sizeof(src), 64);
+  triax_expect_eq((uintptr_t)dst % 64, (uintptr_t)0);
+  triax_expect_memeq(dst, src, sizeof(src));
+  alloc_deallocate(dst, sizeof(src), 64);
+}
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

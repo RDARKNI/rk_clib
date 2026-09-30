@@ -3,7 +3,7 @@
 #include "conf.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 // #define CAP 239539
 // #define CAP 999
@@ -238,7 +238,7 @@ triax_test(bitset, iterations) {
 //     }
 // }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 
 #endif

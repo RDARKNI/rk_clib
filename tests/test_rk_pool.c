@@ -3,7 +3,7 @@
 #include "conf.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 typedef struct PoolIntPair { int a, b; } PoolIntPair;
 
 static unsigned char   pool_alloc_storage[4096];
@@ -13,7 +13,8 @@ triax_test(pool, dynamic_allocator) {
   POOL_DEFINE(int);
   {
     Pool(int) p = pool_init(int, 4);
-    RK_IFALLOC(triax_expect_memeq((Allocator[]){pool_allocator(&p)}, &alloc_ctx, sizeof(alloc_ctx));)
+    RK_IFALLOC(
+        triax_expect_memeq((Allocator[]){pool_allocator(&p)}, &alloc_ctx, sizeof(alloc_ctx));)
     pool_release(&p);
   }
   {
@@ -509,6 +510,6 @@ triax_test(pool, try_put_copies_value_dynamic) {
   pool_release(&p);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

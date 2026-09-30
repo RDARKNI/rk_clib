@@ -7,7 +7,7 @@
 #include <limits.h>
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 extern_fun int avl_int_cmp(int a, int b) { return a < b ? -1 : (a == b ? 0 : 1); }
 
@@ -100,8 +100,8 @@ triax_test(avl, add_does_not_overwrite_set_does) {
 triax_test(avl, get_or_add) {
   Avl(int, char) a = avl_init(int, char);
 
-  bool  inserted = false;
-  char* p1       = avl_get_or_add(int, char, &a, 5, 'e', &inserted);
+  bool  inserted   = false;
+  char* p1         = avl_get_or_add(int, char, &a, 5, 'e', &inserted);
   triax_expect_true(inserted);
   triax_expect_eq(*p1, 'e');
   triax_expect_eq(avl_count(&a), 1u);
@@ -132,8 +132,8 @@ triax_test(avl, get_or_add) {
 
 triax_test(avl, foreach_empty) {
   Avl(int, char) a = avl_init(int, char);
-  tree_node*     stack[4];
-  int            visited = 0;
+  tree_node* stack[4];
+  int        visited = 0;
   avl_foreach(&a, stack, 4, e) {
     (void)e;
     ++visited;
@@ -152,7 +152,7 @@ triax_test(avl, foreach_inorder) {
   tree_node* stack[4];
   int        keys[4] = {0};
   char       vals[4] = {0};
-  int        i        = 0;
+  int        i       = 0;
 
   avl_foreach(&a, stack, 4, e) {
     keys[i] = e->key;
@@ -325,11 +325,8 @@ typedef struct {
 } AvlRoundtripCase;
 
 static const AvlRoundtripCase avl_roundtrip_cases[] = {
-    {"positive", 42,      'x'},
-    {"zero",     0,       '0'},
-    {"negative", -17,     'n'},
-    {"int_min",  INT_MIN, 'm'},
-    {"int_max",  INT_MAX, 'M'},
+    {"positive", 42, 'x'},     {"zero", 0, '0'},          {"negative", -17, 'n'},
+    {"int_min", INT_MIN, 'm'}, {"int_max", INT_MAX, 'M'},
 };
 
 triax_test(avl, single_key_roundtrip, .params = triax_as_params(avl_roundtrip_cases)) {
@@ -375,12 +372,13 @@ triax_test(avl, foreach_stack_too_small_asserts, .isolation = TRIAX_ISOLATION_ON
 
   tree_node* stack[1]; // deliberately smaller than the tree's height
   triax_assert_fault(TRIAX_FAULT_ABORT, {
-    avl_foreach(&a, stack, 1, e) { (void)e; }
-  });
+    avl_foreach(&a, stack, 1, e) { (void)e;
+}
+});
 
-  avl_release(int, char, &a);
+avl_release(int, char, &a);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

@@ -7,7 +7,7 @@
 #include <limits.h>
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 extern_fun int int_cmp2(int a, int b) { return a < b ? -1 : (a == b ? 0 : 1); }
 
@@ -100,8 +100,8 @@ triax_test(bst, add_does_not_overwrite_set_does) {
 triax_test(bst, get_or_add) {
   Bst(int, char) b = bst_init(int, char);
 
-  bool  inserted = false;
-  char* p1       = bst_get_or_add(int, char, &b, 5, 'e', &inserted);
+  bool  inserted   = false;
+  char* p1         = bst_get_or_add(int, char, &b, 5, 'e', &inserted);
   triax_expect_true(inserted);
   triax_expect_eq(*p1, 'e');
   triax_expect_eq(bst_count(&b), 1u);
@@ -153,7 +153,7 @@ triax_test(bst, foreach_inorder) {
   tree_node* stack[4];
   int        keys[4] = {0};
   char       vals[4] = {0};
-  int        i        = 0;
+  int        i       = 0;
 
   bst_foreach(&b, stack, 4, e) {
     keys[i] = e->key;
@@ -323,11 +323,8 @@ typedef struct {
 } BstRoundtripCase;
 
 static const BstRoundtripCase bst_roundtrip_cases[] = {
-    {"positive", 42,      'x'},
-    {"zero",     0,       '0'},
-    {"negative", -17,     'n'},
-    {"int_min",  INT_MIN, 'm'},
-    {"int_max",  INT_MAX, 'M'},
+    {"positive", 42, 'x'},     {"zero", 0, '0'},          {"negative", -17, 'n'},
+    {"int_min", INT_MIN, 'm'}, {"int_max", INT_MAX, 'M'},
 };
 
 triax_test(bst, single_key_roundtrip, .params = triax_as_params(bst_roundtrip_cases)) {
@@ -371,12 +368,13 @@ triax_test(bst, foreach_stack_too_small_asserts, .isolation = TRIAX_ISOLATION_ON
 
   tree_node* stack[1]; // deliberately smaller than the tree's height
   triax_assert_fault(TRIAX_FAULT_ABORT, {
-    bst_foreach(&b, stack, 1, e) { (void)e; }
-  });
+    bst_foreach(&b, stack, 1, e) { (void)e;
+}
+});
 
-  bst_release(int, char, &b);
+bst_release(int, char, &b);
 }
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 #endif

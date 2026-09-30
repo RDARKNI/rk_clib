@@ -3,7 +3,7 @@
 #include "conf.h"
 
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wunused-variable")
+RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 #define ARENA_SIZE 1024
 
 static unsigned char arena_buf[ARENA_SIZE];
@@ -64,12 +64,12 @@ triax_test(arena, cap_used_remaining_empty) {
   triax_expect_eq(arena_remaining(&glob_a), ARENA_SIZE);
   triax_expect_true(arena_is_empty(&glob_a));
 
-  void* p1 = RK__arena_allocate(13, 1, &glob_a);
+  void* p1 = rki_arena_allocate(13, 1, &glob_a);
   triax_expect_nonnull(p1);
   triax_expect_false(arena_is_empty(&glob_a));
   triax_expect_eq(arena_used(&glob_a) + arena_remaining(&glob_a), arena_cap(&glob_a));
 
-  void* p2 = RK__arena_allocate(17, 8, &glob_a);
+  void* p2 = rki_arena_allocate(17, 8, &glob_a);
   triax_expect_nonnull(p2);
   triax_expect_eq(arena_used(&glob_a) + arena_remaining(&glob_a), arena_cap(&glob_a));
 
@@ -105,8 +105,8 @@ triax_test(arena, alloc_basic) {
 triax_test(arena, allocate_zero_size) {
   arena_clear(&glob_a);
 
-  void* p1 = RK__arena_allocate(0, 1, &glob_a);
-  void* p2 = RK__arena_allocate(0, 8, &glob_a);
+  void* p1 = rki_arena_allocate(0, 1, &glob_a);
+  void* p2 = rki_arena_allocate(0, 8, &glob_a);
 
   triax_expect_nonnull(p1);
   triax_expect_nonnull(p2);
@@ -121,7 +121,7 @@ triax_test(arena, allocate_alignment_range) {
   arena_clear(&glob_a);
 
   for (size_t align = 1; align <= 64; align <<= 1) {
-    void* p = RK__arena_allocate(1, align, &glob_a);
+    void* p = rki_arena_allocate(1, align, &glob_a);
     triax_expect_nonnull(p);
     triax_expect_eq((uintptr_t)p % align, 0u);
   }
@@ -133,9 +133,9 @@ triax_test(arena, allocate_full_and_fail, .isolation = TRIAX_ISOLATION_ON) {
   unsigned char buf[128];
   Arena         x = arena_init_static(buf);
 
-  triax_expect_nonnull(RK__arena_allocate(sizeof(buf), 1, &x));
+  triax_expect_nonnull(rki_arena_allocate(sizeof(buf), 1, &x));
   triax_expect_eq(arena_remaining(&x), 0u);
-  triax_assert_fault(TRIAX_FAULT_ANY, RK__arena_allocate(1, 1, &x););
+  triax_assert_fault(TRIAX_FAULT_ANY, rki_arena_allocate(1, 1, &x););
 }
 
 triax_test(arena, new_zero_count) {
@@ -200,7 +200,7 @@ triax_test(arena, clear_idempotent) {
   triax_expect_eq(arena_clear(&glob_a), &glob_a);
   triax_expect_eq(glob_a.cur, glob_a.beg);
 
-  triax_expect_nonnull(RK__arena_allocate(10, 1, &glob_a));
+  triax_expect_nonnull(rki_arena_allocate(10, 1, &glob_a));
   triax_expect_false(arena_is_empty(&glob_a));
 
   triax_expect_eq(arena_clear(&glob_a), &glob_a);
@@ -217,9 +217,9 @@ triax_test(arena, mark_rewind_basic) {
   arena_clear(&glob_a);
 
   ArenaMark m0 = arena_mark(&glob_a);
-  triax_expect_nonnull(RK__arena_allocate(10, 1, &glob_a));
+  triax_expect_nonnull(rki_arena_allocate(10, 1, &glob_a));
   ArenaMark m1 = arena_mark(&glob_a);
-  triax_expect_nonnull(RK__arena_allocate(20, 1, &glob_a));
+  triax_expect_nonnull(rki_arena_allocate(20, 1, &glob_a));
 
   triax_expect_eq(arena_rewind_to(&glob_a, m1), &glob_a);
   triax_expect_eq(glob_a.cur, m1.pos);
@@ -318,10 +318,10 @@ triax_test(arena, try_extend_oom_returns_null) {
 triax_test(arena, edgecases_full_allocation) {
   arena_clear(&glob_a);
 
-  triax_expect_nonnull(RK__arena_allocate(0, 1, &glob_a));
+  triax_expect_nonnull(rki_arena_allocate(0, 1, &glob_a));
 
   size_t remaining = arena_remaining(&glob_a);
-  triax_expect_nonnull(RK__arena_allocate(remaining, 1, &glob_a));
+  triax_expect_nonnull(rki_arena_allocate(remaining, 1, &glob_a));
   triax_expect_eq(arena_remaining(&glob_a), 0u);
 
   arena_clear(&glob_a);
@@ -540,7 +540,7 @@ triax_test(arena, arr_allocator_as_allocator_interface) {
 
 #endif
 
-RK__IGNWARN_CLANG_END()
+RKI_IGNWARN_CLANG_END()
 RK_HEADER_END
 
 #endif
