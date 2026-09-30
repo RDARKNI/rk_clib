@@ -6,67 +6,77 @@
 /* inlined from include/rklib.h:5: #include "rk_config.h" */
 /* BEGIN INLINE: include/rk_config.h */
 // SPDX-License-Identifier: MIT
+
 /// @file rk_config.h
 /// @version 1.0.0
-/// @defgroup rk_config rklib Configuration Macros
-/// @brief Configuration macros for rklib. All options relating to a non-included header are
-/// ignored.
+/// @defgroup rk_config rklib Configuration
+/// @brief Compile-time configuration for rklib.
 ///
-/// @warning All translation units using this library **must** share the same configuration.
-/// Mismatches cause **ill-formed, no diagnostic required** (IFNDR) behaviour due to differing
-/// struct layouts and function definitions.
+/// This file is the central configuration point for rklib. Options may either be changed directly
+/// here or defined by the build system before including any rklib header.
 ///
-/// ---
+/// Options relating only to headers that are not included have no effect.
 ///
-/// - **RK_IMPL** Must be `#define`d in exactly **one** translation unit before including any rklib
-///   header. This provides the definitions for `extern inline` functions. All other translation
-///   units must omit it.
+/// @par Translation-unit configuration
 ///
-/// - **RK_CUSTOM_ALLOCATORS** default: `1` Set to `1` to enable custom allocators. Every owning
-///   library object stores the `Allocator` selected when it is initialised, and accepts an optional
-///   allocator argument. `alloc_ctx` supplies the default for objects created without an explicit
-///   allocator; changing it affects only subsequently created objects. Set to `0` to remove
-///   allocator members and custom-allocator arguments and use direct `malloc`/`free` wrappers.
+/// By default, rklib is header-only. Functions and mutable library state have
+/// translation-unit-local definitions where necessary.
 ///
-/// - **RKLIB_DEBUG** default: not defined Define to enable debug logging. `rk_log()` will print
-///   diagnostics to `stderr` and `rk_assert()` will print the failed expression before calling
-///   `abort()`. Has no runtime cost when `0`.
+/// Define `RK_MULTI_TU` to use the multi-translation-unit model instead. In that mode, rklib
+/// entities that require one program-wide definition use external linkage.
 ///
-/// - **RK_ALLOC_MULTITHREADED** default: `0` Set to `1` to give `alloc_ctx` thread-local storage,
-///   enabling a distinct default allocator per thread. Requires `RK_CUSTOM_ALLOCATORS == 1`.
+/// When `RK_MULTI_TU` is enabled, exactly one translation unit must additionally define `RK_IMPL`
+/// before including any rklib header:
 ///
-/// - **RK_MALLOC_FAIL**(`cond, ctx, old_ptr, align, new_size`) default: `rk_assert(cond)` +
-///   `abort()` Called inside the malloc-based allocator when an allocation returns `NULL`. `cond`
-///   is the (null) pointer returned by the allocator. The remaining arguments provide context for
-///   custom handlers (e.g. logging or fallback allocation). The handler must not return normally;
-///   it must either abort or longjmp.
+/// @code
+/// #define RK_IMPL
+/// #include <rklib.h>
+/// @endcode
 ///
-/// - **RK_MMAP_FAIL**(`cond, ctx, old_ptr, align, new_size`) default: `rk_assert(cond)` + `abort()`
-///   Same as `RK_MALLOC_FAIL` but called by the page allocator (`mmap` /
-///   `VirtualAlloc`) on failure.
+/// `RK_IMPL` is intentionally not a global configuration option: it identifies the one translation
+/// unit that provides rklib's external definitions.
 ///
-/// - **RK_ARENA_FAIL**(`cond, ctx, old_ptr, align, new_size`) default: `rk_assert(cond)` +
-///   `abort()` Called inside `rk_arena.h` allocators when the arena has no space left. `ctx` is the
-///   `Arena*`. The handler must not return normally.
+/// @warning When `RK_MULTI_TU` is enabled, all translation units must use the same rklib
+/// configuration. Configuration mismatches may produce incompatible object layouts or function
+/// definitions.
 ///
-/// - **RK_POOL_FAIL**(`cond, ctx, old_ptr, align, new_size`) default: `rk_assert(cond)` + `abort()`
-///   Called inside `rk_pool.h` allocators when all pool slots are occupied. `ctx` is the pool
-///   pointer. The handler must not return normally.
+/// Even in header-only mode, objects exchanged between translation units must of course have been
+/// compiled with compatible layout-affecting options.
 ///
-/// - **RK_DICT_LOAD_NUM** / **RK_DICT_LOAD_DEN** default: `3` / `4` Integer fraction in `(0, 1)`
-///   controlling when `rk_dict` rehashes. Lower values reduce collisions at the cost of more
-///   memory; higher values do the opposite. Applies globally to all `Dict` instances.
+/// @par Allocators
 ///
-/// - **rk_mult**(`x, y`) default: `((x) * (y))` Multiplication used internally for `size_t`
-///   size/count computations (`sizeof_n`, `Vec`/`Pool` capacity sizing, etc.). The default is a
-///   raw, unchecked multiply: an overflowing `count * sizeof(T)` silently wraps to a small value,
-///   so a too-large `count` can lead to a successful but undersized allocation. Define as
-///   `rk_mult_safe` (declared in `rk_defs.h`) to `abort()` on overflow instead, at the cost of a
-///   runtime check (a branch and, on the overflowing path, a division) on every multiplication.
+/// `RK_CUSTOM_ALLOCATORS` controls whether the allocator abstraction is carried through owning
+/// rklib objects.
+///
+/// When enabled, owning objects can store an `Allocator`, allocator-taking overloads are available,
+/// and allocation is dispatched through the selected allocator.
+///
+/// When disabled, allocator fields and allocator-taking overloads are compiled out and allocations
+/// use the malloc-backed implementation directly.
+///
+/// `RK_ALLOC_CTX_THREAD_LOCAL` controls the storage duration of `alloc_ctx`. When enabled, each
+/// thread has its own default allocator context. It does not itself make allocator implementations
+/// thread-safe.
+///
+/// @par Allocation failure
+///
+/// Ordinary allocation APIs are infallible from the caller's perspective. Allocation failure is
+/// handled by the allocator-specific failure macros below.
+///
+/// A custom failure handler must not return normally. It should terminate execution, `longjmp`, or
+/// otherwise transfer control away from the failed allocation.
+///
+/// @par Size overflow
+///
+/// `rk_mult(x, y)` is used for size calculations throughout the library. By default it performs
+/// ordinary unchecked multiplication. It may be redefined to `rk_mult_safe(x, y)` to abort on size
+/// overflow.
+///
 /// @{
 
 #ifndef RK_CONFIG_H
 #define RK_CONFIG_H
+
 #if defined(__cplusplus) && !defined(__clang__)
 # error "C++ support only for Clang"
 #elif defined(_MSC_VER) && _MSC_VER < 1939
@@ -74,146 +84,179 @@
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////// Configuration Macros ///////////////////////////////////////////
+//////////////////////////////////// User Configuration ////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// clang-format off
-// Quick-reference: define any of these before including rklib headers.
-// Full documentation is in the Doxygen block above.
+// This section lists every supported user-facing compile-time configuration option.
 //
-// #define RK_IMPL                                           // one TU only
-// #define RKLIB_DEBUG                                      // enable logging
-// #define RK_CUSTOM_ALLOCATORS          1                  // enable custom allocators
-// #define RK_ALLOC_MULTITHREADED        1                  // thread_local alloc_ctx
-// #define RK_MALLOC_FAIL(cond, ctx, old_ptr, align, new_size)  ...
-// #define RK_MMAP_FAIL( cond, ctx, old_ptr, align, new_size)   ...
-// #define RK_ARENA_FAIL(cond, ctx, old_ptr, align, new_size)   ...
-// #define RK_POOL_FAIL( cond, ctx, old_ptr, align, new_size)   ...
-// #define RK_DICT_LOAD_NUM              3
-// #define RK_DICT_LOAD_DEN              4
-// #define rk_mult(x, y)                 ((x) * (y))  // or rk_mult_safe(x, y) to abort on overflow
-// clang-format on
+// Either edit the definitions here or provide equivalent definitions through the build system.
+// Options with their default value shown do not need to be explicitly defined.
 
-/// @brief Enables per-object custom allocators. Set to 0 to remove allocator members and use the
-/// built-in malloc allocator directly.
+// Build model:
+//
+// #define RK_MULTI_TU
+//
+// When RK_MULTI_TU is enabled, define RK_IMPL separately in exactly one translation unit before
+// including any rklib header. Do NOT define RK_IMPL here.
+
+// Diagnostics:
+//
+// #define RKLIB_DEBUG
+//
+// Define RKLIB_DEBUG to enable debug logging and additional diagnostic output. Leave it undefined
+// to disable debug mode.
+
+// Allocators:
+//
+// #define RK_CUSTOM_ALLOCATORS       1
+// #define RK_ALLOC_CTX_THREAD_LOCAL  0
+//
+// RK_CUSTOM_ALLOCATORS:
+//   1 - owning objects support arbitrary Allocator instances.
+//   0 - allocator state and allocator-taking overloads are compiled out; malloc is used directly.
+//
+// RK_ALLOC_CTX_THREAD_LOCAL:
+//   1 - alloc_ctx is thread_local, giving each thread its own default allocator.
+//   0 - alloc_ctx is shared normally.
+// This option does not make the allocators themselves thread-safe.
+
+// Allocation failure handlers:
+//
+// #define RK_MALLOC_FAIL(cond, ctx, old_ptr, align, new_size) ...
+// #define RK_MMAP_FAIL( cond, ctx, old_ptr, align, new_size) ...
+// #define RK_ARENA_FAIL(cond, ctx, old_ptr, align, new_size) ...
+// #define RK_POOL_FAIL( cond, ctx, old_ptr, align, new_size) ...
+//
+// Defaults assert and abort. Custom handlers must not return normally.
+
+// Dictionary:
+//
+// #define RK_DICT_LOAD_NUM 3
+// #define RK_DICT_LOAD_DEN 4
+//
+// Maximum dictionary load factor, expressed as RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN.
+
+// Size arithmetic:
+//
+// #define rk_mult(x, y) rk_mult_safe((x), (y))
+//
+// Uncomment to make dynamic size multiplication fail-fast on overflow.
+// The default is unchecked multiplication.
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// End User Configuration //////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #ifndef RK_CUSTOM_ALLOCATORS
 # define RK_CUSTOM_ALLOCATORS 1
-#elif RK_CUSTOM_ALLOCATORS != 0 && RK_CUSTOM_ALLOCATORS != 1
-# error "RK_CUSTOM_ALLOCATORS must be 0 or 1"
 #endif
 
-#ifndef RK_ALLOC_MULTITHREADED
-/// @brief Set to 1 to give `alloc_ctx` `thread_local` storage, enabling a per-thread default
-/// allocator. Requires custom allocators to be enabled.
-# define RK_ALLOC_MULTITHREADED 0
-#elif RK_ALLOC_MULTITHREADED != 0 && RK_ALLOC_MULTITHREADED != 1
-# error "RK_ALLOC_MULTITHREADED must be 0 or 1"
+#ifndef RK_ALLOC_CTX_THREAD_LOCAL
+# define RK_ALLOC_CTX_THREAD_LOCAL 0
 #endif
-#if RK_ALLOC_MULTITHREADED && !RK_CUSTOM_ALLOCATORS
-# error "RK_ALLOC_MULTITHREADED requires RK_CUSTOM_ALLOCATORS"
-#elif RK_ALLOC_MULTITHREADED
-# define RK_alloc_tl thread_local
-#else
-# define RK_alloc_tl /* no thread local storage */
-#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////// Allocation Failure Policy /////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @defgroup alloc_failure_handlers Allocator Failure Handlers
-/// @brief Customizable failure handlers for each allocator type. All handlers receive `cond` (the
-/// null pointer returned on failure) plus context arguments for custom logging or fallback logic.
-/// The handler must not return normally — it must `abort()` or `longjmp()`.
+/// @brief Customizable failure handlers used by the built-in allocators.
+///
+/// All handlers receive:
+/// - `cond`:     the allocator's success condition;
+/// - `ctx`:      allocator-specific context;
+/// - `old_ptr`:  previous allocation when applicable;
+/// - `align`:    requested alignment;
+/// - `new_size`: requested allocation size.
+///
+/// A handler is invoked only when `cond` is false and must not return normally.
+///
 /// @{
+
 #ifndef RK_MALLOC_FAIL
-/// @brief Malloc-based allocator failure handler.
+
+/// @brief Failure handler for the malloc-backed allocator.
 # define RK_MALLOC_FAIL(cond, ctx, old_ptr, align, new_size)                                       \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     bool RK___failcond = !!(cond);                                                                \
-     rk_assert(RK___failcond && "malloc allocation failure");                                      \
-     RK___failcond ? (void)0 : abort();                                                            \
+     rk_assert((cond) && "malloc allocation failure");                                             \
+     (cond) ? (void)0 : abort();                                                                   \
    } while (0)
+
 #endif
 
 #ifndef RK_MMAP_FAIL
-/// @brief Page allocation failure handler (mmap / VirtualAlloc).
+
+/// @brief Failure handler for OS page allocation (`mmap` / `VirtualAlloc`).
 # define RK_MMAP_FAIL(cond, ctx, old_ptr, align, new_size)                                         \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     bool RK___failcond = !!(cond);                                                                \
-     rk_assert(RK___failcond && "map allocation failure");                                         \
-     RK___failcond ? (void)0 : abort();                                                            \
+     rk_assert((cond) && "map allocation failure");                                                \
+     (cond) ? (void)0 : abort();                                                                   \
    } while (0)
+
 #endif
 
 #ifndef RK_ARENA_FAIL
-/// @brief Arena allocator failure handler (`ctx` is the `Arena*`).
+
+/// @brief Failure handler for arena allocation. `ctx` is the corresponding `Arena *`.
 # define RK_ARENA_FAIL(cond, ctx, old_ptr, align, new_size)                                        \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     bool RK___failcond = !!(cond);                                                                \
-     rk_assert(RK___failcond && "arena allocation failed");                                        \
-     RK___failcond ? (void)0 : abort();                                                            \
+     rk_assert((cond) && "arena allocation failure");                                              \
+     (cond) ? (void)0 : abort();                                                                   \
    } while (0)
+
 #endif
 
 #ifndef RK_POOL_FAIL
-/// @brief Pool allocator failure handler (`ctx` is the pool pointer).
+
+/// @brief Failure handler for pool allocation. `ctx` is the corresponding pool pointer.
 # define RK_POOL_FAIL(cond, ctx, old_ptr, align, new_size)                                         \
    do {                                                                                            \
      (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
-     bool RK___failcond = !!(cond);                                                                \
-     rk_assert(RK___failcond && "pool allocation failed");                                         \
-     RK___failcond ? (void)0 : abort();                                                            \
+     rk_assert((cond) && "pool allocation failure");                                               \
+     (cond) ? (void)0 : abort();                                                                   \
    } while (0)
+
 #endif
+
 /// @}
 
-/// @brief Maximum load factor for `rk_dict` hash tables, expressed as the integer fraction
-/// `RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN` in `(0, 1)`. The table rehashes when `(count + n_deleted)
-/// / cap` exceeds this value. Kept as an integer ratio (not a float) so the growth check is exact
-/// cross-multiplication against `cap`, with no float conversion of `size_t` on every insert.
-#ifndef RK_DICT_LOAD_NUM
-# define RK_DICT_LOAD_NUM 3
-#endif
-#ifndef RK_DICT_LOAD_DEN
-# define RK_DICT_LOAD_DEN 4
-#endif
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// Arithmetic Policy /////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// @brief `size_t` multiplication used for size/count computations throughout the library
-/// (`sizeof_n`, `Vec`/`Pool` capacity sizing, etc.). Unchecked by default — an overflowing
-/// `count * sizeof(T)` silently wraps, which can turn a too-large `count` into a small, successful
-/// allocation. Define this as `rk_mult_safe` (declared in `rk_defs.h`) before including any rklib
-/// header to `abort()` on overflow instead, at the cost of a runtime check on every multiplication.
+/// @brief Multiplication used for dynamic byte-size calculations.
+///
+/// The default performs unchecked `size_t` multiplication. Define `rk_mult(x, y)` yourself, for
+/// example as `rk_mult_safe((x), (y))`, to use a checked policy instead.
 #ifndef rk_mult
 # define rk_mult(x, y) ((x) * (y))
 #endif
 
 /// @}
+
 #endif // RK_CONFIG_H
 
 // MIT License
 //
 // Copyright (c) 2026 Dariusch Knigge
 //
-// Permission is hereby granted, free of charge, to any person
-// obtaining a copy of this software and associated documentation
-// files (the "Software"), to deal in the Software without
-// restriction, including without limitation the rights to use,
-// copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the
-// Software is furnished to do so, subject to the following
-// conditions:
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+// associated documentation files (the "Software"), to deal in the Software without restriction,
+// including without limitation the rights to use, copy, modify, merge, publish, distribute,
+// sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in all copies or
+// substantial portions of the Software.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-// HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-// WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-// OTHER DEALINGS IN THE SOFTWARE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+// NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* END INLINE: include/rk_config.h */
 /* inlined from include/rklib.h:6: #include "rk_defs.h" */
 /* BEGIN INLINE: include/rk_defs.h */
@@ -270,15 +313,15 @@
 #define rk_has_c_cpp_attribute(x) (rk_has_c_attribute(x) || rk_has_cpp_attribute(x))
 
 #if defined(__has_attribute)
-# define rk___attribute__(attr) __attribute__((attr))
+# define rk_attribute(attr) __attribute__((attr))
 #else
-# define rk___attribute__(attr)
+# define rk_attribute(attr)
 #endif
 
 #ifdef _MSC_VER
-# define rk___declspec(attr) __declspec(attr)
+# define rk_declspec(attr) __declspec(attr)
 #else
-# define rk___declspec(attr)
+# define rk_declspec(attr)
 #endif
 
 #ifdef _MSC_VER
@@ -327,7 +370,7 @@
 /// - Warnings about c2x, c2y and c23 extensions (namely countof, for which a fallback exists and
 ///   attribute syntax), since they're used conditionally and portably.
 /// - Warnings about unknown attributes (for the previous two)
-# define RK__SILENCE_WARNINGS_BEG                                                                  \
+# define RKI_SILENCE_WARNINGS_BEG                                                                  \
    RK_DO_PRAGMA(clang diagnostic push)                                                             \
    RK_DO_PRAGMA(clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments")                    \
    RK_DO_PRAGMA(clang diagnostic ignored "-Wkeyword-macro")                                        \
@@ -338,19 +381,19 @@
    RK_DO_PRAGMA(clang diagnostic ignored "-Wunknown-attributes")                                   \
    RK_DO_PRAGMA(clang diagnostic ignored "-Wc++17-extensions")
 
-# define RK__SILENCE_WARNINGS_END RK_DO_PRAGMA(clang diagnostic pop)
+# define RKI_SILENCE_WARNINGS_END RK_DO_PRAGMA(clang diagnostic pop)
 
-# define RK__IGNWARN_CLANG_BEG(warn)                                                               \
+# define RKI_IGNWARN_CLANG_BEG(warn)                                                               \
    RK_DO_PRAGMA(clang diagnostic push)                                                             \
    RK_DO_PRAGMA(clang diagnostic ignored warn)
-# define RK__IGNWARN_CLANG_END() RK_DO_PRAGMA(clang diagnostic pop)
-# define RK__IGNWARN_CLANG(warn, ...)                                                              \
-   RK__IGNWARN_CLANG_BEG(warn)                                                                     \
-   (__VA_ARGS__) RK__IGNWARN_CLANG_END()
+# define RKI_IGNWARN_CLANG_END() RK_DO_PRAGMA(clang diagnostic pop)
+# define RKI_IGNWARN_CLANG(warn, ...)                                                              \
+   RKI_IGNWARN_CLANG_BEG(warn)                                                                     \
+   (__VA_ARGS__) RKI_IGNWARN_CLANG_END()
 #else
-# define RK__IGNWARN_CLANG_BEG(warn)
-# define RK__IGNWARN_CLANG_END()
-# define RK__IGNWARN_CLANG(warn, ...) (__VA_ARGS__)
+# define RKI_IGNWARN_CLANG_BEG(warn)
+# define RKI_IGNWARN_CLANG_END()
+# define RKI_IGNWARN_CLANG(warn, ...) (__VA_ARGS__)
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -358,21 +401,21 @@
 /// on every targeted platform) 4116 Warnings about anonymous compound literals (not an issue in C11
 /// mode) 4141 Warnings about inline used twice (due to forceinline macro)
 /// @note excludes clang-cl (defines both __clang__ and _MSC_VER): it already gets
-/// RK__SILENCE_WARNINGS_BEG/END from the __clang__ branch above, and this branch must not redefine
+/// RKI_SILENCE_WARNINGS_BEG/END from the __clang__ branch above, and this branch must not redefine
 /// them with different (MSVC-pragma) bodies.
-# define RK__SILENCE_WARNINGS_BEG                                                                  \
+# define RKI_SILENCE_WARNINGS_BEG                                                                  \
    __pragma(warning(push)) __pragma(warning(disable : 4200 4116 4141))
-# define RK__SILENCE_WARNINGS_END   __pragma(warning(pop))
-# define RK__IGNWARN_MSC_BEG(warn)  __pragma(warning(push)) __pragma(warning(disable : warn))
-# define RK__IGNWARN_MSC_END()      __pragma(warning(pop))
-# define RK__IGNWARN_MSC(warn, ...) RK__IGNWARN_MSC_BEG(warn) __VA_ARGS__ __pragma(warning(pop))
+# define RKI_SILENCE_WARNINGS_END   __pragma(warning(pop))
+# define RKI_IGNWARN_MSC_BEG(warn)  __pragma(warning(push)) __pragma(warning(disable : warn))
+# define RKI_IGNWARN_MSC_END()      __pragma(warning(pop))
+# define RKI_IGNWARN_MSC(warn, ...) RKI_IGNWARN_MSC_BEG(warn) __VA_ARGS__ __pragma(warning(pop))
 #else
-# define RK__IGNWARN_MSC_BEG(warn)
-# define RK__IGNWARN_MSC_END()
-# define RK__IGNWARN_MSC(warn, ...) __VA_ARGS__
-# ifndef RK__SILENCE_WARNINGS_BEG
-#  define RK__SILENCE_WARNINGS_BEG
-#  define RK__SILENCE_WARNINGS_END
+# define RKI_IGNWARN_MSC_BEG(warn)
+# define RKI_IGNWARN_MSC_END()
+# define RKI_IGNWARN_MSC(warn, ...) __VA_ARGS__
+# ifndef RKI_SILENCE_WARNINGS_BEG
+#  define RKI_SILENCE_WARNINGS_BEG
+#  define RKI_SILENCE_WARNINGS_END
 # endif
 #endif
 
@@ -388,53 +431,72 @@
 /////////////////////////////////// Linkage Compatibility //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef __cplusplus
-# define static_fun inline
-# define extern_fun inline
-# if defined(__cpp_inline_variables) && __cpp_inline_variables >= 201606L
-#  define extern_var      inline
-#  define extern_def(...) = __VA_ARGS__
-# else
-#  if !defined(RK_MULTI_TU)
-#   define extern_var      static
-#   define extern_def(...) = __VA_ARGS__
-#  elif defined(RK_IMPL)
-#   define extern_var
-#   define extern_def(...) = __VA_ARGS__
-#  else
-#   define extern_var extern
-#   define extern_def(...)
-#  endif
-# endif
+#if !defined(_WIN32) && defined(RK_MULTI_TU)
+# define RK_HIDDEN __attribute__((visibility("hidden")))
 #else
-# define static_fun /*rk_unused*/ static inline
-# if !defined(RK_MULTI_TU)
-#  define extern_fun      extern inline
-#  define extern_var      static
-#  define extern_def(...) = __VA_ARGS__
-# else
-#  if defined(RK_IMPL)
-#   define extern_var
-#   define extern_def(...) = __VA_ARGS__
-#   ifndef __GNUC_GNU_INLINE__
-#    define extern_fun extern inline
-#   else
-#    define extern_fun inline
-#   endif
-#  else
-#   define extern_var extern
-#   define extern_def(...)
-#   ifndef __GNUC_GNU_INLINE__
-#    define extern_fun inline
-#   else
-#    define extern_fun extern inline
-#   endif
-#  endif
-# endif
+# define RK_HIDDEN
 #endif
 
-#define RK_HEADER_BEGIN RK__SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
-#define RK_HEADER_END   RK_EXTERNC_END RK__SILENCE_WARNINGS_END
+#define static_fun static inline
+#if !defined(RK_MULTI_TU)
+# define extern_fun      static inline
+# define extern_var      static
+# define extern_def(...) = __VA_ARGS__
+# define rklib_fun       extern_fun
+#else
+# ifdef RK_IMPL
+#  ifndef __cplusplus
+#   ifndef __GNUC_GNU_INLINE__
+#    define extern_fun extern inline
+#   else
+#    define extern_fun inline
+#   endif
+#  else
+// C's `extern inline` (or, under the older GNU inline dialect, plain `inline`) guarantees that the
+// RK_IMPL translation unit emits a real, callable definition regardless of whether that TU calls
+// the function itself -- other TUs are relying on this one to provide it. C++ has no inline form
+// with that guarantee: plain `inline` only *permits* emitting a definition, it never requires one,
+// so a function this file happens not to call itself would silently vanish, breaking any other TU
+// that calls it. __attribute__((used)) closes that gap by forcing emission unconditionally, while
+// keeping `inline` itself so the definition stays ODR-mergeable if it ever does end up duplicated
+// across translation units (this project's C++ support is Clang-only, so no non-GNU-attribute
+// fallback is needed here).
+#   if rk_has_gnu_attribute(used)
+#    define extern_fun __attribute__((used)) inline
+#   else
+#    define extern_fun inline
+#   endif
+#  endif
+#  if defined(__cpp_inline_variables) && __cpp_inline_variables >= 201606L
+#   define extern_var      inline
+#   define extern_def(...) = __VA_ARGS__
+#  else
+#   define extern_var
+#   define extern_def(...) = __VA_ARGS__
+#  endif
+# else
+#  ifndef __cplusplus
+#   ifndef __GNUC_GNU_INLINE__
+#    define extern_fun inline
+#   else
+#    define extern_fun extern inline
+#   endif
+#  else
+#   define extern_fun inline
+#  endif
+#  if defined(__cpp_inline_variables) && __cpp_inline_variables >= 201606L
+#   define extern_var      inline
+#   define extern_def(...) = __VA_ARGS__
+#  else
+#   define extern_var extern
+#   define extern_def(...)
+#  endif
+# endif
+# define rklib_fun RK_HIDDEN extern_fun
+#endif
+
+#define RK_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
+#define RK_HEADER_END   RK_EXTERNC_END RKI_SILENCE_WARNINGS_END
 
 RK_HEADER_BEGIN
 
@@ -619,7 +681,7 @@ RK_HEADER_BEGIN
 #  define rk_COUNTOF(...) (sizeof(__VA_ARGS__) / sizeof((__VA_ARGS__)[0]))
 #  define countof(...)    (static_assert_expr(rk_is_array((__VA_ARGS__))) + rk_COUNTOF(__VA_ARGS__))
 # else
-#  define countof(...)    RK__countof(__VA_ARGS__)
+#  define countof(...)    RKI_countof(__VA_ARGS__)
 #  define rk_COUNTOF(...) countof(__VA_ARGS__)
 # endif
 #else
@@ -636,13 +698,13 @@ RK_HEADER_BEGIN
 # elif defined(__GNUC__)
 #  define unreachable() __builtin_unreachable()
 # elif defined(_MSC_VER)
-static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
+rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
 #  if defined(_DEBUG)
   __debugbreak();
 #  endif
   __assume(0);
 }
-#  define unreachable() RK__unreachable_impl()
+#  define unreachable() RKI_unreachable_impl()
 # else
 #  define unreachable() (assert(!"unreachable code reached"), abort())
 # endif
@@ -658,7 +720,7 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 # define rk_null ((void*)0)
 #endif
 /// @brief The maximum fundamental alignment.
-#define align_max     alignof(RK__max_align_type)
+#define align_max     alignof(RKI_max_align_t)
 
 /// @brief Aligns an object to the maximum fundamental alignment.
 #define alignas_max   alignas(align_max)
@@ -670,10 +732,10 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 #define lenof(strlit) (sizeof("" strlit "") - 1)
 
 /// @brief Returns the minimum value of any C integral type.
-#define minof(T)      RK__minof_impl(T)
+#define minof(T)      RKI_MINOF(T)
 
 /// @brief Returns the maximum value of any C integral type.
-#define maxof(T)      RK__maxof_impl(T)
+#define maxof(T)      RKI_MAXOF(T)
 
 /// @brief Like the Kernel's container_of_const macro but portable
 #define containerof(ptr, type, member)                                                             \
@@ -685,7 +747,7 @@ static_fun __forceinline rk_noreturn void RK__unreachable_impl(void) {
 /// @brief Overflow-checked `size_t` multiplication; `abort()`s instead of wrapping. Not used by
 /// default — see the `rk_mult` config hook in `rk_config.h` to opt every size/count computation in
 /// the library into this behaviour (`#define rk_mult(x, y) rk_mult_safe(x, y)`).
-static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
+rklib_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
   return rk_likely(x == 0 || y <= SIZE_MAX / x) ? x * y : (abort(), (size_t)0);
 }
 
@@ -729,7 +791,7 @@ static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
 #endif
 
 #ifndef __cplusplus
-# define RK__pun_cast(to_type, expr)                                                               \
+# define RKI_pun_cast(to_type, expr)                                                               \
    rk_static_if(!rk_is_array(expr),                                                                \
                 (union {                                                                           \
                  static_assert(sizeof(typeof(expr)) == sizeof(to_type),                            \
@@ -747,9 +809,9 @@ static_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
                                      sizeof(to_type)))
 
 # ifndef _MSC_VER
-#  define pun_cast(to_type, ...) RK__pun_cast(to_type, (__VA_ARGS__))
+#  define pun_cast(to_type, ...) RKI_pun_cast(to_type, (__VA_ARGS__))
 # else
-#  define pun_cast(to_type, expr) RK__IGNWARN_MSC(4116, RK__pun_cast(to_type, expr))
+#  define pun_cast(to_type, expr) RKI_IGNWARN_MSC(4116, RKI_pun_cast(to_type, expr))
 # endif
 
 #elif __cplusplus >= 202002L
@@ -792,35 +854,35 @@ typedef int64_t   s64;
 __extension__ typedef unsigned __int128 u128;
 __extension__ typedef __int128          s128;
 # pragma GCC diagnostic pop
-# define RK__IFHAS_INT128(...) __VA_ARGS__
+# define RKI_IFHAS_INT128(...) __VA_ARGS__
 #else
-# define RK__IFHAS_INT128(...)
+# define RKI_IFHAS_INT128(...)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////   Function Wrappers   //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static_fun rk_const size_t rk_align_up(size_t size, size_t align);
+rklib_fun rk_const size_t      rk_align_up(size_t size, size_t align);
 
-static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align);
+rklib_fun rk_const size_t      rk_align_pad(const void* ptr, size_t align);
 
-static_fun rk_const bool   rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
-                                           const void* end2);
+rklib_fun rk_const bool        rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
+                                               const void* end2);
 
-static_fun rk_const bool   rk_ptr_in_range(const void* ptr, const void* beg, const void* end);
+rklib_fun rk_const bool        rk_ptr_in_range(const void* ptr, const void* beg, const void* end);
 
-static_fun rk_forceinline void* rk_memcpy(void* const restrict dst, const void* const restrict src,
-                                          size_t nbytes) {
+rklib_fun rk_forceinline void* rk_memcpy(void* const restrict dst, const void* const restrict src,
+                                         size_t nbytes) {
   return nbytes ? memcpy(dst, src, nbytes) : dst;
 }
-static_fun rk_forceinline void* rk_memmove(void* dst, const void* src, size_t nbytes) {
+rklib_fun rk_forceinline void* rk_memmove(void* dst, const void* src, size_t nbytes) {
   return nbytes ? memmove(dst, src, nbytes) : dst;
 }
-static_fun rk_forceinline void* rk_memset(void* dst, int value, size_t nbytes) {
+rklib_fun rk_forceinline void* rk_memset(void* dst, int value, size_t nbytes) {
   return nbytes ? memset(dst, value, nbytes) : dst;
 }
-static_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
+rklib_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, size_t nbytes) {
   return nbytes ? memcmp(a, b, nbytes) : 0;
 }
 
@@ -843,8 +905,8 @@ static_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, si
 # define rk_assert(...)                                                                            \
    (rk_likely((__VA_ARGS__)) ? (void)0 : RK_assertfail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
 /// print to stderr if RKLIB_DEBUG is defined
-rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, int line,
-                                          const char* func) {
+rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int line,
+                                         const char* func) {
   fprintf(stderr, "Assertion failed: (%s), function %s, file %s, line %d.\n", expr, func, file,
           line);
   abort();
@@ -874,96 +936,97 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 
 /// @brief Returns the absolute value of `x`. For signed integers, the result is undefined/overflow
 /// if `x` is the minimum representable value (e.g. `INT_MIN`), matching typical `abs` semantics.
-#define rk_abs(x)                RK__abs_impl(x)
+#define rk_abs(x)                RKI_ABS(x)
 
 /// @brief Returns the smaller of `x` and `y`.
-#define rk_min(x, y)             RK__twonum_macro(min_, RK_NUM_TYPES, x, y)
+#define rk_min(x, y)             RKI_twonum_macro(min_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_min()` but not type-safe and may double-evaluate args.
 #define rk_MIN(a, b)             ((a) < (b) ? (a) : (b))
 
 /// @brief Returns the larger of `x` and `y`.
-#define rk_max(x, y)             RK__twonum_macro(max_, RK_NUM_TYPES, x, y)
+#define rk_max(x, y)             RKI_twonum_macro(max_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_max()` but not type-safe and may double-evaluate args.
 #define rk_MAX(a, b)             ((a) > (b) ? (a) : (b))
 
 /// @brief Clamps `num` to the inclusive range [`low`, `high`]. Requires `low <= high`.
-#define rk_clamp(num, low, high) RK__threenum_macro(clamp_, RK_NUM_TYPES, num, low, high)
+#define rk_clamp(num, low, high) RKI_threenum_macro(clamp_, RKI_NUM_TYPES, num, low, high)
 /// @brief Like `rk_clamp()` but not type-safe and may double-evaluate args.
 #define rk_CLAMP(num, low, high) ((num) < (low) ? (low) : ((num) > (high) ? (high) : (num)))
 
 /// @brief Saturating addition, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_add(x, y)         RK__twonum_macro(rk_sat_add_, RK_SU_TYPES, x, y)
+#define rk_sat_add(x, y)         RKI_twonum_macro(rk_sat_add_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating subtraction, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_sub(x, y)         RK__twonum_macro(rk_sat_sub_, RK_SU_TYPES, x, y)
+#define rk_sat_sub(x, y)         RKI_twonum_macro(rk_sat_sub_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating multiplication, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_mul(x, y)         RK__twonum_macro(rk_sat_mul_, RK_SU_TYPES, x, y)
+#define rk_sat_mul(x, y)         RKI_twonum_macro(rk_sat_mul_, RKI_SU_TYPES, x, y)
 
 #define rk_SWAP(a, b)                                                                              \
   do {                                                                                             \
     typeof(a)* _a      = &(a);                                                                     \
     typeof(b)* _b      = &(b);                                                                     \
-    typeof(a)  RK__TMP = *_a;                                                                      \
+    typeof(a)  RKI_TMP = *_a;                                                                      \
     *_a                = *_b;                                                                      \
-    *_b                = RK__TMP;                                                                  \
+    *_b                = RKI_TMP;                                                                  \
   } while (0)
 
 /// @}
 
 #if RK_STDBIT_FALLBACK
 # define stdc_leading_zeros(...)                                                                   \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
 # define stdc_leading_ones(...)                                                                    \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_leading_ones_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_ones_))(__VA_ARGS__)
 # define stdc_trailing_zeros(...)                                                                  \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
 # define stdc_trailing_ones(...)                                                                   \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
 # define stdc_count_zeros(...)                                                                     \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_count_zeros_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_zeros_))(__VA_ARGS__)
 # define stdc_count_ones(...)                                                                      \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_count_ones_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_ones_))(__VA_ARGS__)
 # define stdc_first_leading_zero(...)                                                              \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
 # define stdc_first_leading_one(...)                                                               \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
 # define stdc_first_trailing_zero(...)                                                             \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
 # define stdc_first_trailing_one(...)                                                              \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
 # define stdc_bit_floor(...)                                                                       \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_bit_floor_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_floor_))(__VA_ARGS__)
 # define stdc_bit_ceil(...)                                                                        \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
 # define stdc_bit_width(...)                                                                       \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_bit_width_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
 # define stdc_has_single_bit(...)                                                                  \
-   _Generic((__VA_ARGS__)RK_U_TYPES(RK__GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
 #endif /* RK_STDBIT_FALLBACK */
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__CONC(a, b)         a##b
+#define RKI_CONC(a, b)         a##b
 
 #define rk_EXP(x)              x
-#define rk_CONC(a, b)          RK__CONC(a, b)
+#define rk_CONC(a, b)          RKI_CONC(a, b)
 #define rk_UNIQUE_NAME(prefix) rk_CONC(prefix, __LINE__)
 
-#define RK__ARGCOUNT(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16,    \
+#define RKI_ARGCOUNT(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16,    \
                      _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31,    \
                      _32, N, ...)                                                                  \
   N
 #if __STDC_VERSION__ >= 202000L || (defined(__cplusplus) && __cplusplus >= 202002L)
 # define rk_ARGCOUNT(...)                                                                          \
-   RK__ARGCOUNT(dummy __VA_OPT__(, ) __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21,  \
+   RKI_ARGCOUNT(dummy __VA_OPT__(, ) __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21,  \
                 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #else
 # define rk_ARGCOUNT(...)                                                                          \
-   RK__ARGCOUNT(dummy, ##__VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,  \
+   RKI_ARGCOUNT(dummy, ##__VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,  \
                 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #endif
 
@@ -973,10 +1036,10 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 # define RK_ZINIT
 #endif
 
-#define RK__GENCASE(T, N, fun_name) , T : fun_name##N
+#define RKI_GENCASE(T, N, fun_name) , T : fun_name##N
 
-#define RK__contrav(T, x)           _Generic(x, T: x, default: (T){RK_ZINIT})
-#define RK__contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
+#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RK_ZINIT})
+#define RKI_contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
 
 #ifndef __cplusplus
 # define rk_dummyof(v)     ((typeof(v)){RK_ZINIT})
@@ -1057,12 +1120,12 @@ rk_noreturn static_fun void RK_assertfail(const char* expr, const char* file, in
 #define rk_overload_(m, ...)  rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 #define rk_overload__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 
-static_fun rk_const bool rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
-                                         const void* end2) {
+rklib_fun rk_const bool rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
+                                        const void* end2) {
   rk_assert(((uptr)beg1 <= (uptr)end1 && (uptr)beg2 <= (uptr)end2) && "Invalid Memory Region");
   return (uptr)beg1 < (uptr)end2 && (uptr)end1 > (uptr)beg2;
 }
-static_fun rk_const bool rk_ptr_in_range(const void* ptr, const void* beg, const void* end) {
+rklib_fun rk_const bool rk_ptr_in_range(const void* ptr, const void* beg, const void* end) {
   rk_assert((uptr)beg <= (uptr)end && "Invalid Memory Region");
   return (uptr)ptr >= (uptr)beg && (uptr)ptr < (uptr)end;
 }
@@ -1089,99 +1152,99 @@ typedef struct {
   long double ld;
   long long   ll;
   void*       vp;
-} RK__max_align_type;
+} RKI_max_align_t;
 #else
-typedef max_align_t RK__max_align_type;
+typedef max_align_t RKI_max_align_t;
 #endif
 
 /// bug prior to 17.44 that treated char == (un)signed char for _Generic
 #if defined(_MSC_VER) && _MSC_VER < 1944
-# define RK__IFNMSVC_CHARBUG(...)
+# define RKI_IFNMSVC_CHARBUG(...)
 #else
-# define RK__IFNMSVC_CHARBUG(...) __VA_ARGS__
+# define RKI_IFNMSVC_CHARBUG(...) __VA_ARGS__
 #endif
 
-enum {                 // NOLINT
-  RK_numclass_b = 0xF, ///< Boolean types  (0b1111)
-  RK_numclass_o = 0x0, ///< Other types    (0b0000)
-  RK_numclass_u = 0x1, ///< Unsigned types (0b0001)
-  RK_numclass_s = 0x2, ///< Signed types   (0b0010)
-  RK_numclass_f = 0x4, ///< Float types    (0b0100)
-  RK_numclass_c = 0x8, ///< Char type      (0b1000)
+enum {                  // NOLINT
+  RKI_NUMCLASS_b = 0xF, ///< Boolean types  (0b1111)
+  RKI_NUMCLASS_o = 0x0, ///< Other types    (0b0000)
+  RKI_NUMCLASS_u = 0x1, ///< Unsigned types (0b0001)
+  RKI_NUMCLASS_s = 0x2, ///< Signed types   (0b0010)
+  RKI_NUMCLASS_f = 0x4, ///< Float types    (0b0100)
+  RKI_NUMCLASS_c = 0x8, ///< Char type      (0b1000)
 };
 
-#define RK__numclassof_(T, N, class)                                                               \
+#define RKI_numclassof_(T, N, class)                                                               \
 T:                                                                                                 \
   class,
 
 #define RK_numclassof(x)                                                                           \
   _Generic(rk_ensure_type_is_num(typeof(x)),                                                       \
-      RK_F_TYPES(RK__numclassof_, RK_numclass_f) bool: RK_numclass_b,                              \
-      RK__IFNMSVC_CHARBUG(char : RK_numclass_c, ) default: (1 + !(((typeof(x))-1) > 0)))
+      RKI_F_TYPES(RKI_numclassof_, RKI_NUMCLASS_f) bool: RKI_NUMCLASS_b,                           \
+      RKI_IFNMSVC_CHARBUG(char : RKI_NUMCLASS_c, ) default: (1 + !(((typeof(x))-1) > 0)))
 
-#define RK_TOSIGNED(x)                                                                             \
+#define RKI_TOSIGNED(x)                                                                            \
   _Generic((x),                                                                                    \
       unsigned char: (signed char)(x),                                                             \
       unsigned short: (short)(x),                                                                  \
       unsigned: (int)(x),                                                                          \
       unsigned long: (long)(x),                                                                    \
-      unsigned long long: (long long)(x)RK__IFHAS_INT128(, u128 : (s128)(x)))
+      unsigned long long: (long long)(x)RKI_IFHAS_INT128(, u128 : (s128)(x)))
 
-#define RK_U_TYPES(X, ...)                                                                         \
+#define RKI_U_TYPES(X, ...)                                                                        \
   X(unsigned char, uc, ##__VA_ARGS__)                                                              \
   X(unsigned short, us, ##__VA_ARGS__)                                                             \
   X(unsigned, ui, ##__VA_ARGS__)                                                                   \
   X(unsigned long, ul, ##__VA_ARGS__)                                                              \
   X(unsigned long long, ull, ##__VA_ARGS__)                                                        \
-  RK__IFHAS_INT128(X(u128, ullx, ##__VA_ARGS__))
+  RKI_IFHAS_INT128(X(u128, ullx, ##__VA_ARGS__))
 
-#define RK_S_TYPES(X, ...)                                                                         \
+#define RKI_S_TYPES(X, ...)                                                                        \
   X(signed char, sc, ##__VA_ARGS__)                                                                \
   X(short, ss, ##__VA_ARGS__)                                                                      \
   X(int, si, ##__VA_ARGS__)                                                                        \
   X(long, sl, ##__VA_ARGS__)                                                                       \
   X(long long, sll, ##__VA_ARGS__)                                                                 \
-  RK__IFHAS_INT128(X(s128, sllx, ##__VA_ARGS__))
+  RKI_IFHAS_INT128(X(s128, sllx, ##__VA_ARGS__))
 
-#define RK_SU_TYPES(X, ...)                                                                        \
-  RK_U_TYPES(X, ##__VA_ARGS__)                                                                     \
-  RK_S_TYPES(X, ##__VA_ARGS__)
+#define RKI_SU_TYPES(X, ...)                                                                       \
+  RKI_U_TYPES(X, ##__VA_ARGS__)                                                                    \
+  RKI_S_TYPES(X, ##__VA_ARGS__)
 
-#define RK_INTEGRAL_TYPES(X, ...)                                                                  \
-  RK__IFNMSVC_CHARBUG(X(char, c, ##__VA_ARGS__))                                                   \
+#define RKI_INT_TYPES(X, ...)                                                                      \
+  RKI_IFNMSVC_CHARBUG(X(char, c, ##__VA_ARGS__))                                                   \
   X(bool, b, ##__VA_ARGS__)                                                                        \
-  RK_SU_TYPES(X, ##__VA_ARGS__)
+  RKI_SU_TYPES(X, ##__VA_ARGS__)
 
-#define RK_F_TYPES(X, ...)                                                                         \
+#define RKI_F_TYPES(X, ...)                                                                        \
   X(float, f, ##__VA_ARGS__)                                                                       \
   X(double, d, ##__VA_ARGS__)                                                                      \
   X(long double, ld, ##__VA_ARGS__)
 
-#define RK_NUM_TYPES(X, ...)                                                                       \
-  RK_INTEGRAL_TYPES(X, ##__VA_ARGS__)                                                              \
-  RK_F_TYPES(X, ##__VA_ARGS__)
+#define RKI_NUM_TYPES(X, ...)                                                                      \
+  RKI_INT_TYPES(X, ##__VA_ARGS__)                                                                  \
+  RKI_F_TYPES(X, ##__VA_ARGS__)
 
-#define RK__wider_t(x, y)                                                                          \
+#define RKI_wider_t(x, y)                                                                          \
   rk_static_if(rk_ensure_numclass_compatible(x, y) + sizeof(typeof(x)) >= sizeof(typeof(y)),       \
                (typeof(x))0, (typeof(y))0)
 
-#define RK__wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(rk_ensure_numclass_compatible(RK__wider_t(a1, a2), a3)                              \
-                       + sizeof(RK__wider_t(a1, a2))                                               \
+#define RKI_wider_t3(a1, a2, a3)                                                                   \
+  rk_static_if(rk_ensure_numclass_compatible(RKI_wider_t(a1, a2), a3)                              \
+                       + sizeof(RKI_wider_t(a1, a2))                                               \
                    >= sizeof(typeof(a3)),                                                          \
-               RK__wider_t(a1, a2), (typeof(a3))0)
+               RKI_wider_t(a1, a2), (typeof(a3))0)
 
-#define RK__twonum_macro(pref, classes, x, y)                                                      \
-  _Generic(RK__wider_t(x, y) classes(RK__GENCASE, pref))(x, y)
+#define RKI_twonum_macro(pref, classes, x, y)                                                      \
+  _Generic(RKI_wider_t(x, y) classes(RKI_GENCASE, pref))(x, y)
 
-#define RK__threenum_macro(pref, classes, x, y, z)                                                 \
-  _Generic(RK__wider_t3(x, y, z) classes(RK__GENCASE, pref))(x, y, z)
+#define RKI_threenum_macro(pref, classes, x, y, z)                                                 \
+  _Generic(RKI_wider_t3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
 
-RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
+RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   return x < 0 ? -x : x; // UB if v == I128_MIN
 })
 
-#define RK__abs_impl(x)                                                                            \
+#define RKI_ABS(x)                                                                                 \
   _Generic(rk_ensure_type_is_num(typeof(x)),                                                       \
       signed char: (signed char)abs((signed char)(x)),                                             \
       short: (short)abs((short)(x)),                                                               \
@@ -1191,69 +1254,69 @@ RK__IFHAS_INT128(static_fun rk_forceinline s128 abs_llx(s128 x) {
       float: fabsf((float)(x)),                                                                    \
       double: fabs((double)(x)),                                                                   \
       long double: fabsl((long double)(x)),                                                        \
-      RK__IFHAS_INT128(s128 : abs_llx(x), ) default: (x))
+      RKI_IFHAS_INT128(s128 : abs_llx(x), ) default: (x))
 
-#define RK__minof_impl(T)                                                                          \
+#define RKI_MINOF(T)                                                                               \
   ((T) _Generic(rk_ensure_type_is_num(T),                                                          \
        signed char: SCHAR_MIN,                                                                     \
        short: SHRT_MIN,                                                                            \
        int: INT_MIN,                                                                               \
        long: LONG_MIN,                                                                             \
        long long: LLONG_MIN,                                                                       \
-       RK__IFNMSVC_CHARBUG(char : CHAR_MIN, )                                                      \
-           RK__IFHAS_INT128(s128 : -((s128)(((u128) - 1) >> 1)) - 1, ) default: 0))
+       RKI_IFNMSVC_CHARBUG(char : CHAR_MIN, )                                                      \
+           RKI_IFHAS_INT128(s128 : -((s128)(((u128) - 1) >> 1)) - 1, ) default: 0))
 
-#define RK__maxof_impl(T)                                                                          \
+#define RKI_MAXOF(T)                                                                               \
   ((T) _Generic(rk_ensure_type_is_num(T),                                                          \
        signed char: SCHAR_MAX,                                                                     \
        short: SHRT_MAX,                                                                            \
        int: INT_MAX,                                                                               \
        long: LONG_MAX,                                                                             \
        long long: LLONG_MAX,                                                                       \
-       RK__IFNMSVC_CHARBUG(char : CHAR_MAX, )                                                      \
-           RK__IFHAS_INT128(s128 : ((u128)(~(u128)0)) >> 1, ) default: ((T)(~(T)0))))
+       RKI_IFNMSVC_CHARBUG(char : CHAR_MAX, )                                                      \
+           RKI_IFHAS_INT128(s128 : ((u128)(~(u128)0)) >> 1, ) default: ((T)(~(T)0))))
 
-#define RK__CHELPER         static_fun rk_const rk_forceinline
-#define RK__UNSEQUENCED_NOW rk_unsequenced
+#define RKI_CHELPER         rklib_fun rk_const rk_forceinline
+#define RKI_UNSEQUENCED_NOW rk_unsequenced
 #define RK_DEFINE_STUFF(T, N)                                                                      \
-  RK__CHELPER T min_##N(T x, T y) RK__UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
-  RK__CHELPER T max_##N(T x, T y) RK__UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
-  RK__CHELPER T clamp_##N(T arg, T low, T high) RK__UNSEQUENCED_NOW {                              \
+  RKI_CHELPER T min_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
+  RKI_CHELPER T max_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
+  RKI_CHELPER T clamp_##N(T arg, T low, T high) RKI_UNSEQUENCED_NOW {                              \
     return rk_CLAMP(arg, low, high);                                                               \
   }
 
-// RK_INTEGRAL_TYPES
-RK_INTEGRAL_TYPES(RK_DEFINE_STUFF)
-#undef RK__UNSEQUENCED_NOW
-#define RK__UNSEQUENCED_NOW
-#undef RK__CHELPER
-#define RK__CHELPER static_fun rk_forceinline
-RK_F_TYPES(RK_DEFINE_STUFF)
+// RKI_INT_TYPES
+RKI_INT_TYPES(RK_DEFINE_STUFF)
+#undef RKI_UNSEQUENCED_NOW
+#define RKI_UNSEQUENCED_NOW
+#undef RKI_CHELPER
+#define RKI_CHELPER rklib_fun rk_forceinline
+RKI_F_TYPES(RK_DEFINE_STUFF)
 #undef RK_DEFINE_STUFF
-#undef RK__CHELPER
-#define RK__CHELPER static_fun rk_const rk_forceinline
+#undef RKI_CHELPER
+#define RKI_CHELPER rklib_fun rk_const rk_forceinline
 
-#define RK__DEF_SAT_U(T, N)                                                                        \
-  RK__CHELPER T rk_sat_add_##N(T glob_a, T b) rk_unsequenced {                                     \
+#define RKI_DEF_SAT_U(T, N)                                                                        \
+  RKI_CHELPER T rk_sat_add_##N(T glob_a, T b) rk_unsequenced {                                     \
     T sum = (T)(glob_a + b);                                                                       \
     return sum >= glob_a ? sum : (T) - 1;                                                          \
   }                                                                                                \
-  RK__CHELPER T rk_sat_sub_##N(T glob_a, T b) rk_unsequenced {                                     \
+  RKI_CHELPER T rk_sat_sub_##N(T glob_a, T b) rk_unsequenced {                                     \
     return (T)(glob_a < b ? 0 : glob_a - b);                                                       \
   }                                                                                                \
-  RK__CHELPER T rk_sat_mul_##N(T glob_a, T b) rk_unsequenced {                                     \
+  RKI_CHELPER T rk_sat_mul_##N(T glob_a, T b) rk_unsequenced {                                     \
     return (b != 0 && glob_a > (T)(maxof(T) / b)) ? maxof(T) : (T)(glob_a * b);                    \
   }
-RK_U_TYPES(RK__DEF_SAT_U)
-#undef RK__DEF_SAT_U
+RKI_U_TYPES(RKI_DEF_SAT_U)
+#undef RKI_DEF_SAT_U
 
 #if rk_has_builtin(__builtin_add_overflow)
-# define RK__DEF_SA_S_(T)                                                                          \
+# define RKI_DEF_SA_S_(T)                                                                          \
    T s;                                                                                            \
    if (__builtin_add_overflow(glob_a, b, &s)) { return (b < 0) ? minof(T) : maxof(T); }            \
    return s;
 #else
-# define RK__DEF_SA_S_(T)                                                                          \
+# define RKI_DEF_SA_S_(T)                                                                          \
    T min = minof(T), max = maxof(T);                                                               \
    if (b > 0 && glob_a > max - b) { return max; }                                                  \
    if (b < 0 && glob_a < min - b) { return min; }                                                  \
@@ -1261,19 +1324,19 @@ RK_U_TYPES(RK__DEF_SAT_U)
 #endif
 
 #if rk_has_builtin(__builtin_sub_overflow)
-# define RK__DEF_SS_S_(T)                                                                          \
+# define RKI_DEF_SS_S_(T)                                                                          \
    T s;                                                                                            \
    if (__builtin_sub_overflow(glob_a, b, &s)) { return (b < 0) ? maxof(T) : minof(T); }            \
    return s;
 #else
-# define RK__DEF_SS_S_(T)                                                                          \
+# define RKI_DEF_SS_S_(T)                                                                          \
    const T min = minof(T), max = maxof(T);                                                         \
    if (b > 0 && glob_a < min + b) { return min; }                                                  \
    if (b < 0 && glob_a > max + b) { return max; }                                                  \
    return (T)(glob_a - b);
 #endif
 #if rk_has_builtin(__builtin_mul_overflow)
-# define RK__DEF_SM_S_(T)                                                                          \
+# define RKI_DEF_SM_S_(T)                                                                          \
    if (glob_a == 0 || b == 0) return (T)0;                                                         \
    T glob_point;                                                                                   \
    if (__builtin_mul_overflow(glob_a, b, &glob_point)) {                                           \
@@ -1281,7 +1344,7 @@ RK_U_TYPES(RK__DEF_SAT_U)
    }                                                                                               \
    return glob_point;
 #else
-# define RK__DEF_SM_S_(T)                                                                          \
+# define RKI_DEF_SM_S_(T)                                                                          \
    const T min = minof(T), max = maxof(T);                                                         \
    if (glob_a == 0 || b == 0) return (T)0;                                                         \
    if (glob_a == (T) - 1) { return b == min ? max : (T)(-b); }                                     \
@@ -1302,45 +1365,45 @@ RK_U_TYPES(RK__DEF_SAT_U)
    return (T)(glob_a * b);
 #endif
 
-#define RK__DEF_SAT_S(T, N)                                                                        \
-  RK__CHELPER T                                          rk_sat_add_##N(T glob_a, T b)             \
-      rk_unsequenced{RK__DEF_SA_S_(T)} RK__CHELPER T     rk_sat_sub_##N(T glob_a, T b)             \
-          rk_unsequenced{RK__DEF_SS_S_(T)} RK__CHELPER T rk_sat_mul_##N(T glob_a, T b)             \
+#define RKI_DEF_SAT_S(T, N)                                                                        \
+  RKI_CHELPER T                                          rk_sat_add_##N(T glob_a, T b)             \
+      rk_unsequenced{RKI_DEF_SA_S_(T)} RKI_CHELPER T     rk_sat_sub_##N(T glob_a, T b)             \
+          rk_unsequenced{RKI_DEF_SS_S_(T)} RKI_CHELPER T rk_sat_mul_##N(T glob_a, T b)             \
               rk_unsequenced {                                                                     \
-    RK__DEF_SM_S_(T)                                                                               \
+    RKI_DEF_SM_S_(T)                                                                               \
   }
 
-RK_S_TYPES(RK__DEF_SAT_S)
-#undef RK__DEF_SS_S_
-#undef RK__DEF_SA_S_
-#undef RK__DEF_SM_S_
-#undef RK__DEF_SAT_S
+RKI_S_TYPES(RKI_DEF_SAT_S)
+#undef RKI_DEF_SS_S_
+#undef RKI_DEF_SA_S_
+#undef RKI_DEF_SM_S_
+#undef RKI_DEF_SAT_S
 
 #if RK_STDBIT_FALLBACK
 # ifdef __GNUC__
 #  if rk_has_builtin(__builtin_clzg)
-#   define RK__DEF_LZ__(V) __builtin_clzg(V)
+#   define RKI_DEF_LZ__(V) __builtin_clzg(V)
 #  else
-#   define RK__DEF_LZ__(V)                                                                         \
+#   define RKI_DEF_LZ__(V)                                                                         \
      _Generic(V,                                                                                   \
          default: (unsigned)__builtin_clz(V) - (bitsof(unsigned) - bitsof(V)),                     \
          unsigned long: __builtin_clzl(V),                                                         \
-         unsigned long long: __builtin_clzll(V) RK__IFHAS_INT128(                                  \
+         unsigned long long: __builtin_clzll(V) RKI_IFHAS_INT128(                                  \
                   , u128 : (u64)((u128)V >> 64) ? __builtin_clzll((u64)((u128)V >> 64))            \
                                                 : 64 + __builtin_clzll((u64)V)))
 #  endif
-#  define RK__DEF_LZ_(T, V) return V ? (unsigned)RK__DEF_LZ__(V) : bitsof(V);
+#  define RKI_DEF_LZ_(T, V) return V ? (unsigned)RKI_DEF_LZ__(V) : bitsof(V);
 
 # elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
 #  ifdef _M_X64
-#   define RK__DEF_LZ__(V) _BitScanReverse64(&idx, (unsigned long long)V), 63u - (unsigned)idx
+#   define RKI_DEF_LZ__(V) _BitScanReverse64(&idx, (unsigned long long)V), 63u - (unsigned)idx
 #  elif defined(_M_IX86)
-#   define RK__DEF_LZ__(V)                                                                         \
+#   define RKI_DEF_LZ__(V)                                                                         \
      (hi = (unsigned)((unsigned long long)V >> 32))                                                \
          ? (_BitScanReverse(&idx, (unsigned long)hi), 31u - (unsigned)idx)                         \
          : (_BitScanReverse(&idx, (unsigned long)(unsigned)V), 63u - (unsigned)idx)
 #  endif
-#  define RK__DEF_LZ_(T, V)                                                                        \
+#  define RKI_DEF_LZ_(T, V)                                                                        \
     if (!V) return bitsof(V);                                                                      \
     unsigned long idx;                                                                             \
     unsigned      hi;                                                                              \
@@ -1348,9 +1411,9 @@ RK_S_TYPES(RK__DEF_SAT_S)
     return rk_static_if(sizeof(T) <= 4,                                                            \
                         (_BitScanReverse(&idx, (unsigned long)V),                                  \
                          31u - (unsigned)idx - (bitsof(unsigned) - bitsof(T))),                    \
-                        (RK__DEF_LZ__(V)));
+                        (RKI_DEF_LZ__(V)));
 # else
-#  define RK__DEF_LZ_(T, V)                                                                        \
+#  define RKI_DEF_LZ_(T, V)                                                                        \
     if (!V) { return bitsof(T); }                                                                  \
     unsigned count = 0;                                                                            \
     T        mask  = (T)1 << (bitsof(T) - 1);                                                      \
@@ -1359,39 +1422,39 @@ RK_S_TYPES(RK__DEF_SAT_S)
 # endif
 
 # if rk_has_builtin(__builtin_ctzg)
-#  define RK__DEF_TZ_(V) return V ? (unsigned)__builtin_ctzg(V) : bitsof(V);
+#  define RKI_DEF_TZ_(V) return V ? (unsigned)__builtin_ctzg(V) : bitsof(V);
 # elif defined(__GNUC__)
-#  define RK__DEF_TZ_(V)                                                                           \
+#  define RKI_DEF_TZ_(V)                                                                           \
     return V ? (unsigned)_Generic(V,                                                               \
                    default: __builtin_ctz(V),                                                      \
                    unsigned long: __builtin_ctzl(V),                                               \
                    unsigned long long: __builtin_ctzll(V)                                          \
-                       RK__IFHAS_INT128(, u128 : (u64)(V)                                          \
+                       RKI_IFHAS_INT128(, u128 : (u64)(V)                                          \
                                               ? __builtin_ctzll((u64)V)                            \
                                               : 64 + __builtin_ctzll((u64)((u128)V >> 64))))       \
              : bitsof(V);
 
 # elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
 #  ifdef _M_X64
-#   define RK__DEF_TZ__(V) _BitScanForward64(&idx, (unsigned long long)V), (unsigned)idx
+#   define RKI_DEF_TZ__(V) _BitScanForward64(&idx, (unsigned long long)V), (unsigned)idx
 
 #  elif defined(_M_IX86)
-#   define RK__DEF_TZ__(V)                                                                         \
+#   define RKI_DEF_TZ__(V)                                                                         \
      (lo = (unsigned)(V))                                                                          \
          ? (_BitScanForward(&idx, (unsigned long)lo), (unsigned)idx)                               \
          : (_BitScanForward(&idx, (unsigned long)(unsigned)((unsigned long long)V >> 32)),         \
             32u + (unsigned)idx)
 #  endif
-#  define RK__DEF_TZ_(V)                                                                           \
+#  define RKI_DEF_TZ_(V)                                                                           \
     if (!V) { return bitsof(V); }                                                                  \
     unsigned long idx;                                                                             \
     unsigned      lo;                                                                              \
     (void)lo;                                                                                      \
     return rk_static_if(sizeof(V) <= 4,                                                            \
                         (_BitScanForward(&idx, (unsigned long)(unsigned)V), (unsigned)idx),        \
-                        (RK__DEF_TZ__(V)));
+                        (RKI_DEF_TZ__(V)));
 # else
-#  define RK__DEF_TZ_(V)                                                                           \
+#  define RKI_DEF_TZ_(V)                                                                           \
     if (!V) { return bitsof(V); }                                                                  \
     unsigned count = 0;                                                                            \
     while (!(V & 1)) { ++count, V >>= 1; }                                                         \
@@ -1399,74 +1462,72 @@ RK_S_TYPES(RK__DEF_SAT_S)
 # endif
 
 # if rk_has_builtin(__builtin_popcountg)
-#  define RK__DEF_CO_(V) return (unsigned)__builtin_popcountg(V);
+#  define RKI_DEF_CO_(V) return (unsigned)__builtin_popcountg(V);
 # elif defined(__GNUC__)
-#  define RK__DEF_CO_(V)                                                                           \
+#  define RKI_DEF_CO_(V)                                                                           \
     return (unsigned)_Generic(V,                                                                   \
         default: __builtin_popcount(V),                                                            \
         unsigned long: __builtin_popcountl(V),                                                     \
         unsigned long long: __builtin_popcountll(V)                                                \
-            RK__IFHAS_INT128(, u128 : __builtin_popcountll((u64)V)                                 \
+            RKI_IFHAS_INT128(, u128 : __builtin_popcountll((u64)V)                                 \
                                    + __builtin_popcountll((u64)((u128)V >> 64))));
 # else
-#  define RK__DEF_CO_(V)                                                                           \
+#  define RKI_DEF_CO_(V)                                                                           \
     unsigned count = 0;                                                                            \
     while (V) { count++, V &= (V - 1); }                                                           \
     return count;
 # endif
 
-# define RK__DEF_STDCBIT_FUNS(T, N)                                                                 \
-   static_fun rk_const unsigned stdc_leading_zeros_##N(T value) rk_unsequenced{RK__DEF_LZ_(         \
-       T, value)} static_fun rk_const unsigned stdc_trailing_zeros_##N(T value) rk_unsequenced{     \
-       RK__DEF_TZ_(value)} static_fun rk_const unsigned                stdc_count_ones_##N(T value) \
-       rk_unsequenced{RK__DEF_CO_(value)} static_fun rk_const unsigned stdc_count_zeros_##N(        \
-           T value) rk_unsequenced {                                                                \
-     return bitsof(T) - stdc_count_ones_##N(value);                                                 \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_trailing_one_##N(T value) rk_unsequenced {               \
-     return value ? stdc_trailing_zeros_##N(value) + 1u : 0u;                                       \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_leading_ones_##N(T value) rk_unsequenced {                     \
-     return stdc_leading_zeros_##N((T)~value);                                                      \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_trailing_ones_##N(T value) rk_unsequenced {                    \
-     return stdc_trailing_zeros_##N((T)~value);                                                     \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_leading_zero_##N(T value) rk_unsequenced {               \
-     return value == (T) ~(T)0u ? 0u : stdc_leading_zeros_##N((T)~value) + 1u;                      \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_leading_one_##N(T value) rk_unsequenced {                \
-     return value ? stdc_leading_zeros_##N(value) + 1u : 0u;                                        \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_first_trailing_zero_##N(T value) rk_unsequenced {              \
-     return value == (T) ~(T)0u ? 0u : stdc_trailing_zeros_##N((T)~value) + 1u;                     \
-   }                                                                                                \
-   static_fun rk_const bool stdc_has_single_bit_##N(T value) rk_unsequenced {                       \
-     return stdc_count_ones_##N(value) == 1u;                                                       \
-   }                                                                                                \
-   static_fun rk_const unsigned stdc_bit_width_##N(T value) rk_unsequenced {                        \
-     return bitsof(T) - stdc_leading_zeros_##N(value);                                              \
-   }                                                                                                \
-   static_fun rk_const T stdc_bit_floor_##N(T value) rk_unsequenced {                               \
-     return (T)(value ? ((T)1u << (stdc_bit_width_##N(value) - 1u)) : (T)0u);                       \
-   }                                                                                                \
-   static_fun rk_const T stdc_bit_ceil_##N(T value) rk_unsequenced {                                \
-     if (!value) { return (T)1u; }                                                                  \
-     size_t shift = bitsof(T) - stdc_leading_zeros_##N((T)(value - 1u));                            \
-     return shift < bitsof(T) ? (T)((T)1u << shift) : (T)0u;                                        \
+# define RKI_DEF_STDCBIT_FUNS(T, N)                                                                \
+   rklib_fun rk_const unsigned stdc_leading_zeros_##N(T value) rk_unsequenced{                     \
+       RKI_DEF_LZ_(T, value)} rklib_fun rk_const unsigned stdc_trailing_zeros_##N(T value)         \
+       rk_unsequenced{RKI_DEF_TZ_(value)} rklib_fun rk_const unsigned stdc_count_ones_##N(T value) \
+           rk_unsequenced{RKI_DEF_CO_(value)} rklib_fun rk_const unsigned stdc_count_zeros_##N(    \
+               T value) rk_unsequenced {                                                           \
+     return bitsof(T) - stdc_count_ones_##N(value);                                                \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_trailing_one_##N(T value) rk_unsequenced {               \
+     return value ? stdc_trailing_zeros_##N(value) + 1u : 0u;                                      \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_leading_ones_##N(T value) rk_unsequenced {                     \
+     return stdc_leading_zeros_##N((T)~value);                                                     \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_trailing_ones_##N(T value) rk_unsequenced {                    \
+     return stdc_trailing_zeros_##N((T)~value);                                                    \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_leading_zero_##N(T value) rk_unsequenced {               \
+     return value == (T) ~(T)0u ? 0u : stdc_leading_zeros_##N((T)~value) + 1u;                     \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_leading_one_##N(T value) rk_unsequenced {                \
+     return value ? stdc_leading_zeros_##N(value) + 1u : 0u;                                       \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_first_trailing_zero_##N(T value) rk_unsequenced {              \
+     return value == (T) ~(T)0u ? 0u : stdc_trailing_zeros_##N((T)~value) + 1u;                    \
+   }                                                                                               \
+   rklib_fun rk_const bool stdc_has_single_bit_##N(T value) rk_unsequenced {                       \
+     return stdc_count_ones_##N(value) == 1u;                                                      \
+   }                                                                                               \
+   rklib_fun rk_const unsigned stdc_bit_width_##N(T value) rk_unsequenced {                        \
+     return bitsof(T) - stdc_leading_zeros_##N(value);                                             \
+   }                                                                                               \
+   rklib_fun rk_const T stdc_bit_floor_##N(T value) rk_unsequenced {                               \
+     return (T)(value ? ((T)1u << (stdc_bit_width_##N(value) - 1u)) : (T)0u);                      \
+   }                                                                                               \
+   rklib_fun rk_const T stdc_bit_ceil_##N(T value) rk_unsequenced {                                \
+     if (!value) { return (T)1u; }                                                                 \
+     size_t shift = bitsof(T) - stdc_leading_zeros_##N((T)(value - 1u));                           \
+     return shift < bitsof(T) ? (T)((T)1u << shift) : (T)0u;                                       \
    }
 
-RK_U_TYPES(RK__DEF_STDCBIT_FUNS)
-# undef RK__DEF_LZ_
-# undef RK__DEF_LZ__
-# undef RK__DEF_TZ_
-# undef RK__DEF_TZ__
-# undef RK__DEF_CO_
-# undef RK__DEF_STDCBIT_FUNS
+RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
+# undef RKI_DEF_LZ_
+# undef RKI_DEF_LZ__
+# undef RKI_DEF_TZ_
+# undef RKI_DEF_TZ__
+# undef RKI_DEF_CO_
+# undef RKI_DEF_STDCBIT_FUNS
 
 #endif /* RK_STDBIT_FALLBACK */
-
-/// @endcond
 
 #define rk_assert_ptr_nonnull(ptr) rk_assert(((ptr) != rk_null) && #ptr " must not be rk_null.")
 
@@ -1476,7 +1537,7 @@ RK_U_TYPES(RK__DEF_STDCBIT_FUNS)
 #define rk_assert_valid_align(T, align)                                                            \
   rk_assert(alignof(T) <= (align) && #align " must be >= alignof(" #T ").")
 
-static_fun rk_const size_t rk_align_up(size_t size, size_t align) {
+rklib_fun rk_const size_t rk_align_up(size_t size, size_t align) {
   rk_assert_align_pow2(align);
 #if rk_has_builtin(__builtin_align_up)
   return __builtin_align_up(size, align);
@@ -1487,7 +1548,7 @@ static_fun rk_const size_t rk_align_up(size_t size, size_t align) {
 #endif
 }
 
-static_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
+rklib_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   rk_assert_align_pow2(align);
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
@@ -1496,12 +1557,15 @@ RK_HEADER_END
 
 #ifdef __cplusplus
 template <class T, size_t N>
-constexpr inline size_t RK__countof(T (&)[N]) noexcept {
+constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
   return N;
 }
 #endif
-/// @}
 
+/// @endcond
+#pragma endregion implementation
+
+/// @}
 #endif // RK_DEFS_H
 
 // MIT License
@@ -1616,8 +1680,8 @@ constexpr inline size_t RK__countof(T (&)[N]) noexcept {
 /// `rk_config.h`. When disabled, per-object `Allocator` fields, custom-allocator arguments, and
 /// function-pointer dispatch are compiled out.
 ///
-/// When `RK_ALLOC_MULTITHREADED == 1`, `alloc_ctx` has thread-local storage duration, giving each
-/// thread its own construction-time default allocator.
+/// When `RK_ALLOC_CTX_THREAD_LOCAL == 1`, `alloc_ctx` has thread-local storage duration, giving
+/// each thread its own construction-time default allocator.
 /// @{
 #ifndef RK_ALLOC_H
 #define RK_ALLOC_H
@@ -1650,17 +1714,9 @@ RK_HEADER_BEGIN
 /// @brief Allocation logging macros. Emit a tagged source location to `stderr` when `RKLIB_DEBUG
 /// defined`; expand to nothing otherwise. Can be used by custom allocators to get the same logging
 /// behaviour as the built-in ones.
-#define alloc_log_new                  rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_renew                rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_delete               rk_log("[delete] %s:%d ", __FILE__, __LINE__)
-#define rk_allocator_disabled_assert() static_assert_expr(0, "Allocators Disabled")
-#define rk_allocator_disabled()        ((Allocator){.ctx = (void*)rk_allocator_disabled_assert()})
-
-#if RK_CUSTOM_ALLOCATORS
-# define rk_disable_if(...) __VA_ARGS__
-#else
-# define rk_disable_if(...) ((void*)rk_allocator_disabled_assert())
-#endif
+#define alloc_log_new    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_renew  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_delete rk_log("[delete] %s:%d ", __FILE__, __LINE__)
 
 /// @struct Allocator
 /// @brief General-purpose allocator handle: a vtable pointer plus an optional context pointer. Pass
@@ -1726,25 +1782,25 @@ typedef struct Allocator {
   void*                  ctx;  ///< Optional Context Pointer
 } Allocator;
 
-static_fun alloc_allocation_f   RK__malloc_allocate;
-static_fun alloc_reallocation_f RK__malloc_reallocate;
-static_fun alloc_deallocation_f RK__malloc_deallocate;
-static const AllocatorVTable alloc_malloc_allocator_vtable = {.alloc_f   = RK__malloc_allocate,
-                                                              .realloc_f = RK__malloc_reallocate,
-                                                              .dealloc_f = RK__malloc_deallocate};
+rklib_fun alloc_allocation_f   rki_malloc_allocate;
+rklib_fun alloc_reallocation_f rki_malloc_reallocate;
+rklib_fun alloc_deallocation_f rki_malloc_deallocate;
+static const AllocatorVTable   alloc_malloc_allocator_vtable = {.alloc_f   = rki_malloc_allocate,
+                                                                .realloc_f = rki_malloc_reallocate,
+                                                                .dealloc_f = rki_malloc_deallocate};
 
 /// @brief Default allocator using `malloc`/`free` (or `_aligned_malloc` on MSVC for over-aligned
 /// requests). Set as the initial value of `alloc_ctx`.
 rk_unused static const Allocator alloc_malloc_allocator
     = {.vtab = &alloc_malloc_allocator_vtable, .ctx = rk_null};
 
-static_fun alloc_allocation_f          RK__page_allocate;
-static_fun alloc_reallocation_f        RK__page_reallocate;
-static_fun alloc_deallocation_f        RK__page_deallocate;
+rklib_fun alloc_allocation_f           rki_page_allocate;
+rklib_fun alloc_reallocation_f         rki_page_reallocate;
+rklib_fun alloc_deallocation_f         rki_page_deallocate;
 rk_unused static const AllocatorVTable alloc_page_allocator_vtable
-    = {.alloc_f   = RK__page_allocate,
-       .realloc_f = RK__page_reallocate,
-       .dealloc_f = RK__page_deallocate};
+    = {.alloc_f   = rki_page_allocate,
+       .realloc_f = rki_page_reallocate,
+       .dealloc_f = rki_page_deallocate};
 
 /// @brief Allocator backed by OS page mapping (`mmap` / `VirtualAlloc`). All allocations are
 /// page-aligned and zero-initialized. Alignments greater than the system page size are not
@@ -1753,18 +1809,22 @@ rk_unused static const Allocator alloc_page_allocator
     = {.vtab = &alloc_page_allocator_vtable, .ctx = rk_null};
 
 #if RK_CUSTOM_ALLOCATORS
-# define RK__ALLOCCTX_STORAGE   extern_var RK_alloc_tl
-# define RK__ALLOCCTX_INIT(...) extern_def({__VA_ARGS__})
+# if RK_ALLOC_CTX_THREAD_LOCAL
+#  define RKI_ALLOCCTX_STORAGE extern_var thread_local
+# else
+#  define RKI_ALLOCCTX_STORAGE extern_var
+# endif
+# define RKI_ALLOCCTX_INIT(...) extern_def({__VA_ARGS__})
 #else
-# define RK__ALLOCCTX_STORAGE   static const
-# define RK__ALLOCCTX_INIT(...) = {__VA_ARGS__}
+# define RKI_ALLOCCTX_STORAGE   static const
+# define RKI_ALLOCCTX_INIT(...) = {__VA_ARGS__}
 #endif
 
 /// @brief Default allocator used by all rklib macros when no explicit allocator argument is
 /// provided. Defaults to `alloc_malloc_allocator`. Objects capture its value when initialised, so
-/// replacing it affects only subsequently created objects. When `RK_ALLOC_MULTITHREADED == 1`, it
-/// is thread-local. Must always contain a valid, fully initialised `Allocator`.
-RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc_allocator_vtable,
+/// replacing it affects only subsequently created objects. When `RK_ALLOC_CTX_THREAD_LOCAL == 1`,
+/// it is thread-local. Must always contain a valid, fully initialised `Allocator`.
+RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc_allocator_vtable,
                                                            .ctx  = rk_null);
 
 /// @brief `void* alloc_allocate(size_t bytes, size_t align, Allocator alloc = alloc_ctx)` - Raw
@@ -1775,7 +1835,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return pointer to the allocated memory. `NULL` iff `bytes` is zero.
 #define alloc_allocate(bytes, align, ...)                                                          \
-  ((void*)rk_overload(RK__alloc_ALLOCATE, bytes, align, ##__VA_ARGS__))
+  ((void*)rk_overload(RKI_ALLOC_ALLOCATE, bytes, align, ##__VA_ARGS__))
 
 /// @brief `void* alloc_reallocate(void* ptr, size_t old_bytes, size_t new_bytes, size_t align,
 /// Allocator alloc = alloc_ctx)` - Raw reallocation. If `ptr` is `NULL`, behaves like
@@ -1788,7 +1848,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param alloc     Optional allocator; defaults to `alloc_ctx`
 /// @return pointer to the allocated memory. `NULL` iff `new_bytes` is zero.
 #define alloc_reallocate(ptr, old_bytes, new_bytes, align, ...)                                    \
-  ((void*)rk_overload(RK__alloc_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
+  ((void*)rk_overload(RKI_ALLOC_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
 
 /// @brief `void alloc_deallocate(void* ptr, size_t bytes, size_t align, Allocator alloc =
 /// alloc_ctx)` - Raw deallocation. If `ptr` is `NULL`, this is a no-op. Prefer `alloc_delete` for
@@ -1798,7 +1858,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param align Alignment; must match the original allocation
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 #define alloc_deallocate(ptr, bytes, align, ...)                                                   \
-  ((void)rk_overload(RK__alloc_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
+  ((void)rk_overload(RKI_ALLOC_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
 
 /// @brief `T* alloc_new(T, size_t count, Allocator alloc = alloc_ctx)` - Allocates memory for an
 /// array of `count` elements of type `T` using the specified allocator.
@@ -1806,7 +1866,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param count     Count of elements to allocate
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return Pointer to allocated and aligned memory block, cast to `T*`.
-#define alloc_new(T, count, ...) ((T*)rk_overload(RK__alloc_NEW, T, count, ##__VA_ARGS__))
+#define alloc_new(T, count, ...) ((T*)rk_overload(RKI_ALLOC_NEW, T, count, ##__VA_ARGS__))
 
 /// @brief `T* alloc_renew(T* ptr, size_t old_count, size_t new_count, Allocator alloc = alloc_ctx)`
 /// - Resizes (reallocates) memory block to hold `new_count` elements of the same type, for standard
@@ -1818,7 +1878,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @return Pointer to the reallocated and aligned memory block, cast to the same pointer type.
 /// @warning Must not be used on pointers from over-aligned allocations
 #define alloc_renew(ptr, old_count, new_count, ...)                                                \
-  ((typeof(ptr))rk_overload(RK__alloc_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
+  ((typeof(ptr))rk_overload(RKI_ALLOC_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
 
 /// @brief `void alloc_delete(T* ptr, size_t old_count, Allocator alloc = alloc_ctx)` - Deallocates
 /// memory.
@@ -1826,7 +1886,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param old_count Number of elements of type T originally allocated
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 #define alloc_delete(ptr, old_count, ...)                                                          \
-  ((void)rk_overload(RK__alloc_DELETE, ptr, old_count, ##__VA_ARGS__))
+  ((void)rk_overload(RKI_ALLOC_DELETE, ptr, old_count, ##__VA_ARGS__))
 
 /// @brief `T* alloc_new_aligned(T, size_t count, size_t align, Allocator alloc = alloc_ctx)` -
 /// Allocates memory for an array of `count` elements of type T with specified alignment.
@@ -1836,7 +1896,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return Pointer to allocated and aligned memory block, cast to `T*`.
 #define alloc_new_aligned(T, count, align, ...)                                                    \
-  ((T*)rk_overload(RK__alloc_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
+  ((T*)rk_overload(RKI_ALLOC_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
 
 /// @brief `T* alloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align,
 /// Allocator alloc = alloc_ctx)` - Resizes (reallocates) memory block to hold `new_count` elements
@@ -1848,7 +1908,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return Pointer to reallocated and aligned memory block, cast to the same pointer type.
 #define alloc_renew_aligned(ptr, old_count, new_count, align, ...)                                 \
-  ((typeof(ptr))rk_overload(RK__alloc_ALIGNED_RENEW, ptr, old_count, new_count,                    \
+  ((typeof(ptr))rk_overload(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                    \
                             align, ##__VA_ARGS__))
 
 /// @brief `void alloc_delete_aligned(T* ptr, size_t old_count, size_t align, Allocator alloc =
@@ -1858,7 +1918,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param align     Alignment of the memory; must match the original allocation
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 #define alloc_delete_aligned(ptr, old_count, align, ...)                                           \
-  ((void)rk_overload(RK__alloc_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
+  ((void)rk_overload(RKI_ALLOC_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
 
 /// @brief `void* malloc_allocate(size_t nbytes, size_t align)` - Allocates `nbytes` bytes of memory
 /// with the specified alignment.
@@ -1869,7 +1929,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @return Pointer to allocated and aligned memory block, or `NULL` iff `nbytes` is zero.
 /// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
 /// pointers.
-#define malloc_allocate(nbytes, align) ((void*)RK__malloc_ALLOCATE(nbytes, align))
+#define malloc_allocate(nbytes, align) ((void*)RKI_MALLOC_ALLOCATE(nbytes, align))
 
 /// @brief `void* malloc_reallocate(void* ptr, size_t obytes, size_t nbytes, size_t align)` -
 /// Resizes an aligned memory block from `obytes` to `nbytes` bytes.
@@ -1884,7 +1944,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
 /// pointers.
 #define malloc_reallocate(ptr, obytes, nbytes, align)                                              \
-  ((void*)RK__malloc_REALLOCATE(ptr, obytes, nbytes, align))
+  ((void*)RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align))
 
 /// @brief `void malloc_deallocate(void* ptr, size_t align)` - Deallocates an aligned memory block
 /// previously allocated with `malloc_allocate` or `malloc_reallocate`.
@@ -1892,7 +1952,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param align Alignment of the memory; must match the original allocation
 /// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
 /// pointers.
-#define malloc_deallocate(ptr, align)       ((void)RK__malloc_DEALLOCATE(ptr, align))
+#define malloc_deallocate(ptr, align)       ((void)RKI_MALLOC_DEALLOCATE(ptr, align))
 
 /// @brief `T* malloc_new(T, size_t count)` - Allocates memory for an array of `count` elements of
 /// type `T` using `malloc`.
@@ -1903,7 +1963,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// pointers.
 /// @note Zero-sized allocations are guaranteed to return a null pointer. Errors are handled via the
 /// `RK_MALLOC_FAIL` macro that may be redefined by the user.
-#define malloc_new(T, count)                ((T*)RK__malloc_NEW(T, count))
+#define malloc_new(T, count)                ((T*)RKI_MALLOC_NEW(T, count))
 
 /// @brief `T* malloc_renew(T* ptr, size_t count)` - Resizes (reallocates) memory block to hold
 /// `count` elements of the same type.
@@ -1913,14 +1973,14 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param count Number of elements of type T to allocate after resizing
 /// @return Pointer to reallocated memory block, cast to the same pointer type
 /// @warning Must not be used on pointers from over-aligned allocations
-#define malloc_renew(ptr, count)            ((typeof(ptr))RK__malloc_RENEW(ptr, count))
+#define malloc_renew(ptr, count)            ((typeof(ptr))RKI_MALLOC_RENEW(ptr, count))
 
 /// @brief `void malloc_delete(T* ptr)` - Deallocates memory previously allocated with one of the
 /// macros defined in this interface.
 /// @param ptr Pointer to the memory to deallocate
 /// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
 /// pointers.
-#define malloc_delete(ptr)                  ((void)RK__malloc_DELETE(ptr))
+#define malloc_delete(ptr)                  ((void)RKI_MALLOC_DELETE(ptr))
 
 /// @brief `T* malloc_new_aligned(T, size_t count, size_t align)` - Allocates memory for an array of
 /// `count` elements of type `T` with specified alignment using malloc (or _aligned_malloc with
@@ -1931,7 +1991,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param count Number of elements to allocate
 /// @param align Desired alignment of the memory, must be a power of two
 /// @return Pointer to allocated memory block, cast to `T*`, or `NULL` iff `count` is zero.
-#define malloc_new_aligned(T, count, align) ((T*)RK__malloc_ALIGNED_NEW(T, count, align))
+#define malloc_new_aligned(T, count, align) ((T*)RKI_MALLOC_ALIGNED_NEW(T, count, align))
 
 /// @brief `T* malloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align)` -
 /// Resizes (reallocates) an aligned memory block to hold `new_count` elements of the same type.
@@ -1944,7 +2004,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param align     Alignment of the memory; must be a power of two
 /// @return Pointer to reallocated memory block. `NULL` iff `new_count` is zero.
 #define malloc_renew_aligned(ptr, old_count, new_count, align)                                     \
-  ((typeof(ptr))RK__malloc_ALIGNED_RENEW(ptr, old_count, new_count, align))
+  ((typeof(ptr))RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align))
 
 /// @brief `void malloc_delete_aligned(T* ptr)` - Deallocates memory previously allocated with
 /// malloc_new_aligned or with malloc_new for an over-aligned type. On non-MSVC it's always
@@ -1952,7 +2012,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param ptr Pointer to the memory to deallocate
 /// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
 /// pointers.
-#define malloc_delete_aligned(ptr) ((void)RK__malloc_ALIGNED_DELETE(ptr))
+#define malloc_delete_aligned(ptr) ((void)RKI_MALLOC_ALIGNED_DELETE(ptr))
 
 /// @brief Allocate memory using OS-backed page mapping (`mmap` / `VirtualAlloc`). The returned
 /// memory is zero-initialized and page-aligned. Allocation failures invoke `RK_MMAP_FAIL`, which
@@ -1960,7 +2020,7 @@ RK__ALLOCCTX_STORAGE Allocator alloc_ctx RK__ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param size Size in bytes. Rounded up to the next page boundary internally.
 /// @note Passing 0 returns `NULL` without invoking the failure handler.
 /// @return Pointer to the allocated memory.
-static_fun void* page_alloc(size_t size);
+rklib_fun void* page_alloc(size_t size);
 
 /// @brief Reallocate memory previously allocated with `page_alloc()`. On Linux, uses `mremap`
 /// (in-place when possible). On other POSIX platforms, allocates a new region, copies, and unmaps
@@ -1969,13 +2029,13 @@ static_fun void* page_alloc(size_t size);
 /// @param old_size Current size in bytes
 /// @param new_size New size in bytes (or 0 to act like `page_free`)
 /// @return Pointer to the reallocated memory block.
-static_fun void* page_realloc(void* ptr, size_t old_size, size_t new_size);
+rklib_fun void* page_realloc(void* ptr, size_t old_size, size_t new_size);
 
 /// @brief Free memory allocated via `page_alloc()`.
 /// @param ptr  Pointer to the memory block to free
 /// @param size Size of the block being freed, in bytes (must match allocation)
 /// @note Calling this with `size == 0` is a no-op.
-static_fun void  page_free(void* ptr, size_t size);
+rklib_fun void  page_free(void* ptr, size_t size);
 
 /// @brief `T* rk_arrdup(T* src, size_t count, Allocator alloc = alloc_ctx)` - Copies an array of
 /// objects from `src` onto allocated storage
@@ -1984,28 +2044,45 @@ static_fun void  page_free(void* ptr, size_t size);
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return A pointer to the allocated array
 #define rk_arrdup(src, count, ...)                                                                 \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RK__ARRDUP, src, count, ##__VA_ARGS__))
+  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_ARRDUP, src, count, ##__VA_ARGS__))
 
+#define rk_memdup(src, nbytes, ...)                                                                \
+  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_MEMDUP, src, nbytes, ##__VA_ARGS__))
+
+#define rk_memdup_aligned(src, nbytes, align, ...)                                                 \
+  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_MEMDUP_ALIGNED, src, nbytes, align, ##__VA_ARGS__))
+
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#if RK_CUSTOM_ALLOCATORS
-# define rk_assert_allocator_valid(_alloc) rk_assert((_alloc).vtab && "Invalid Allocator")
-#else
-# define rk_assert_allocator_valid(_alloc) ((void)0)
-#endif
+/// @brief Returns a container's effective allocator.
+/// If the stored allocator is unset (its `vtab` is NULL), returns `alloc_ctx`.
+/// `self` must point to an object containing an `Allocator alloc` member.
+/// The result is an rvalue and cannot be used to modify the stored allocator.
 
 #if RK_CUSTOM_ALLOCATORS
-# define RK_IFALLOC(...) __VA_ARGS__
-# define rk_set_alloc_fallback(_alloc)                                                             \
+# define RKI_REQUIRE_CUSTOM_ALLOCATORS(...) __VA_ARGS__
+rklib_fun rk_pure rk_forceinline Allocator rki_allocator_of(Allocator alloc) {
+  return alloc.vtab ? alloc : alloc_ctx;
+}
+# define RKI_allocatorof(self)              rki_allocator_of((self)->alloc)
+# define RKI_assert_allocator_valid(_alloc) rk_assert((_alloc).vtab && "Invalid Allocator")
+# define RK_IFALLOC(...)                    __VA_ARGS__
+# define RKI_set_alloc_fallback(_alloc)                                                            \
    ((void)(rk_likely((_alloc).vtab)                                                                \
                ? alloc_ctx                                                                         \
-               : (rk_assert_allocator_valid(alloc_ctx), (_alloc) = alloc_ctx)))
+               : (RKI_assert_allocator_valid(alloc_ctx), (_alloc) = alloc_ctx)))
 #else
+# define RKI_allocator_disabled_assert()    static_assert_expr(0, "Allocators Disabled")
+
+# define RKI_REQUIRE_CUSTOM_ALLOCATORS(...) ((void*)RKI_allocator_disabled_assert())
+# define RKI_allocatorof(self)              ((void)(self), alloc_ctx)
+# define RKI_assert_allocator_valid(_alloc) ((void)0)
 # define RK_IFALLOC(...)
-# define rk_set_alloc_fallback(_alloc) ((void)0)
+# define RKI_set_alloc_fallback(_alloc) ((void)0)
 #endif
 
 ///////////////////////// Page Allocator /////////////////////////////////
@@ -2017,7 +2094,7 @@ __declspec(dllimport) int __stdcall   VirtualFree(void* lpAddress, size_t dwSize
                                                   unsigned long dwFreeType);
 #endif
 
-static_fun size_t RK__mmap_page_size(void) {
+rklib_fun size_t rki_mmap_page_size(void) {
 #ifndef _MSC_VER
   long ps = sysconf(_SC_PAGESIZE);
   RK_MMAP_FAIL(ps != -1, ps, rk_null, 0, 0);
@@ -2027,9 +2104,9 @@ static_fun size_t RK__mmap_page_size(void) {
 #endif
 }
 
-static_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
+rklib_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
   if rk_unlikely (!size) { return rk_null; }
-  size_t ps = RK__mmap_page_size();
+  size_t ps = rki_mmap_page_size();
   size      = rk_align_up(size, ps);
 #ifndef _MSC_VER
   void* res = mmap(rk_null, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -2041,9 +2118,9 @@ static_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
   return res;
 }
 
-static_fun void page_free(void* ptr, size_t size) {
+rklib_fun void page_free(void* ptr, size_t size) {
   if rk_unlikely (!size) { return; }
-  size_t ps = RK__mmap_page_size();
+  size_t ps = rki_mmap_page_size();
   size      = rk_align_up(size, ps);
 #ifndef _MSC_VER
   int r = munmap(ptr, size);
@@ -2054,10 +2131,10 @@ static_fun void page_free(void* ptr, size_t size) {
 #endif
 }
 
-static_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_t new_size) {
+rklib_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_t new_size) {
   if (!old_size) { return page_alloc(new_size); }
   if (!new_size) { return page_free(ptr, old_size), rk_null; }
-  size_t ps      = RK__mmap_page_size();
+  size_t ps      = rki_mmap_page_size();
   size_t al_size = rk_align_up(new_size, ps), al_oldsize = rk_align_up(old_size, ps);
   if (al_size == al_oldsize) {
     return ptr;
@@ -2091,50 +2168,50 @@ static_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_
   }
 }
 
-static_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* RK__page_allocate(size_t       size,
-                                                                          size_t align rk_unused,
-                                                                          void* ctx    rk_unused) {
-  rk_assert(align <= RK__mmap_page_size() && "Wrong alignment");
+rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_page_allocate(size_t       size,
+                                                                         size_t align rk_unused,
+                                                                         void* ctx    rk_unused) {
+  rk_assert(align <= rki_mmap_page_size() && "Wrong alignment");
   return page_alloc(size);
 }
 
-static_fun rk_alloc_alignsize(4, 3) void* RK__page_reallocate(void* ptr, size_t old_size,
-                                                              size_t       new_size,
-                                                              size_t align rk_unused,
-                                                              void* ctx    rk_unused) {
-  rk_assert(align <= RK__mmap_page_size() && "Wrong alignment");
+rklib_fun rk_alloc_alignsize(4, 3) void* rki_page_reallocate(void* ptr, size_t old_size,
+                                                             size_t       new_size,
+                                                             size_t align rk_unused,
+                                                             void* ctx    rk_unused) {
+  rk_assert(align <= rki_mmap_page_size() && "Wrong alignment");
   return page_realloc(ptr, old_size, new_size);
 }
 
-static_fun void RK__page_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
-                                    void* ctx rk_unused) {
-  rk_assert(align <= RK__mmap_page_size() && "Wrong alignment");
+rklib_fun void rki_page_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
+                                   void* ctx rk_unused) {
+  rk_assert(align <= rki_mmap_page_size() && "Wrong alignment");
   page_free(ptr, old_size);
 }
 
 ///////////////////////////////////    Malloc wrappers   ///////////////////////////////////////////
-static_fun rk_forceinline rk_malloc_fun rk_alloc_size(1) void* RK__malloc_f(size_t size) {
+rklib_fun rk_forceinline rk_malloc_fun rk_alloc_size(1) void* rki_malloc_f(size_t size) {
   if rk_unlikely (!size) { return rk_null; }
   void* res = malloc(size);
   RK_MALLOC_FAIL(res, rk_null, rk_null, RK_malloc_align, size);
   return res;
 }
 
-static_fun rk_forceinline void RK__free_f(void* ptr) {
-  if rk_unlikely (ptr == rk_null) { return; }
+rklib_fun rk_forceinline void rki_free_f(void* ptr) {
+  if (ptr == rk_null) { return; }
   free(ptr);
 }
 
-static_fun rk_forceinline rk_alloc_size(2) void* RK__realloc_f(void* ptr, size_t size) {
-  if (!size) { return RK__free_f(ptr), rk_null; }
-  if (ptr == rk_null) { return RK__malloc_f(size); }
+rklib_fun rk_forceinline rk_alloc_size(2) void* rki_realloc_f(void* ptr, size_t size) {
+  if (!size) { return rki_free_f(ptr), rk_null; }
+  if (ptr == rk_null) { return rki_malloc_f(size); }
   void* res = realloc(ptr, size);
   RK_MALLOC_FAIL(res, rk_null, ptr, RK_malloc_align, size);
   return res;
 }
 
-static_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* RK__aligned_alloc_f(size_t size,
-                                                                            size_t align) {
+rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_aligned_alloc_f(size_t size,
+                                                                           size_t align) {
   rk_assert_align_pow2(align);
   if rk_unlikely (!size) { return rk_null; }
   align = rk_max(align, RK_malloc_align);
@@ -2149,19 +2226,19 @@ static_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* RK__aligned_alloc_f(size
 }
 
 #ifndef _MSC_VER
-# define RK__aligned_free_f RK__free_f
+# define rki_aligned_free_f rki_free_f
 #else
-static_fun rk_forceinline void RK__aligned_free_f(void* ptr) {
+rklib_fun rk_forceinline void rki_aligned_free_f(void* ptr) {
   if (ptr != rk_null) { _aligned_free(ptr); }
 }
 #endif
 
-static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__aligned_realloc_f(void*  ptr,
-                                                                               size_t old_size,
-                                                                               size_t new_size,
-                                                                               size_t align) {
-  if (!old_size) { return RK__aligned_alloc_f(new_size, align); }
-  if (!new_size) { return RK__aligned_free_f(ptr), rk_null; }
+rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_aligned_realloc_f(void*  ptr,
+                                                                              size_t old_size,
+                                                                              size_t new_size,
+                                                                              size_t align) {
+  if (!old_size) { return rki_aligned_alloc_f(new_size, align); }
+  if (!new_size) { return rki_aligned_free_f(ptr), rk_null; }
   rk_assert_align_pow2(align);
   align    = rk_max(align, RK_malloc_align);
   new_size = rk_align_up(new_size, align);
@@ -2178,62 +2255,62 @@ static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__aligned_realloc_f(v
   return res;
 }
 
-static_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* RK__malloc_allocate(size_t    size,
-                                                                            size_t    align,
-                                                                            void* ctx rk_unused) {
-  return align <= RK_malloc_align ? RK__malloc_f(size) : RK__aligned_alloc_f(size, align);
+rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_malloc_allocate(size_t    size,
+                                                                           size_t    align,
+                                                                           void* ctx rk_unused) {
+  return align <= RK_malloc_align ? rki_malloc_f(size) : rki_aligned_alloc_f(size, align);
 }
 
-static_fun rk_alloc_alignsize(4, 3) void* RK__malloc_reallocate(void* ptr, size_t old_size,
-                                                                size_t new_size, size_t align,
-                                                                void* ctx rk_unused) {
-  return align <= RK_malloc_align ? RK__realloc_f(ptr, new_size)
-                                  : RK__aligned_realloc_f(ptr, old_size, new_size, align);
+rklib_fun rk_alloc_alignsize(4, 3) void* rki_malloc_reallocate(void* ptr, size_t old_size,
+                                                               size_t new_size, size_t align,
+                                                               void* ctx rk_unused) {
+  return align <= RK_malloc_align ? rki_realloc_f(ptr, new_size)
+                                  : rki_aligned_realloc_f(ptr, old_size, new_size, align);
 }
 
-static_fun void RK__malloc_deallocate(void* ptr, size_t old_size rk_unused, size_t align rk_unused,
-                                      void* ctx rk_unused) {
-  align <= RK_malloc_align ? RK__free_f(ptr) : RK__aligned_free_f(ptr);
+rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_t align rk_unused,
+                                     void* ctx rk_unused) {
+  align <= RK_malloc_align ? rki_free_f(ptr) : rki_aligned_free_f(ptr);
 }
 
 // dynamically chose whether malloc or aligned_alloc
-#define RK__malloc_ALLOCATE(bytes, align)                                                          \
-  (alloc_log_new, RK__malloc_allocate(bytes, align, rk_null))
-#define RK__malloc_REALLOCATE(ptr, obytes, nbytes, align)                                          \
-  (alloc_log_renew, RK__malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
-#define RK__malloc_DEALLOCATE(ptr, align)                                                          \
-  (alloc_log_delete, RK__malloc_deallocate(ptr, 0, align, rk_null))
+#define RKI_MALLOC_ALLOCATE(bytes, align)                                                          \
+  (alloc_log_new, rki_malloc_allocate(bytes, align, rk_null))
+#define RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align)                                          \
+  (alloc_log_renew, rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
+#define RKI_MALLOC_DEALLOCATE(ptr, align)                                                          \
+  (alloc_log_delete, rki_malloc_deallocate(ptr, 0, align, rk_null))
 
 // always call malloc, compiler error if over-aligned
-#define RK__malloc_NEW(T, count)                                                                   \
-  (alloc_log_new, rk_ensure_malloc_align(T), RK__malloc_f(sizeof_n(T, count)))
-#define RK__malloc_RENEW(ptr, count)                                                               \
+#define RKI_MALLOC_NEW(T, count)                                                                   \
+  (alloc_log_new, rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
+#define RKI_MALLOC_RENEW(ptr, count)                                                               \
   (alloc_log_renew, rk_ensure_malloc_align(typeof(*(ptr))),                                        \
-   RK__realloc_f(ptr, sizeof_n(*(ptr), count)))
-#define RK__malloc_DELETE(ptr)                                                                     \
-  (alloc_log_delete, rk_ensure_malloc_align(typeof(*(ptr))), RK__free_f(ptr))
+   rki_realloc_f(ptr, sizeof_n(*(ptr), count)))
+#define RKI_MALLOC_DELETE(ptr)                                                                     \
+  (alloc_log_delete, rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
 
 // always call aligned_alloc, check if alignment is enough for type
-#define RK__malloc_ALIGNED_NEW(T, count, align)                                                    \
-  (alloc_log_new, rk_assert_valid_align(T, align), RK__aligned_alloc_f(sizeof_n(T, count), align))
-#define RK__malloc_ALIGNED_RENEW(ptr, old_count, new_count, align)                                 \
+#define RKI_MALLOC_ALIGNED_NEW(T, count, align)                                                    \
+  (alloc_log_new, rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
+#define RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align)                                 \
   (alloc_log_renew, rk_assert_valid_align(typeof(*(ptr)), align),                                  \
-   RK__aligned_realloc_f(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count), align))
-#define RK__malloc_ALIGNED_DELETE(ptr) (alloc_log_delete, RK__aligned_free_f(ptr))
+   rki_aligned_realloc_f(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count), align))
+#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete, rki_aligned_free_f(ptr))
 
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
 
 #if RK_CUSTOM_ALLOCATORS
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__call_alloc(size_t nbytes, size_t align,
-                                                                        Allocator alloc) {
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes, size_t align,
+                                                                       Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
   if (!nbytes) { return rk_null; }
   return alloc.vtab->alloc_f(nbytes, align, alloc.ctx);
 }
-static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__call_realloc(void* ptr, size_t obytes,
-                                                                          size_t    nbytes,
-                                                                          size_t    align,
-                                                                          Allocator alloc) {
+rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_call_realloc(void* ptr, size_t obytes,
+                                                                         size_t    nbytes,
+                                                                         size_t    align,
+                                                                         Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
   if (!nbytes) {
     if (ptr) {
@@ -2252,8 +2329,8 @@ static_fun rk_forceinline rk_alloc_alignsize(4, 3) void* RK__call_realloc(void* 
   return alloc.vtab->realloc_f(ptr, obytes, nbytes, align, alloc.ctx);
 }
 
-static_fun rk_forceinline void RK__call_dealloc(void* ptr, size_t obytes, size_t align,
-                                                Allocator alloc) {
+rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t align,
+                                               Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
   if (!ptr) {
     rk_assert(!obytes && "NULL allocation has nonzero size");
@@ -2262,105 +2339,136 @@ static_fun rk_forceinline void RK__call_dealloc(void* ptr, size_t obytes, size_t
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc.vtab->dealloc_f(ptr, obytes, align, alloc.ctx);
 }
-#endif
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align, all))
+# define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
+   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align, all))
+# define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
+   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align, all))
 
-#if RK_CUSTOM_ALLOCATORS
-# define RK__alloc_ALLOCATE(bytes, align, all) (alloc_log_new, RK__call_alloc(bytes, align, all))
-# define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, RK__call_realloc(ptr, obytes, nbytes, align, all))
-# define RK__alloc_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, RK__call_dealloc(ptr, obytes, align, all))
 #else
-# define RK__alloc_ALLOCATE(bytes, align, all) RK__malloc_ALLOCATE(bytes, align)
-# define RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   RK__malloc_REALLOCATE(ptr, obytes, nbytes, align)
-# define RK__alloc_DEALLOCATE(ptr, obytes, align, all)                                             \
-   ((void)(obytes), RK__malloc_DEALLOCATE(ptr, align))
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes,
+                                                                       size_t align) {
+  if (!nbytes) { return rk_null; }
+  return alloc_ctx.vtab->alloc_f(nbytes, align, alloc_ctx.ctx);
+}
+rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_call_realloc(void* ptr, size_t obytes,
+                                                                         size_t nbytes,
+                                                                         size_t align) {
+  if (!nbytes) {
+    if (ptr) {
+      rk_assert(obytes && "Non-NULL allocation has zero size");
+      alloc_ctx.vtab->dealloc_f(ptr, obytes, align, alloc_ctx.ctx);
+    } else {
+      rk_assert(!obytes && "NULL allocation has nonzero size");
+    }
+    return rk_null;
+  }
+  if (!ptr) {
+    rk_assert(!obytes && "NULL allocation has nonzero size");
+    return alloc_ctx.vtab->alloc_f(nbytes, align, alloc_ctx.ctx);
+  }
+  rk_assert(obytes && "Non-NULL allocation has zero size");
+  return alloc_ctx.vtab->realloc_f(ptr, obytes, nbytes, align, alloc_ctx.ctx);
+}
+
+rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t align) {
+  if (!ptr) {
+    rk_assert(!obytes && "NULL allocation has nonzero size");
+    return;
+  }
+  rk_assert(obytes && "Non-NULL allocation has zero size");
+  alloc_ctx.vtab->dealloc_f(ptr, obytes, align, alloc_ctx.ctx);
+}
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align))
+# define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
+   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align))
+# define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
+   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align))
 
 #endif
 
-#define RK__alloc_NEW(T, count, all) RK__alloc_ALLOCATE(sizeof_n(T, count), alignof(T), all)
-#define RK__alloc_ALIGNED_NEW(T, count, align, all)                                                \
-  (rk_assert_valid_align(T, align), RK__alloc_ALLOCATE(sizeof_n(T, count), align, all))
+#define RKI_ALLOC_NEW(T, count, all) RKI_ALLOC_ALLOCATE(sizeof_n(T, count), alignof(T), all)
+#define RKI_ALLOC_ALIGNED_NEW(T, count, align, all)                                                \
+  (rk_assert_valid_align(T, align), RKI_ALLOC_ALLOCATE(sizeof_n(T, count), align, all))
 
-#define RK__alloc_RENEW(ptr, ocount, ncount, all)                                                  \
-  RK__alloc_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount),                    \
+#define RKI_ALLOC_RENEW(ptr, ocount, ncount, all)                                                  \
+  RKI_ALLOC_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount),                    \
                        alignof(typeof(*(ptr))), all)
-#define RK__alloc_ALIGNED_RENEW(ptr, ocount, ncount, align, all)                                   \
+#define RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, all)                                   \
   (rk_assert_valid_align(typeof(*(ptr)), align),                                                   \
-   RK__alloc_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount), align, all))
+   RKI_ALLOC_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount), align, all))
 
-#define RK__alloc_DELETE(ptr, ocount, all)                                                         \
-  RK__alloc_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), alignof(typeof(*(ptr))), all)
-#define RK__alloc_ALIGNED_DELETE(ptr, ocount, align, all)                                          \
+#define RKI_ALLOC_DELETE(ptr, ocount, all)                                                         \
+  RKI_ALLOC_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), alignof(typeof(*(ptr))), all)
+#define RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, all)                                          \
   (rk_assert_valid_align(typeof(*(ptr)), align),                                                   \
-   RK__alloc_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), align, all))
+   RKI_ALLOC_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), align, all))
 
 // macros with allocator parameter; disabled if no local allocators enabled
-#define RK__alloc_ALLOCATE3(bytes, align, all) rk_disable_if(RK__alloc_ALLOCATE(bytes, align, all))
-#define RK__alloc_REALLOCATE5(ptr, obytes, nbytes, align, all)                                     \
-  rk_disable_if(RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, all))
-#define RK__alloc_DEALLOCATE4(ptr, obytes, align, all)                                             \
-  rk_disable_if(RK__alloc_DEALLOCATE(ptr, obytes, align, all))
+#define RKI_ALLOC_ALLOCATE3(bytes, align, all)                                                     \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALLOCATE(bytes, align, all))
+#define RKI_ALLOC_REALLOCATE5(ptr, obytes, nbytes, align, all)                                     \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all))
+#define RKI_ALLOC_DEALLOCATE4(ptr, obytes, align, all)                                             \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all))
 
-#define RK__alloc_NEW3(T, count, all) rk_disable_if(RK__alloc_NEW(T, count, all))
-#define RK__alloc_ALIGNED_NEW4(T, count, align, all)                                               \
-  rk_disable_if(RK__alloc_ALIGNED_NEW(T, count, align, all))
+#define RKI_ALLOC_NEW3(T, count, all) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_NEW(T, count, all))
+#define RKI_ALLOC_ALIGNED_NEW4(T, count, align, all)                                               \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_NEW(T, count, align, all))
 
-#define RK__alloc_RENEW4(ptr, ocount, ncount, all)                                                 \
-  rk_disable_if(RK__alloc_RENEW(ptr, ocount, ncount, all))
-#define RK__alloc_ALIGNED_RENEW5(ptr, ocount, ncount, align, all)                                  \
-  rk_disable_if(RK__alloc_ALIGNED_RENEW(ptr, ocount, ncount, align, all))
+#define RKI_ALLOC_RENEW4(ptr, ocount, ncount, all)                                                 \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_RENEW(ptr, ocount, ncount, all))
+#define RKI_ALLOC_ALIGNED_RENEW5(ptr, ocount, ncount, align, all)                                  \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, all))
 
-#define RK__alloc_DELETE3(ptr, ocount, all) rk_disable_if(RK__alloc_DELETE(ptr, ocount, all))
-#define RK__alloc_ALIGNED_DELETE4(ptr, ocount, align, all)                                         \
-  rk_disable_if(RK__alloc_ALIGNED_DELETE(ptr, ocount, align, all))
+#define RKI_ALLOC_DELETE3(ptr, ocount, all)                                                        \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_DELETE(ptr, ocount, all))
+#define RKI_ALLOC_ALIGNED_DELETE4(ptr, ocount, align, all)                                         \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, all))
 // get_alloc_ctx
 //  macros with fewer parameters (might default to alloc_ctx)
-#define RK__alloc_ALLOCATE2(bytes, align)       RK__alloc_ALLOCATE(bytes, align, alloc_ctx)
-#define RK__alloc_ALIGNED_NEW3(T, count, align) RK__alloc_ALIGNED_NEW(T, count, align, alloc_ctx)
-#define RK__alloc_NEW2(T, count)                RK__alloc_NEW(T, count, alloc_ctx)
+#define RKI_ALLOC_ALLOCATE2(bytes, align)       RKI_ALLOC_ALLOCATE(bytes, align, alloc_ctx)
+#define RKI_ALLOC_ALIGNED_NEW3(T, count, align) RKI_ALLOC_ALIGNED_NEW(T, count, align, alloc_ctx)
+#define RKI_ALLOC_NEW2(T, count)                RKI_ALLOC_NEW(T, count, alloc_ctx)
 
-#define RK__alloc_REALLOCATE4(ptr, obytes, nbytes, align)                                          \
-  RK__alloc_REALLOCATE(ptr, obytes, nbytes, align, alloc_ctx)
-#define RK__alloc_ALIGNED_RENEW4(ptr, ocount, ncount, align)                                       \
-  RK__alloc_ALIGNED_RENEW(ptr, ocount, ncount, align, alloc_ctx)
-#define RK__alloc_RENEW3(ptr, ocount, ncount) RK__alloc_RENEW(ptr, ocount, ncount, alloc_ctx)
+#define RKI_ALLOC_REALLOCATE4(ptr, obytes, nbytes, align)                                          \
+  RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, alloc_ctx)
+#define RKI_ALLOC_ALIGNED_RENEW4(ptr, ocount, ncount, align)                                       \
+  RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, alloc_ctx)
+#define RKI_ALLOC_RENEW3(ptr, ocount, ncount) RKI_ALLOC_RENEW(ptr, ocount, ncount, alloc_ctx)
 
-#define RK__alloc_DEALLOCATE3(ptr, obytes, align)                                                  \
-  RK__alloc_DEALLOCATE(ptr, obytes, align, alloc_ctx)
-#define RK__alloc_ALIGNED_DELETE3(ptr, ocount, align)                                              \
-  RK__alloc_ALIGNED_DELETE(ptr, ocount, align, alloc_ctx)
-#define RK__alloc_DELETE2(ptr, ocount) RK__alloc_DELETE(ptr, ocount, alloc_ctx)
+#define RKI_ALLOC_DEALLOCATE3(ptr, obytes, align)                                                  \
+  RKI_ALLOC_DEALLOCATE(ptr, obytes, align, alloc_ctx)
+#define RKI_ALLOC_ALIGNED_DELETE3(ptr, ocount, align)                                              \
+  RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, alloc_ctx)
+#define RKI_ALLOC_DELETE2(ptr, ocount) RKI_ALLOC_DELETE(ptr, ocount, alloc_ctx)
 
-static_fun rk_alloc_alignsize(3, 2) void* RK__arrdup_f(const void* src, size_t size,
-                                                       size_t align RK_IFALLOC(, Allocator alloc)) {
+rklib_fun
+    rk_alloc_alignsize(3, 2) void* rki_memdup_aligned(const void* src, size_t size,
+                                                      size_t align RK_IFALLOC(, Allocator alloc)) {
   return rk_memcpy(alloc_allocate(size, align RK_IFALLOC(, alloc)), src, size);
 }
-#define RK__ARRDUP(src, count, alloc)                                                              \
-  RK__arrdup_f(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))) RK_IFALLOC(, alloc))
-#define RK__ARRDUP3(src, count, alloc) rk_disable_if(RK__ARRDUP(src, count, alloc))
-#define RK__ARRDUP2(src, count)        RK__ARRDUP(src, count, alloc_ctx)
 
-static_fun rk_pure rk_forceinline Allocator RK__allocator_of(Allocator alloc) {
-  return alloc.vtab ? alloc : alloc_ctx;
-}
-/// @brief Returns a container's effective allocator.
-/// If the stored allocator is unset (its `vtab` is NULL), returns `alloc_ctx`.
-/// `self` must point to an object containing an `Allocator alloc` member.
-/// The result is an rvalue and cannot be used to modify the stored allocator.
-#if RK_CUSTOM_ALLOCATORS
-# define RK__allocatorof(self) RK__allocator_of((self)->alloc)
-#else
-# define RK__allocatorof(self) ((void)(self), alloc_ctx)
-#endif
+#define RKI_MEMDUP_ALIGNED4(src, nbytes, align, alloc)                                             \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_memdup_aligned(src, nbytes, align, alloc))
+#define RKI_MEMDUP_ALIGNED3(src, nbytes, align)                                                    \
+  rki_memdup_aligned(src, nbytes, align RK_IFALLOC(, alloc_ctx))
 
-#undef RK__ALLOCCTX_STORAGE
-#undef RK__ALLOCCTX_INIT
+#define RKI_ARRDUP3(src, count, alloc)                                                             \
+  RKI_MEMDUP_ALIGNED4(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))), alloc)
+#define RKI_ARRDUP2(src, count)                                                                    \
+  RKI_MEMDUP_ALIGNED3(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))))
+
+#define RKI_MEMDUP3(src, nbytes, alloc)                                                            \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_memdup_aligned(src, nbytes, align_max, alloc))
+#define RKI_MEMDUP2(src, nbytes) rki_memdup_aligned(src, nbytes, align_max RK_IFALLOC(, alloc_ctx))
+
+#undef RKI_ALLOCCTX_STORAGE
+#undef RKI_ALLOCCTX_INIT
+
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
-
 /// @}
 #endif // RK_ALLOC_H
 
@@ -2391,14 +2499,14 @@ RK_HEADER_END
 /* END INLINE: include/rk_alloc.h */
 RK_HEADER_BEGIN
 
-/// @brief Type-erased node header shared by every tree type's concrete node (`RK__BstNode`,
-/// `RK__AvlNode`, `RK__RbtNode` all start with the same `l`/`r` layout). This is the type a caller
+/// @brief Type-erased node header shared by every tree type's concrete node (`RKI_BstNode`,
+/// `RKI_AvlNode`, `RKI_RbtNode` all start with the same `l`/`r` layout). This is the type a caller
 /// declares a traversal stack buffer as, e.g. `tree_node* stack[64];` for `bst_foreach()`.
 /// @note Deliberately just the two pointers, with no `alignas_max`-forced over-alignment: the
 /// shared primitives below only ever touch `l`/`r` through this type (entry data is reached via an
-/// explicit byte offset into the real, per-(K,V) node -- see `RK__tree_min_off`/`RK__tree_max_off`
+/// explicit byte offset into the real, per-(K,V) node -- see `rki_tree_min_off`/`rki_tree_max_off`
 /// -- never via a member of `tree_node` itself). A concrete node's actual allocation is only ever
-/// guaranteed to meet *its own* alignment (e.g. `alignof(RK__AvlNode(K, V))`, which can be less
+/// guaranteed to meet *its own* alignment (e.g. `alignof(RKI_AvlNode(K, V))`, which can be less
 /// than `align_max`), so giving `tree_node` a stricter alignment than plain pointers would make
 /// every `(tree_node*)` cast of such a node technically misaligned.
 typedef struct tree_node { struct tree_node *l, *r; } tree_node;
@@ -2423,7 +2531,7 @@ typedef struct tree_iter {
 /// `Bst`/`Avl`/`Rbt` (also reachable as `bst_release`/`avl_release`/`rbt_release`) since it only
 /// ever needs to walk `l`/`r` and deallocate -- no rebalancing-specific logic applies here.
 #define tree_release(self)                                                                         \
-  RK__tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
+  rki_tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
 
 /// @brief `size_t tree_count(self)` - Returns the number of key-value pairs stored. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
@@ -2434,7 +2542,7 @@ typedef struct tree_iter {
 /// @brief `Allocator tree_allocator(self)` - Returns the Allocator the tree was constructed with,
 /// or `alloc_ctx` if the tree was never initialized or custom allocators are disabled. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_allocator`/`avl_allocator`/`rbt_allocator`).
-#define tree_allocator(self) RK__allocatorof(self)
+#define tree_allocator(self) RKI_allocatorof(self)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
 #define tree_is_empty(self)  (tree_count(self) == 0)
@@ -2444,12 +2552,12 @@ typedef struct tree_iter {
 /// real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
 /// `Avl`/`Rbt` nodes carry extra bookkeeping (height/color) that `Bst` nodes don't.
 #define tree_min(self)                                                                             \
-  ((typeof((self)->root->entry)*)RK__tree_min_off((self)->_tree.root,                              \
+  ((typeof((self)->root->entry)*)rki_tree_min_off((self)->_tree.root,                              \
                                                   offsetof(typeof(*(self)->root), entry)))
 
 /// @brief Like `tree_min()`, but for the largest key.
 #define tree_max(self)                                                                             \
-  ((typeof((self)->root->entry)*)RK__tree_max_off((self)->_tree.root,                              \
+  ((typeof((self)->root->entry)*)rki_tree_max_off((self)->_tree.root,                              \
                                                   offsetof(typeof(*(self)->root), entry)))
 
 //////////////////////////////////// Bst: unbalanced BST //////////////////////////////////////////
@@ -2476,7 +2584,7 @@ typedef struct tree_iter {
 /// int int_cmp(int a, int b) { return a - b; }
 /// BST_DEFINE(int, cstr, int_cmp);
 /// ```
-#define BST_DEFINE(K, V, CMP_FUN)       RK__BST_DEFINE(K, V, CMP_FUN)
+#define BST_DEFINE(K, V, CMP_FUN)       RKI_BST_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific BST struct name.
 #define Bst(K, V)                       Bst_##K##_##V
@@ -2489,7 +2597,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Bst(K, V)`
-#define bst_init(K, V, ...)             rk_overload(RK__bst_init, K, V, ##__VA_ARGS__)
+#define bst_init(K, V, ...)             rk_overload(RKI_BST_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void bst_release(K, V, Bst(K, V)* self)` - Frees all nodes in the BST and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -2517,22 +2625,22 @@ typedef struct tree_iter {
 /// @brief `V* bst_get(K, V, Bst(K, V)* self, K key)` - Looks up a key and returns a pointer to its
 /// associated value, or `NULL` if not found.
 /// @return Pointer to the value, or `NULL` if the key is absent
-#define bst_get(K, V, self, key)        RK__BST_PUB(K, V, get)(self, key)
+#define bst_get(K, V, self, key)        RKI_BST_PUB(K, V, get)(self, key)
 
 /// @brief `bool bst_contains(K, V, Bst(K, V)* self, K key)` - Returns `true` iff the BST contains
 /// an entry with the given key.
-#define bst_contains(K, V, self, key)   RK__BST_PUB(K, V, contains)(self, key)
+#define bst_contains(K, V, self, key)   RKI_BST_PUB(K, V, contains)(self, key)
 
 /// @brief `bool bst_set(K, V, Bst(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair. If `key` is already present, its value is overwritten. If not, a new node is allocated and
 /// inserted.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define bst_set(K, V, self, key, value) RK__BST_PUB(K, V, set)(self, key, value)
+#define bst_set(K, V, self, key, value) RKI_BST_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* bst_add(K, V, Bst(K, V)* self, K key, V value)` - Inserts a key-value pair only if
 /// `key` is not already present. Existing values are not overwritten.
 /// @return Pointer to the added object, if added, or `NULL`, if not
-#define bst_add(K, V, self, key, value) RK__BST_PUB(K, V, add)(self, key, value)
+#define bst_add(K, V, self, key, value) RKI_BST_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* bst_get_or_add(K, V, Bst(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// Returns a pointer to the value for `key`, inserting `default_value` first if the key is absent.
@@ -2542,18 +2650,18 @@ typedef struct tree_iter {
 /// inserted and `false` if the key already existed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define bst_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_BST_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool bst_extract(K, V, Bst(K, V)* self, K key, V* out)` - Removes the entry
 /// with `key` from the BST and writes its value to `out`.
 /// @param out Non-null pointer; where the removed value is written, if found
 /// @return `true` if the key was found and removed, `false` otherwise
-#define bst_extract(K, V, self, key, out) RK__BST_PUB(K, V, extract)(self, key, out)
+#define bst_extract(K, V, self, key, out) RKI_BST_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool bst_remove(K, V, Bst(K, V)* self, K key)` - Removes the entry with `key` from the
 /// BST, discarding its value.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define bst_remove(K, V, self, key)       RK__BST_PUB(K, V, remove)(self, key)
+#define bst_remove(K, V, self, key)       RKI_BST_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the BST in ascending key order.
 ///
@@ -2589,7 +2697,7 @@ typedef struct tree_iter {
 /// @param V       Value type (same constraint as `K`)
 /// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
 /// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-#define AVL_DEFINE(K, V, CMP_FUN)       RK__AVL_DEFINE(K, V, CMP_FUN)
+#define AVL_DEFINE(K, V, CMP_FUN)       RKI_AVL_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Avl struct name.
 #define Avl(K, V)                       Avl_##K##_##V
@@ -2602,7 +2710,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Avl(K, V)`
-#define avl_init(K, V, ...)             rk_overload(RK__avl_init, K, V, ##__VA_ARGS__)
+#define avl_init(K, V, ...)             rk_overload(RKI_AVL_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void avl_release(K, V, Avl(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -2628,7 +2736,7 @@ typedef struct tree_iter {
 #define avl_max(self)                   tree_max(self)
 
 /// @brief `V* avl_get(K, V, Avl(K, V)* self, K key)` - See `bst_get()`.
-#define avl_get(K, V, self, key)        RK__AVL_PUB(K, V, get)(self, key)
+#define avl_get(K, V, self, key)        RKI_AVL_PUB(K, V, get)(self, key)
 
 /// @brief `bool avl_contains(K, V, Avl(K, V)* self, K key)` - See `bst_contains()`.
 #define avl_contains(K, V, self, key)   (!!avl_get(K, V, self, key))
@@ -2636,28 +2744,28 @@ typedef struct tree_iter {
 /// @brief `bool avl_set(K, V, Avl(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define avl_set(K, V, self, key, value) RK__AVL_PUB(K, V, set)(self, key, value)
+#define avl_set(K, V, self, key, value) RKI_AVL_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* avl_add(K, V, Avl(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
 /// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
-#define avl_add(K, V, self, key, value) RK__AVL_PUB(K, V, add)(self, key, value)
+#define avl_add(K, V, self, key, value) RKI_AVL_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* avl_get_or_add(K, V, Avl(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define avl_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__AVL_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_AVL_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool avl_extract(K, V, Avl(K, V)* self, K key, V* out)` - See `bst_extract()`;
 /// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define avl_extract(K, V, self, key, out) RK__AVL_PUB(K, V, extract)(self, key, out)
+#define avl_extract(K, V, self, key, out) RKI_AVL_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool avl_remove(K, V, Avl(K, V)* self, K key)` - See `bst_remove()`; rebalances as
 /// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define avl_remove(K, V, self, key)       RK__AVL_PUB(K, V, remove)(self, key)
+#define avl_remove(K, V, self, key)       RKI_AVL_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Avl tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
@@ -2672,7 +2780,7 @@ typedef struct tree_iter {
 /// @param V       Value type (same constraint as `K`)
 /// @param CMP_FUN Comparison function with signature `int cmp(K a, K b)`. Must return negative if
 /// `a < b`, zero if `a == b`, positive if `a > b` (same convention as `strcmp`).
-#define RBT_DEFINE(K, V, CMP_FUN)       RK__RBT_DEFINE(K, V, CMP_FUN)
+#define RBT_DEFINE(K, V, CMP_FUN)       RKI_RBT_DEFINE(K, V, CMP_FUN)
 
 /// @brief Generates a type-specific Rbt struct name.
 #define Rbt(K, V)                       Rbt_##K##_##V
@@ -2681,7 +2789,7 @@ typedef struct tree_iter {
 
 /// @brief `Rbt(K, V) rbt_init(K, V, Allocator alloc = alloc_ctx)` - Initialises and returns an
 /// empty Rbt tree.
-#define rbt_init(K, V, ...)             rk_overload(RK__rbt_init, K, V, ##__VA_ARGS__)
+#define rbt_init(K, V, ...)             rk_overload(RKI_RBT_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void rbt_release(K, V, Rbt(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -2707,7 +2815,7 @@ typedef struct tree_iter {
 #define rbt_max(self)                   tree_max(self)
 
 /// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
-#define rbt_get(K, V, self, key)        RK__RBT_PUB(K, V, get)(self, key)
+#define rbt_get(K, V, self, key)        RKI_RBT_PUB(K, V, get)(self, key)
 
 /// @brief `bool rbt_contains(K, V, Rbt(K, V)* self, K key)` - See `bst_contains()`.
 #define rbt_contains(K, V, self, key)   (!!rbt_get(K, V, self, key))
@@ -2715,51 +2823,51 @@ typedef struct tree_iter {
 /// @brief `bool rbt_set(K, V, Rbt(K, V)* self, K key, V value)` - Inserts or updates a key-value
 /// pair, rebalancing as needed.
 /// @return `true` if a new node was inserted, `false` if an existing value was updated
-#define rbt_set(K, V, self, key, value) RK__RBT_PUB(K, V, set)(self, key, value)
+#define rbt_set(K, V, self, key, value) RKI_RBT_PUB(K, V, set)(self, key, value)
 
 /// @brief `V* rbt_add(K, V, Rbt(K, V)* self, K key, V value)` - See `bst_add()`; rebalances as
 /// needed.
 /// @return Pointer to the added value, if added, or `NULL`, if not
-#define rbt_add(K, V, self, key, value) RK__RBT_PUB(K, V, add)(self, key, value)
+#define rbt_add(K, V, self, key, value) RKI_RBT_PUB(K, V, add)(self, key, value)
 
 /// @brief `V* rbt_get_or_add(K, V, Rbt(K, V)* self, K key, V default_value, bool* inserted_out)` -
 /// See `bst_get_or_add()`; rebalances as needed.
 /// @return Pointer to the value for `key` (never `NULL`).
 #define rbt_get_or_add(K, V, self, key, default_value, inserted_out)                               \
-  RK__RBT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_RBT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool rbt_extract(K, V, Rbt(K, V)* self, K key, V* out)` - See `bst_extract()`;
 /// rebalances as needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_extract(K, V, self, key, out) RK__RBT_PUB(K, V, extract)(self, key, out)
+#define rbt_extract(K, V, self, key, out) RKI_RBT_PUB(K, V, extract)(self, key, out)
 
 /// @brief `bool rbt_remove(K, V, Rbt(K, V)* self, K key)` - See `bst_remove()`; rebalances as
 /// needed.
 /// @return `true` if the key was found and removed, `false` otherwise
-#define rbt_remove(K, V, self, key)       RK__RBT_PUB(K, V, remove)(self, key)
+#define rbt_remove(K, V, self, key)       RKI_RBT_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all entries in the Rbt tree in ascending key order. Same parameters and
 /// contract as `bst_foreach()`.
 #define rbt_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-////////////////////////////// Shared node/iterator primitives (`tree_*`)
-///////////////////////////////
+////////////////////////////// Shared node/iterator primitives (`tree_*`) //////////////////////////
 
-/// @brief Type-erased view of any of this file's concrete node types (`RK__BstNode`,
-/// `RK__AvlNode`, `RK__RbtNode`), used by the shared release/iteration primitives below, which only
+/// @brief Type-erased view of any of this file's concrete node types (`RKI_BstNode`,
+/// `RKI_AvlNode`, `RKI_RbtNode`), used by the shared release/iteration primitives below, which only
 /// ever need to walk `l`/`r` -- never touch `data`/`entry` directly (that's only ever done after
 /// re-casting to the real, per-(K,V) node type, since the entry's offset differs by node type: it
 /// sits right after `l`/`r` for `Bst`, but after an extra height/color bookkeeping field for
 /// `Avl`/`Rbt`). Where the entry itself must be reached generically (`_min`/`_max`), the real
-/// offset is passed explicitly rather than assumed -- see `RK__tree_min_off`/`RK__tree_max_off`.
-static_fun void RK__tree_release_nodes(size_t nodesize, size_t nodealign,
-                                       tree_node* restrict node RK_IFALLOC(, Allocator alloc)) {
+/// offset is passed explicitly rather than assumed -- see `rki_tree_min_off`/`rki_tree_max_off`.
+rklib_fun void rki_tree_release_nodes(size_t nodesize, size_t nodealign,
+                                      tree_node* restrict node RK_IFALLOC(, Allocator alloc)) {
   while (node) {
     if (node->l) {
       tree_node* left = node->l;
@@ -2774,8 +2882,8 @@ static_fun void RK__tree_release_nodes(size_t nodesize, size_t nodealign,
   }
 }
 
-static_fun void RK__tree_release(size_t nodesize, size_t nodealign, tree_data* self) {
-  RK__tree_release_nodes(nodesize, nodealign, self->root RK_IFALLOC(, self->alloc));
+rklib_fun void rki_tree_release(size_t nodesize, size_t nodealign, tree_data* self) {
+  rki_tree_release_nodes(nodesize, nodealign, self->root RK_IFALLOC(, self->alloc));
   self->root = rk_null, self->count = 0;
 }
 
@@ -2783,28 +2891,26 @@ static_fun void RK__tree_release(size_t nodesize, size_t nodealign, tree_data* s
 /// node. Passing the real offset (rather than assuming entry data sits right after `l`/`r`, as a
 /// bare `tree_node*` would) is what makes this safe to reuse for node types that carry extra
 /// bookkeeping (e.g. an AVL height or a red-black color bit) between the pointers and the entry.
-static_fun rk_pure void* RK__tree_min_off(tree_node* node, size_t entry_off) {
+rklib_fun rk_pure void* rki_tree_min_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->l) { node = node->l; }
   return (char*)node + entry_off;
 }
 
-/// @brief Like `RK__tree_min_off()`, but for the rightmost (maximum) node.
-static_fun rk_pure void* RK__tree_max_off(tree_node* node, size_t entry_off) {
+/// @brief Like `rki_tree_min_off()`, but for the rightmost (maximum) node.
+rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
 }
 
-static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out) {
+rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) {
   while (it->curr) {
     rk_assert(it->top < it->cap && "Tree iterator stack overflow");
     it->stack[it->top++] = it->curr;
     it->curr             = it->curr->l;
   }
-
   if (!it->top) { return false; }
-
   tree_node* node = it->stack[--it->top];
   *node_out       = node;
   it->curr        = node->r;
@@ -2815,44 +2921,43 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
 /// normally used directly -- prefer the tree-specific macro, which documents its own parameters;
 /// the shape is identical across all three.
 #define tree_foreach(self, stack_buf, stack_cap, entry_)                                           \
-  for (typeof(*(self))*const RK__rs = (self), *RK__once = RK__rs; RK__once;)                       \
-    for (tree_node * RK__node; RK__once; RK__once = 0)                                             \
-      for (tree_iter RK__it = {.stack = (stack_buf),                                               \
-                               .curr  = (tree_node*)RK__rs->root,                                  \
+  for (typeof(*(self))*const RKI_rs = (self), *RKI_once = RKI_rs; RKI_once;)                       \
+    for (tree_node * RKI_node; RKI_once; RKI_once = 0)                                             \
+      for (tree_iter RKI_it = {.stack = (stack_buf),                                               \
+                               .curr  = (tree_node*)RKI_rs->root,                                  \
                                .cap   = (stack_cap),                                               \
                                .top   = 0};                                                        \
-           RK__tree_iter_next(&RK__it, &RK__node);)                                                \
-        for (typeof(RK__rs->root->entry)*const entry_ = &((typeof(RK__rs->root))RK__node)->entry,  \
-                                               *RK__once1 = entry_;                                \
-             RK__once1; RK__once1                         = 0)
+           rki_tree_iter_next(&RKI_it, &RKI_node);)                                                \
+        for (typeof(RKI_rs->root->entry)*const entry_ = &((typeof(RKI_rs->root))RKI_node)->entry,  \
+                                               *RKI_once1 = entry_;                                \
+             RKI_once1; RKI_once1                         = 0)
 
-//////////////////////////////////////////// Bst internals
-//////////////////////////////////////////////
+//////////////////////////////////////////// Bst internals /////////////////////////////////////////
 
-#define RK__BstEntryPriv(K, V)      RK__bst_entry_##K##_##V
+#define RKI_BstEntryPriv(K, V)      RKI_bst_entry_##K##_##V
 
-#define RK__bst_init(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
-#define RK__bst_init3(K, V, _Alloc) rk_disable_if(RK__bst_init(K, V, _Alloc))
-#define RK__bst_init2(K, V)         RK__bst_init(K, V, alloc_ctx)
+#define RKI_BST_INIT(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
+#define RKI_BST_INIT3(K, V, _Alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, _Alloc))
+#define RKI_BST_INIT2(K, V)         RKI_BST_INIT(K, V, alloc_ctx)
 
-#define RK__BstNode(K, V)           RK__bst_node_##K##_##V
-#define RK__BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
-#define RK__BST_PRI(K, V, FNAME)    RK__bst_##K##_##V##_##FNAME
+#define RKI_BstNode(K, V)           RKI_bst_node_##K##_##V
+#define RKI_BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
+#define RKI_BST_PRI(K, V, FNAME)    rki_bst_##K##_##V##_##FNAME
 
-#define RK__BST_DEFINE(K, V, CMP_FUN)                                                              \
+#define RKI_BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct BstEntry(K, V) {                                                                  \
     K const key;                                                                                   \
     V       val;                                                                                   \
   } BstEntry(K, V);                                                                                \
-  typedef struct RK__BstEntryPriv(K, V) {                                                          \
+  typedef struct RKI_BstEntryPriv(K, V) {                                                          \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__BstEntryPriv(K, V);                                                                        \
-  struct RK__BstNode(K, V) {                                                                       \
-    struct RK__BstNode(K, V) * l, *r;                                                              \
+  } RKI_BstEntryPriv(K, V);                                                                        \
+  struct RKI_BstNode(K, V) {                                                                       \
+    struct RKI_BstNode(K, V) * l, *r;                                                              \
     union {                                                                                        \
-      RK__BstEntryPriv(K, V) entry_mod;                                                            \
+      RKI_BstEntryPriv(K, V) entry_mod;                                                            \
       BstEntry(K, V) entry;                                                                        \
     };                                                                                             \
   };                                                                                               \
@@ -2862,25 +2967,25 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         size_t count;                                                                              \
-        struct RK__BstNode(K, V) * root;                                                           \
+        struct RKI_BstNode(K, V) * root;                                                           \
       };                                                                                           \
     };                                                                                             \
   } Bst(K, V);                                                                                     \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); bst_count()/bst_is_empty()/bst_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
-  static_fun rk_pure size_t RK__BST_PUB(K, V, count)(const Bst(K, V) * self) {                     \
+  rklib_fun rk_pure size_t RKI_BST_PUB(K, V, count)(const Bst(K, V) * self) {                      \
     return tree_count(self);                                                                       \
   }                                                                                                \
-  static_fun rk_pure bool RK__BST_PUB(K, V, is_empty)(const Bst(K, V) * self) {                    \
+  rklib_fun rk_pure bool RKI_BST_PUB(K, V, is_empty)(const Bst(K, V) * self) {                     \
     return tree_is_empty(self);                                                                    \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__BST_PUB(K, V, allocator)(const Bst(K, V) * self) {              \
+  rklib_fun rk_pure Allocator RKI_BST_PUB(K, V, allocator)(const Bst(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  static_fun rk_pure struct RK__BstNode(K, V)                                                      \
-      * *RK__BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
+  rklib_fun rk_pure struct RKI_BstNode(K, V)                                                       \
+      * *RKI_BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
     node_t** curr = &self->root;                                                                   \
     for (; *curr;) {                                                                               \
       int cmp_res = CMP_FUN(key, (*curr)->entry.key);                                              \
@@ -2889,23 +2994,23 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return curr;                                                                                   \
   }                                                                                                \
-  static_fun rk_pure V* RK__BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                          \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** node = RK__BST_PRI(K, V, search_ptr)(self, key);                                      \
+  rklib_fun rk_pure V* RKI_BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                           \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** node = RKI_BST_PRI(K, V, search_ptr)(self, key);                                      \
     return *node ? &((*node)->entry.val) : rk_null;                                                \
   }                                                                                                \
-  static_fun rk_pure bool RK__BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                   \
-    return !!(*RK__BST_PRI(K, V, search_ptr)(self, key));                                          \
+  rklib_fun rk_pure bool RKI_BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                    \
+    return !!(*RKI_BST_PRI(K, V, search_ptr)(self, key));                                          \
   }                                                                                                \
-  static_fun V* RK__BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,      \
-                                           V val) {                                                \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
+  rklib_fun V* RKI_BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,       \
+                                          V val) {                                                 \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
       if (always_insert) { (*lnk)->entry.val = val; }                                              \
       return rk_null;                                                                              \
     }                                                                                              \
-    rk_set_alloc_fallback(self->alloc);                                                            \
+    RKI_set_alloc_fallback(self->alloc);                                                           \
     node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
     n->r = n->l  = rk_null;                                                                        \
     n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
@@ -2913,21 +3018,21 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     ++self->count;                                                                                 \
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                         \
-    return !!RK__BST_PRI(K, V, set_add)(true, self, key, val);                                     \
+  rklib_fun bool RKI_BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                          \
+    return !!RKI_BST_PRI(K, V, set_add)(true, self, key, val);                                     \
   }                                                                                                \
-  static_fun V* RK__BST_PUB(K, V, add)(Bst(K, V) * self, K key, V val) {                           \
-    return RK__BST_PRI(K, V, set_add)(false, self, key, val);                                      \
+  rklib_fun V* RKI_BST_PUB(K, V, add)(Bst(K, V) * self, K key, V val) {                            \
+    return RKI_BST_PRI(K, V, set_add)(false, self, key, val);                                      \
   }                                                                                                \
-  static_fun V* RK__BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                      \
-                                              bool* restrict inserted_out) {                       \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
+  rklib_fun V* RKI_BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                       \
+                                             bool* restrict inserted_out) {                        \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (*lnk) {                                                                                    \
       if (inserted_out) { *inserted_out = false; }                                                 \
       return &((*lnk)->entry_mod.val);                                                             \
     }                                                                                              \
-    rk_set_alloc_fallback(self->alloc);                                                            \
+    RKI_set_alloc_fallback(self->alloc);                                                           \
     node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
     n->r = n->l  = rk_null;                                                                        \
     n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
@@ -2936,10 +3041,10 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     if (inserted_out) { *inserted_out = true; }                                                    \
     return &(n->entry_mod.val);                                                                    \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {               \
+  rklib_fun bool RKI_BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {                \
     rk_assert_ptr_nonnull(val_out);                                                                \
-    typedef struct RK__BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RK__BST_PRI(K, V, search_ptr)(self, key);                                       \
+    typedef struct RKI_BstNode(K, V) node_t;                                                       \
+    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
     if (!*lnk) { return false; }                                                                   \
     --self->count;                                                                                 \
     node_t* curr = *lnk;                                                                           \
@@ -2957,106 +3062,106 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     alloc_delete(curr, 1 RK_IFALLOC(, self->alloc));                                               \
     return true;                                                                                   \
   }                                                                                                \
-  static_fun bool RK__BST_PUB(K, V, remove)(Bst(K, V) * self, K key) {                             \
+  rklib_fun bool RKI_BST_PUB(K, V, remove)(Bst(K, V) * self, K key) {                              \
     V _;                                                                                           \
-    return RK__BST_PUB(K, V, extract)(self, key, &_);                                              \
+    return RKI_BST_PUB(K, V, extract)(self, key, &_);                                              \
   }                                                                                                \
   RK_EXTERNC_END
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RK__avl_init(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__avl_init3(K, V, A)   rk_disable_if(RK__avl_init(K, V, A))
-#define RK__avl_init2(K, V)      RK__avl_init(K, V, alloc_ctx)
+#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_AVL_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_AVL_INIT(K, V, A))
+#define RKI_AVL_INIT2(K, V)      RKI_AVL_INIT(K, V, alloc_ctx)
 
-#define RK__AvlNode(K, V)        RK__avl_node_##K##_##V
-#define RK__AVL_PUB(K, V, FNAME) avl_##K##_##V##_##FNAME
-#define RK__AVL_PRI(K, V, FNAME) RK__avl_##K##_##V##_##FNAME
+#define RKI_AvlNode(K, V)        RKI_avl_node_##K##_##V
+#define RKI_AVL_PUB(K, V, FNAME) avl_##K##_##V##_##FNAME
+#define RKI_AVL_PRI(K, V, FNAME) rki_avl_##K##_##V##_##FNAME
 
-#define RK__AVL_DEFINE(K, V, CMP_FUN)                                                              \
+#define RKI_AVL_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct AvlEntry(K, V) {                                                                  \
     K const key;                                                                                   \
     V       val;                                                                                   \
   } AvlEntry(K, V);                                                                                \
-  typedef struct RK__AVL_PRI(K, V, entry) {                                                        \
+  typedef struct RKI_AVL_PRI(K, V, entry) {                                                        \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__AVL_PRI(K, V, entry);                                                                      \
-  typedef struct RK__AvlNode(K, V) {                                                               \
-    struct RK__AvlNode(K, V) * l, *r;                                                              \
+  } RKI_AVL_PRI(K, V, entry);                                                                      \
+  typedef struct RKI_AvlNode(K, V) {                                                               \
+    struct RKI_AvlNode(K, V) * l, *r;                                                              \
     int height;                                                                                    \
     union {                                                                                        \
-      RK__AVL_PRI(K, V, entry) entry_mod;                                                          \
+      RKI_AVL_PRI(K, V, entry) entry_mod;                                                          \
       AvlEntry(K, V) entry;                                                                        \
     };                                                                                             \
-  } RK__AvlNode(K, V);                                                                             \
+  } RKI_AvlNode(K, V);                                                                             \
   typedef struct Avl(K, V) {                                                                       \
     union {                                                                                        \
       tree_data _tree;                                                                             \
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         size_t count;                                                                              \
-        RK__AvlNode(K, V) * root;                                                                  \
+        RKI_AvlNode(K, V) * root;                                                                  \
       };                                                                                           \
     };                                                                                             \
   } Avl(K, V);                                                                                     \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); avl_count()/avl_is_empty()/avl_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
-  static_fun rk_pure size_t RK__AVL_PUB(K, V, count)(const Avl(K, V) * self) {                     \
+  rklib_fun rk_pure size_t RKI_AVL_PUB(K, V, count)(const Avl(K, V) * self) {                      \
     return tree_count(self);                                                                       \
   }                                                                                                \
-  static_fun rk_pure bool RK__AVL_PUB(K, V, is_empty)(const Avl(K, V) * self) {                    \
+  rklib_fun rk_pure bool RKI_AVL_PUB(K, V, is_empty)(const Avl(K, V) * self) {                     \
     return tree_is_empty(self);                                                                    \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__AVL_PUB(K, V, allocator)(const Avl(K, V) * self) {              \
+  rklib_fun rk_pure Allocator RKI_AVL_PUB(K, V, allocator)(const Avl(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  static_fun rk_pure int RK__AVL_PRI(K, V, h)(RK__AvlNode(K, V) * n) { return n ? n->height : 0; } \
-  static_fun void        RK__AVL_PRI(K, V, fixh)(RK__AvlNode(K, V) * n) {                          \
-    int a = RK__AVL_PRI(K, V, h)(n->l), b = RK__AVL_PRI(K, V, h)(n->r);                            \
+  rklib_fun rk_pure int RKI_AVL_PRI(K, V, h)(RKI_AvlNode(K, V) * n) { return n ? n->height : 0; }  \
+  rklib_fun void        RKI_AVL_PRI(K, V, fixh)(RKI_AvlNode(K, V) * n) {                           \
+    int a = RKI_AVL_PRI(K, V, h)(n->l), b = RKI_AVL_PRI(K, V, h)(n->r);                            \
     n->height = 1 + (a > b ? a : b);                                                               \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V) * RK__AVL_PRI(K, V, rotl)(RK__AvlNode(K, V) * x) {                  \
-    RK__AvlNode(K, V)* y = x->r;                                                                   \
+  rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotl)(RKI_AvlNode(K, V) * x) {                   \
+    RKI_AvlNode(K, V)* y = x->r;                                                                   \
     x->r                 = y->l;                                                                   \
     y->l                 = x;                                                                      \
-    RK__AVL_PRI(K, V, fixh)(x);                                                                    \
-    RK__AVL_PRI(K, V, fixh)(y);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
     return y;                                                                                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V) * RK__AVL_PRI(K, V, rotr)(RK__AvlNode(K, V) * y) {                  \
-    RK__AvlNode(K, V)* x = y->l;                                                                   \
+  rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotr)(RKI_AvlNode(K, V) * y) {                   \
+    RKI_AvlNode(K, V)* x = y->l;                                                                   \
     y->l                 = x->r;                                                                   \
     x->r                 = y;                                                                      \
-    RK__AVL_PRI(K, V, fixh)(y);                                                                    \
-    RK__AVL_PRI(K, V, fixh)(x);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
+    RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V) * RK__AVL_PRI(K, V, balance)(RK__AvlNode(K, V) * n) {               \
-    RK__AVL_PRI(K, V, fixh)(n);                                                                    \
-    int bf = RK__AVL_PRI(K, V, h)(n->l) - RK__AVL_PRI(K, V, h)(n->r);                              \
+  rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, balance)(RKI_AvlNode(K, V) * n) {                \
+    RKI_AVL_PRI(K, V, fixh)(n);                                                                    \
+    int bf = RKI_AVL_PRI(K, V, h)(n->l) - RKI_AVL_PRI(K, V, h)(n->r);                              \
     if (bf > 1) {                                                                                  \
-      if (RK__AVL_PRI(K, V, h)(n->l->l) < RK__AVL_PRI(K, V, h)(n->l->r)) {                         \
-        n->l = RK__AVL_PRI(K, V, rotl)(n->l);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(n->l->l) < RKI_AVL_PRI(K, V, h)(n->l->r)) {                         \
+        n->l = RKI_AVL_PRI(K, V, rotl)(n->l);                                                      \
       }                                                                                            \
-      return RK__AVL_PRI(K, V, rotr)(n);                                                           \
+      return RKI_AVL_PRI(K, V, rotr)(n);                                                           \
     }                                                                                              \
     if (bf < -1) {                                                                                 \
-      if (RK__AVL_PRI(K, V, h)(n->r->r) < RK__AVL_PRI(K, V, h)(n->r->l)) {                         \
-        n->r = RK__AVL_PRI(K, V, rotr)(n->r);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(n->r->r) < RKI_AVL_PRI(K, V, h)(n->r->l)) {                         \
+        n->r = RKI_AVL_PRI(K, V, rotr)(n->r);                                                      \
       }                                                                                            \
-      return RK__AVL_PRI(K, V, rotl)(n);                                                           \
+      return RKI_AVL_PRI(K, V, rotl)(n);                                                           \
     }                                                                                              \
     return n;                                                                                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V)                                                                     \
-      * RK__AVL_PRI(K, V, put)(Avl(K, V) * self, RK__AvlNode(K, V) * n, K key, V val,              \
+  rklib_fun RKI_AvlNode(K, V)                                                                      \
+      * RKI_AVL_PRI(K, V, put)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V val,              \
                                bool overwrite, V** out, bool* added) {                             \
     if (!n) {                                                                                      \
-      rk_set_alloc_fallback(self->alloc);                                                          \
-      n    = alloc_new(RK__AvlNode(K, V), 1 RK_IFALLOC(, self->alloc));                            \
+      RKI_set_alloc_fallback(self->alloc);                                                         \
+      n    = alloc_new(RKI_AvlNode(K, V), 1 RK_IFALLOC(, self->alloc));                            \
       n->l = n->r  = rk_null;                                                                      \
       n->height    = 1;                                                                            \
       n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                               \
@@ -3071,14 +3176,14 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
       return n;                                                                                    \
     }                                                                                              \
     if (c < 0) {                                                                                   \
-      n->l = RK__AVL_PRI(K, V, put)(self, n->l, key, val, overwrite, out, added);                  \
+      n->l = RKI_AVL_PRI(K, V, put)(self, n->l, key, val, overwrite, out, added);                  \
     } else {                                                                                       \
-      n->r = RK__AVL_PRI(K, V, put)(self, n->r, key, val, overwrite, out, added);                  \
+      n->r = RKI_AVL_PRI(K, V, put)(self, n->r, key, val, overwrite, out, added);                  \
     }                                                                                              \
-    return RK__AVL_PRI(K, V, balance)(n);                                                          \
+    return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
-  static_fun rk_pure V* RK__AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                          \
-    RK__AvlNode(K, V)* n = self->root;                                                             \
+  rklib_fun rk_pure V* RKI_AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                           \
+    RKI_AvlNode(K, V)* n = self->root;                                                             \
     while (n) {                                                                                    \
       int c = CMP_FUN(key, n->entry.key);                                                          \
       if (!c) { return &n->entry_mod.val; }                                                        \
@@ -3086,185 +3191,185 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
-  static_fun V* RK__AVL_PRI(K, V, setadd)(Avl(K, V) * self, K key, V val, bool overwrite,          \
-                                          bool* added) {                                           \
+  rklib_fun V* RKI_AVL_PRI(K, V, setadd)(Avl(K, V) * self, K key, V val, bool overwrite,           \
+                                         bool* added) {                                            \
     V* out     = rk_null;                                                                          \
     *added     = false;                                                                            \
-    self->root = RK__AVL_PRI(K, V, put)(self, self->root, key, val, overwrite, &out, added);       \
+    self->root = RKI_AVL_PRI(K, V, put)(self, self->root, key, val, overwrite, &out, added);       \
     if (*added) { ++self->count; }                                                                 \
     return out;                                                                                    \
   }                                                                                                \
-  static_fun bool RK__AVL_PUB(K, V, set)(Avl(K, V) * self, K key, V val) {                         \
+  rklib_fun bool RKI_AVL_PUB(K, V, set)(Avl(K, V) * self, K key, V val) {                          \
     bool added;                                                                                    \
-    (void)RK__AVL_PRI(K, V, setadd)(self, key, val, true, &added);                                 \
+    (void)RKI_AVL_PRI(K, V, setadd)(self, key, val, true, &added);                                 \
     return added;                                                                                  \
   }                                                                                                \
-  static_fun V* RK__AVL_PUB(K, V, add)(Avl(K, V) * self, K key, V val) {                           \
+  rklib_fun V* RKI_AVL_PUB(K, V, add)(Avl(K, V) * self, K key, V val) {                            \
     bool added;                                                                                    \
-    V*   p = RK__AVL_PRI(K, V, setadd)(self, key, val, false, &added);                             \
+    V*   p = RKI_AVL_PRI(K, V, setadd)(self, key, val, false, &added);                             \
     return added ? p : rk_null;                                                                    \
   }                                                                                                \
-  static_fun V* RK__AVL_PUB(K, V, get_or_add)(Avl(K, V) * self, K key, V val,                      \
-                                              bool* restrict inserted_out) {                       \
+  rklib_fun V* RKI_AVL_PUB(K, V, get_or_add)(Avl(K, V) * self, K key, V val,                       \
+                                             bool* restrict inserted_out) {                        \
     bool ignored;                                                                                  \
-    return RK__AVL_PRI(K, V, setadd)(self, key, val, false,                                        \
+    return RKI_AVL_PRI(K, V, setadd)(self, key, val, false,                                        \
                                      inserted_out ? inserted_out : &ignored);                      \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V)                                                                     \
-      * RK__AVL_PRI(K, V, detach_min)(RK__AvlNode(K, V) * n, RK__AvlNode(K, V) * *out) {           \
+  rklib_fun RKI_AvlNode(K, V)                                                                      \
+      * RKI_AVL_PRI(K, V, detach_min)(RKI_AvlNode(K, V) * n, RKI_AvlNode(K, V) * *out) {           \
     if (!n->l) {                                                                                   \
       *out = n;                                                                                    \
       return n->r;                                                                                 \
     }                                                                                              \
-    n->l = RK__AVL_PRI(K, V, detach_min)(n->l, out);                                               \
-    return RK__AVL_PRI(K, V, balance)(n);                                                          \
+    n->l = RKI_AVL_PRI(K, V, detach_min)(n->l, out);                                               \
+    return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
-  static_fun RK__AvlNode(K, V)                                                                     \
-      * RK__AVL_PRI(K, V, erase)(Avl(K, V) * self, RK__AvlNode(K, V) * n, K key, V * out,          \
+  rklib_fun RKI_AvlNode(K, V)                                                                      \
+      * RKI_AVL_PRI(K, V, erase)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V * out,          \
                                  bool* removed) {                                                  \
     if (!n) return rk_null;                                                                        \
     int c = CMP_FUN(key, n->entry.key);                                                            \
     if (c < 0) {                                                                                   \
-      n->l = RK__AVL_PRI(K, V, erase)(self, n->l, key, out, removed);                              \
+      n->l = RKI_AVL_PRI(K, V, erase)(self, n->l, key, out, removed);                              \
     } else if (c > 0) {                                                                            \
-      n->r = RK__AVL_PRI(K, V, erase)(self, n->r, key, out, removed);                              \
+      n->r = RKI_AVL_PRI(K, V, erase)(self, n->r, key, out, removed);                              \
     } else {                                                                                       \
       *out                 = n->entry_mod.val;                                                     \
       *removed             = true;                                                                 \
-      RK__AvlNode(K, V)* l = n->l, *r = n->r;                                                      \
+      RKI_AvlNode(K, V)* l = n->l, *r = n->r;                                                      \
       if (!r) {                                                                                    \
         alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                              \
         return l;                                                                                  \
       }                                                                                            \
-      RK__AvlNode(K, V) * m;                                                                       \
-      r    = RK__AVL_PRI(K, V, detach_min)(r, &m);                                                 \
+      RKI_AvlNode(K, V) * m;                                                                       \
+      r    = RKI_AVL_PRI(K, V, detach_min)(r, &m);                                                 \
       m->l = l;                                                                                    \
       m->r = r;                                                                                    \
       alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                                \
-      return RK__AVL_PRI(K, V, balance)(m);                                                        \
+      return RKI_AVL_PRI(K, V, balance)(m);                                                        \
     }                                                                                              \
-    return *removed ? RK__AVL_PRI(K, V, balance)(n) : n;                                           \
+    return *removed ? RKI_AVL_PRI(K, V, balance)(n) : n;                                           \
   }                                                                                                \
-  static_fun bool RK__AVL_PUB(K, V, extract)(Avl(K, V) * self, K key, V * out) {                   \
+  rklib_fun bool RKI_AVL_PUB(K, V, extract)(Avl(K, V) * self, K key, V * out) {                    \
     rk_assert_ptr_nonnull(out);                                                                    \
     bool removed = false;                                                                          \
-    self->root   = RK__AVL_PRI(K, V, erase)(self, self->root, key, out, &removed);                 \
+    self->root   = RKI_AVL_PRI(K, V, erase)(self, self->root, key, out, &removed);                 \
     if (removed) { --self->count; }                                                                \
     return removed;                                                                                \
   }                                                                                                \
-  static_fun bool RK__AVL_PUB(K, V, remove)(Avl(K, V) * self, K key) {                             \
+  rklib_fun bool RKI_AVL_PUB(K, V, remove)(Avl(K, V) * self, K key) {                              \
     V tmp;                                                                                         \
-    return RK__AVL_PUB(K, V, extract)(self, key, &tmp);                                            \
+    return RKI_AVL_PUB(K, V, extract)(self, key, &tmp);                                            \
   }                                                                                                \
   RK_EXTERNC_END
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RK__rbt_init(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
-#define RK__rbt_init3(K, V, A)   rk_disable_if(RK__rbt_init(K, V, A))
-#define RK__rbt_init2(K, V)      RK__rbt_init(K, V, alloc_ctx)
+#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_RBT_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_RBT_INIT(K, V, A))
+#define RKI_RBT_INIT2(K, V)      RKI_RBT_INIT(K, V, alloc_ctx)
 
 /* Left-leaning red-black tree: red links lean left and no node has two red links in a row. */
 
-#define RK__RbtNode(K, V)        RK__rbt_node_##K##_##V
-#define RK__RBT_PUB(K, V, FNAME) rbt_##K##_##V##_##FNAME
-#define RK__RBT_PRI(K, V, FNAME) RK__rbt_##K##_##V##_##FNAME
+#define RKI_RbtNode(K, V)        RKI_rbt_node_##K##_##V
+#define RKI_RBT_PUB(K, V, FNAME) rbt_##K##_##V##_##FNAME
+#define RKI_RBT_PRI(K, V, FNAME) rki_rbt_##K##_##V##_##FNAME
 
-#define RK__RBT_DEFINE(K, V, CMP)                                                                  \
+#define RKI_RBT_DEFINE(K, V, CMP)                                                                  \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct RbtEntry(K, V) {                                                                  \
     K const key;                                                                                   \
     V       val;                                                                                   \
   } RbtEntry(K, V);                                                                                \
-  typedef struct RK__RBT_PRI(K, V, E) {                                                            \
+  typedef struct RKI_RBT_PRI(K, V, E) {                                                            \
     K key;                                                                                         \
     V val;                                                                                         \
-  } RK__RBT_PRI(K, V, E);                                                                          \
-  typedef struct RK__RbtNode(K, V) {                                                               \
-    struct RK__RbtNode(K, V) * l, *r;                                                              \
+  } RKI_RBT_PRI(K, V, E);                                                                          \
+  typedef struct RKI_RbtNode(K, V) {                                                               \
+    struct RKI_RbtNode(K, V) * l, *r;                                                              \
     bool red;                                                                                      \
     union {                                                                                        \
-      RK__RBT_PRI(K, V, E) entry_mod;                                                              \
+      RKI_RBT_PRI(K, V, E) entry_mod;                                                              \
       RbtEntry(K, V) entry;                                                                        \
     };                                                                                             \
-  } RK__RbtNode(K, V);                                                                             \
+  } RKI_RbtNode(K, V);                                                                             \
   typedef struct Rbt(K, V) {                                                                       \
     union {                                                                                        \
       tree_data _tree;                                                                             \
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         size_t count;                                                                              \
-        RK__RbtNode(K, V) * root;                                                                  \
+        RKI_RbtNode(K, V) * root;                                                                  \
       };                                                                                           \
     };                                                                                             \
   } Rbt(K, V);                                                                                     \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); rbt_count()/rbt_is_empty()/rbt_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
-  static_fun rk_pure size_t RK__RBT_PUB(K, V, count)(const Rbt(K, V) * self) {                     \
+  rklib_fun rk_pure size_t RKI_RBT_PUB(K, V, count)(const Rbt(K, V) * self) {                      \
     return tree_count(self);                                                                       \
   }                                                                                                \
-  static_fun rk_pure bool RK__RBT_PUB(K, V, is_empty)(const Rbt(K, V) * self) {                    \
+  rklib_fun rk_pure bool RKI_RBT_PUB(K, V, is_empty)(const Rbt(K, V) * self) {                     \
     return tree_is_empty(self);                                                                    \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__RBT_PUB(K, V, allocator)(const Rbt(K, V) * self) {              \
+  rklib_fun rk_pure Allocator RKI_RBT_PUB(K, V, allocator)(const Rbt(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  static_fun rk_pure bool RK__RBT_PRI(K, V, red)(RK__RbtNode(K, V) * n) { return n && n->red; }    \
-  static_fun              RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rl)(RK__RbtNode(K, V) * h) {       \
-    RK__RbtNode(K, V)* x = h->r;                                                                   \
+  rklib_fun rk_pure bool RKI_RBT_PRI(K, V, red)(RKI_RbtNode(K, V) * n) { return n && n->red; }     \
+  rklib_fun              RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rl)(RKI_RbtNode(K, V) * h) {        \
+    RKI_RbtNode(K, V)* x = h->r;                                                                   \
     h->r                 = x->l;                                                                   \
     x->l                 = h;                                                                      \
     x->red               = h->red;                                                                 \
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, rr)(RK__RbtNode(K, V) * h) {                    \
-    RK__RbtNode(K, V)* x = h->l;                                                                   \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rr)(RKI_RbtNode(K, V) * h) {                     \
+    RKI_RbtNode(K, V)* x = h->l;                                                                   \
     h->l                 = x->r;                                                                   \
     x->r                 = h;                                                                      \
     x->red               = h->red;                                                                 \
     h->red               = true;                                                                   \
     return x;                                                                                      \
   }                                                                                                \
-  static_fun void RK__RBT_PRI(K, V, flip)(RK__RbtNode(K, V) * h) {                                 \
+  rklib_fun void RKI_RBT_PRI(K, V, flip)(RKI_RbtNode(K, V) * h) {                                  \
     h->red    = !h->red;                                                                           \
     h->l->red = !h->l->red;                                                                        \
     h->r->red = !h->r->red;                                                                        \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, fix)(RK__RbtNode(K, V) * h) {                   \
-    if (RK__RBT_PRI(K, V, red)(h->r)) { h = RK__RBT_PRI(K, V, rl)(h); }                            \
-    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->l->l)) {                         \
-      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, fix)(RKI_RbtNode(K, V) * h) {                    \
+    if (RKI_RBT_PRI(K, V, red)(h->r)) { h = RKI_RBT_PRI(K, V, rl)(h); }                            \
+    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->l->l)) {                         \
+      h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
     }                                                                                              \
-    if (RK__RBT_PRI(K, V, red)(h->l) && RK__RBT_PRI(K, V, red)(h->r)) {                            \
-      RK__RBT_PRI(K, V, flip)(h);                                                                  \
-    }                                                                                              \
-    return h;                                                                                      \
-  }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, ml)(RK__RbtNode(K, V) * h) {                    \
-    RK__RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RK__RBT_PRI(K, V, red)(h->r->l)) {                                                         \
-      h->r = RK__RBT_PRI(K, V, rr)(h->r);                                                          \
-      h    = RK__RBT_PRI(K, V, rl)(h);                                                             \
-      RK__RBT_PRI(K, V, flip)(h);                                                                  \
+    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->r)) {                            \
+      RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mr)(RK__RbtNode(K, V) * h) {                    \
-    RK__RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RK__RBT_PRI(K, V, red)(h->l->l)) {                                                         \
-      h = RK__RBT_PRI(K, V, rr)(h);                                                                \
-      RK__RBT_PRI(K, V, flip)(h);                                                                  \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, ml)(RKI_RbtNode(K, V) * h) {                     \
+    RKI_RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RKI_RBT_PRI(K, V, red)(h->r->l)) {                                                         \
+      h->r = RKI_RBT_PRI(K, V, rr)(h->r);                                                          \
+      h    = RKI_RBT_PRI(K, V, rl)(h);                                                             \
+      RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_PRI(K, V, put)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mr)(RKI_RbtNode(K, V) * h) {                     \
+    RKI_RBT_PRI(K, V, flip)(h);                                                                    \
+    if (RKI_RBT_PRI(K, V, red)(h->l->l)) {                                                         \
+      h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
+      RKI_RBT_PRI(K, V, flip)(h);                                                                  \
+    }                                                                                              \
+    return h;                                                                                      \
+  }                                                                                                \
+  rklib_fun RKI_RbtNode(K, V)                                                                      \
+      * RKI_RBT_PRI(K, V, put)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
                                bool* added) {                                                      \
     if (!h) {                                                                                      \
-      rk_set_alloc_fallback(s->alloc);                                                             \
-      h    = alloc_new(RK__RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
+      RKI_set_alloc_fallback(s->alloc);                                                            \
+      h    = alloc_new(RKI_RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
       h->l = h->r  = rk_null;                                                                      \
       h->red       = true;                                                                         \
       h->entry_mod = (typeof(h->entry_mod)){.key = k, .val = v};                                   \
@@ -3274,17 +3379,17 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     int c = CMP(k, h->entry.key);                                                                  \
     if (c < 0) {                                                                                   \
-      h->l = RK__RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
+      h->l = RKI_RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
     } else if (c > 0) {                                                                            \
-      h->r = RK__RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
+      h->r = RKI_RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
     } else {                                                                                       \
       if (ow) { h->entry_mod.val = v; }                                                            \
       *out = &h->entry_mod.val;                                                                    \
     }                                                                                              \
-    return RK__RBT_PRI(K, V, fix)(h);                                                              \
+    return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun rk_pure V* RK__RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                               \
-    RK__RbtNode(K, V)* n = s->root;                                                                \
+  rklib_fun rk_pure V* RKI_RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                                \
+    RKI_RbtNode(K, V)* n = s->root;                                                                \
     while (n) {                                                                                    \
       int c = CMP(k, n->entry.key);                                                                \
       if (!c) { return &n->entry_mod.val; }                                                        \
@@ -3292,55 +3397,55 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
-  static_fun V* RK__RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {         \
+  rklib_fun V* RKI_RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {          \
     V* out       = rk_null;                                                                        \
     *added       = false;                                                                          \
-    s->root      = RK__RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
+    s->root      = RKI_RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
     s->root->red = false;                                                                          \
     if (*added) { ++s->count; }                                                                    \
     return out;                                                                                    \
   }                                                                                                \
-  static_fun bool RK__RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                \
+  rklib_fun bool RKI_RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                 \
     bool a;                                                                                        \
-    (void)RK__RBT_PRI(K, V, insert)(s, k, v, true, &a);                                            \
+    (void)RKI_RBT_PRI(K, V, insert)(s, k, v, true, &a);                                            \
     return a;                                                                                      \
   }                                                                                                \
-  static_fun V* RK__RBT_PUB(K, V, add)(Rbt(K, V) * s, K k, V v) {                                  \
+  rklib_fun V* RKI_RBT_PUB(K, V, add)(Rbt(K, V) * s, K k, V v) {                                   \
     bool a;                                                                                        \
-    V*   p = RK__RBT_PRI(K, V, insert)(s, k, v, false, &a);                                        \
+    V*   p = RKI_RBT_PRI(K, V, insert)(s, k, v, false, &a);                                        \
     return a ? p : rk_null;                                                                        \
   }                                                                                                \
-  static_fun V* RK__RBT_PUB(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                             \
-                                              bool* restrict inserted_out) {                       \
+  rklib_fun V* RKI_RBT_PUB(K, V, get_or_add)(Rbt(K, V) * s, K k, V v,                              \
+                                             bool* restrict inserted_out) {                        \
     bool ignored;                                                                                  \
-    return RK__RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
+    return RKI_RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
   }                                                                                                \
-  static_fun rk_pure RK__RbtNode(K, V) * RK__RBT_PRI(K, V, mn)(RK__RbtNode(K, V) * h) {            \
+  rklib_fun rk_pure RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mn)(RKI_RbtNode(K, V) * h) {             \
     while (h->l) { h = h->l; }                                                                     \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V) * RK__RBT_PRI(K, V, dm)(Rbt(K, V) * s, RK__RbtNode(K, V) * h) {     \
+  rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, dm)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h) {      \
     if (!h->l) {                                                                                   \
       alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                   \
       return rk_null;                                                                              \
     }                                                                                              \
-    if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                       \
-      h = RK__RBT_PRI(K, V, ml)(h);                                                                \
+    if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                       \
+      h = RKI_RBT_PRI(K, V, ml)(h);                                                                \
     }                                                                                              \
-    h->l = RK__RBT_PRI(K, V, dm)(s, h->l);                                                         \
-    return RK__RBT_PRI(K, V, fix)(h);                                                              \
+    h->l = RKI_RBT_PRI(K, V, dm)(s, h->l);                                                         \
+    return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun RK__RbtNode(K, V)                                                                     \
-      * RK__RBT_PRI(K, V, del)(Rbt(K, V) * s, RK__RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
+  rklib_fun RKI_RbtNode(K, V)                                                                      \
+      * RKI_RBT_PRI(K, V, del)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
     if (CMP(k, h->entry.key) < 0) {                                                                \
       if (h->l) {                                                                                  \
-        if (!RK__RBT_PRI(K, V, red)(h->l) && !RK__RBT_PRI(K, V, red)(h->l->l)) {                   \
-          h = RK__RBT_PRI(K, V, ml)(h);                                                            \
+        if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                   \
+          h = RKI_RBT_PRI(K, V, ml)(h);                                                            \
         }                                                                                          \
-        h->l = RK__RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
+        h->l = RKI_RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
       }                                                                                            \
     } else {                                                                                       \
-      if (RK__RBT_PRI(K, V, red)(h->l)) { h = RK__RBT_PRI(K, V, rr)(h); }                          \
+      if (RKI_RBT_PRI(K, V, red)(h->l)) { h = RKI_RBT_PRI(K, V, rr)(h); }                          \
       int c = CMP(k, h->entry.key);                                                                \
       if (!c && !h->r) {                                                                           \
         *out  = h->entry_mod.val;                                                                  \
@@ -3349,43 +3454,43 @@ static_fun bool RK__tree_iter_next(tree_iter* restrict it, tree_node** node_out)
         return rk_null;                                                                            \
       }                                                                                            \
       if (h->r) {                                                                                  \
-        if (!RK__RBT_PRI(K, V, red)(h->r) && !RK__RBT_PRI(K, V, red)(h->r->l)) {                   \
-          h = RK__RBT_PRI(K, V, mr)(h);                                                            \
+        if (!RKI_RBT_PRI(K, V, red)(h->r) && !RKI_RBT_PRI(K, V, red)(h->r->l)) {                   \
+          h = RKI_RBT_PRI(K, V, mr)(h);                                                            \
         }                                                                                          \
         c = CMP(k, h->entry.key);                                                                  \
         if (!c) {                                                                                  \
-          RK__RbtNode(K, V)* m = RK__RBT_PRI(K, V, mn)(h->r);                                      \
+          RKI_RbtNode(K, V)* m = RKI_RBT_PRI(K, V, mn)(h->r);                                      \
           *out                 = h->entry_mod.val;                                                 \
           *gone                = true;                                                             \
           h->entry_mod         = m->entry_mod;                                                     \
-          h->r                 = RK__RBT_PRI(K, V, dm)(s, h->r);                                   \
+          h->r                 = RKI_RBT_PRI(K, V, dm)(s, h->r);                                   \
         } else {                                                                                   \
-          h->r = RK__RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
+          h->r = RKI_RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
         }                                                                                          \
       }                                                                                            \
     }                                                                                              \
-    return RK__RBT_PRI(K, V, fix)(h);                                                              \
+    return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
-  static_fun bool RK__RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                        \
+  rklib_fun bool RKI_RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                         \
     rk_assert_ptr_nonnull(out);                                                                    \
-    if (!s->root || !RK__RBT_PUB(K, V, get)(s, k)) { return false; }                               \
+    if (!s->root || !RKI_RBT_PUB(K, V, get)(s, k)) { return false; }                               \
     bool gone = false;                                                                             \
-    if (!RK__RBT_PRI(K, V, red)(s->root->l) && !RK__RBT_PRI(K, V, red)(s->root->r)) {              \
+    if (!RKI_RBT_PRI(K, V, red)(s->root->l) && !RKI_RBT_PRI(K, V, red)(s->root->r)) {              \
       s->root->red = true;                                                                         \
     }                                                                                              \
-    s->root = RK__RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
+    s->root = RKI_RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
     if (s->root) { s->root->red = false; }                                                         \
     if (gone) { --s->count; }                                                                      \
     return gone;                                                                                   \
   }                                                                                                \
-  static_fun bool RK__RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                  \
+  rklib_fun bool RKI_RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                   \
     V x;                                                                                           \
-    return RK__RBT_PUB(K, V, extract)(s, k, &x);                                                   \
+    return RKI_RBT_PUB(K, V, extract)(s, k, &x);                                                   \
   }                                                                                                \
   RK_EXTERNC_END
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_TREES_H
@@ -3515,7 +3620,7 @@ typedef const bitset_word* cbitset;
 /// @return `dst` (for convenience).
 /// @note This copies whole words. If you rely on the padding invariant, ensure `src` has cleared
 /// padding.
-static_fun bitset bitset_copy(bitset restrict dst, size_t nbits, cbitset restrict src) {
+rklib_fun bitset bitset_copy(bitset restrict dst, size_t nbits, cbitset restrict src) {
   return rk_copy(dst, src, bitset_words(nbits));
 }
 
@@ -3527,7 +3632,7 @@ static_fun bitset bitset_copy(bitset restrict dst, size_t nbits, cbitset restric
 /// @param idx Bit index (0-based)
 /// @return `true` if bit `idx` is 1, otherwise `false`.
 /// @pre `idx < nbits`.
-static_fun rk_pure bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
+rklib_fun rk_pure bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   return (bs[bitset_word_index(idx)] & bitset_word_mask(idx)) != 0;
 }
@@ -3537,7 +3642,7 @@ static_fun rk_pure bool bitset_test(cbitset bs, size_t nbits, size_t idx) {
 /// @param idx Bit index (0-based)
 /// @return `bs` (for chaining).
 /// @pre `idx < nbits`.
-static_fun bitset bitset_clear(bitset bs, size_t nbits, size_t idx) {
+rklib_fun bitset bitset_clear(bitset bs, size_t nbits, size_t idx) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   bs[bitset_word_index(idx)] &= ~bitset_word_mask(idx);
   return bs;
@@ -3548,7 +3653,7 @@ static_fun bitset bitset_clear(bitset bs, size_t nbits, size_t idx) {
 /// @param idx Bit index (0-based)
 /// @return `bs` (for chaining).
 /// @pre `idx < nbits`.
-static_fun bitset bitset_set(bitset bs, size_t nbits, size_t idx) {
+rklib_fun bitset bitset_set(bitset bs, size_t nbits, size_t idx) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   bs[bitset_word_index(idx)] |= bitset_word_mask(idx);
   return bs;
@@ -3560,7 +3665,7 @@ static_fun bitset bitset_set(bitset bs, size_t nbits, size_t idx) {
 /// @param value New bit value (`false` -> 0, `true` -> 1)
 /// @return `bs` (for chaining).
 /// @pre `idx < nbits`.
-static_fun bitset bitset_write(bitset bs, size_t nbits, size_t idx, bool value) {
+rklib_fun bitset bitset_write(bitset bs, size_t nbits, size_t idx, bool value) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   bitset_word mask = bitset_word_mask(idx);
   size_t      w    = bitset_word_index(idx);
@@ -3573,13 +3678,13 @@ static_fun bitset bitset_write(bitset bs, size_t nbits, size_t idx, bool value) 
 /// @param idx Bit index (0-based)
 /// @return `bs` (for chaining).
 /// @pre `idx < nbits`.
-static_fun bitset bitset_flip(bitset bs, size_t nbits, size_t idx) {
+rklib_fun bitset bitset_flip(bitset bs, size_t nbits, size_t idx) {
   rk_assert_bitset_in_bounds(idx, nbits), (void)nbits;
   bs[bitset_word_index(idx)] ^= bitset_word_mask(idx);
   return bs;
 }
 
-static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset, size_t, size_t, size_t, int);
+rklib_fun rk_forceinline bitset rki_bitset_range_op(bitset, size_t, size_t, size_t, int);
 
 /// @brief Clears all bits in the half-open interval `[start, end)`.
 /// @param bs,nbits Bitset and its logical size
@@ -3587,8 +3692,8 @@ static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset, size_t, si
 /// @param end Last bit index (exclusive)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_clear_range(bitset bs, size_t nbits, size_t start, size_t end) {
-  return RK__internal_bitset_range_op(bs, nbits, start, end, 0);
+rklib_fun bitset bitset_clear_range(bitset bs, size_t nbits, size_t start, size_t end) {
+  return rki_bitset_range_op(bs, nbits, start, end, 0);
 }
 
 /// @brief Sets all bits in the half-open interval `[start, end)`.
@@ -3597,8 +3702,8 @@ static_fun bitset bitset_clear_range(bitset bs, size_t nbits, size_t start, size
 /// @param end Last bit index (exclusive)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_set_range(bitset bs, size_t nbits, size_t start, size_t end) {
-  return RK__internal_bitset_range_op(bs, nbits, start, end, 1);
+rklib_fun bitset bitset_set_range(bitset bs, size_t nbits, size_t start, size_t end) {
+  return rki_bitset_range_op(bs, nbits, start, end, 1);
 }
 
 /// @brief Writes all bits in `[start, end)` to `value`.
@@ -3608,8 +3713,7 @@ static_fun bitset bitset_set_range(bitset bs, size_t nbits, size_t start, size_t
 /// @param value New bit value (`false` -> 0, `true` -> 1)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_write_range(bitset bs, size_t nbits, size_t start, size_t end,
-                                     bool value) {
+rklib_fun bitset bitset_write_range(bitset bs, size_t nbits, size_t start, size_t end, bool value) {
   return value ? bitset_set_range(bs, nbits, start, end)
                : bitset_clear_range(bs, nbits, start, end);
 }
@@ -3620,8 +3724,8 @@ static_fun bitset bitset_write_range(bitset bs, size_t nbits, size_t start, size
 /// @param end Last bit index (exclusive)
 /// @return `bs` (for chaining).
 /// @pre `start <= end && end <= nbits`.
-static_fun bitset bitset_flip_range(bitset bs, size_t nbits, size_t start, size_t end) {
-  return RK__internal_bitset_range_op(bs, nbits, start, end, -1);
+rklib_fun bitset bitset_flip_range(bitset bs, size_t nbits, size_t start, size_t end) {
+  return rki_bitset_range_op(bs, nbits, start, end, -1);
 }
 
 /// @brief Clears any padding bits (indices `>= nbits`) in the last storage word.
@@ -3629,7 +3733,7 @@ static_fun bitset bitset_flip_range(bitset bs, size_t nbits, size_t start, size_
 /// @return `bs` (for chaining).
 /// @note Call this if `bs` may contain nonzero padding bits (e.g. after uninitialized allocation or
 /// raw word operations).
-static_fun bitset bitset_clear_padding(bitset bs, size_t nbits) {
+rklib_fun bitset bitset_clear_padding(bitset bs, size_t nbits) {
   size_t words = bitset_words(nbits), rest = nbits % bitset_word_bits;
   if (rest) { bs[words - 1] &= (((bitset_word)1 << rest) - 1); }
   return bs;
@@ -3638,14 +3742,14 @@ static_fun bitset bitset_clear_padding(bitset bs, size_t nbits) {
 /// @brief Clears all bits to 0.
 /// @param bs,nbits Bitset and its logical size
 /// @return `bs` (for chaining).
-static_fun bitset bitset_clear_all(bitset bs, size_t nbits) {
+rklib_fun bitset bitset_clear_all(bitset bs, size_t nbits) {
   return (bitset)rk_memset(bs, 0, sizeof_n(*bs, bitset_words(nbits)));
 }
 
 /// @brief Sets all bits to 1 (and clears padding bits).
 /// @param bs,nbits Bitset and its logical size
 /// @return `bs` (for chaining).
-static_fun bitset bitset_set_all(bitset bs, size_t nbits) {
+rklib_fun bitset bitset_set_all(bitset bs, size_t nbits) {
   rk_memset(bs, 0xFF, sizeof_n(*bs, bitset_words(nbits)));
   return bitset_clear_padding(bs, nbits);
 }
@@ -3654,14 +3758,14 @@ static_fun bitset bitset_set_all(bitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @param value New bit value (`false` -> 0, `true` -> 1)
 /// @return `bs` (for chaining).
-static_fun bitset bitset_write_all(bitset bs, size_t nbits, bool value) {
+rklib_fun bitset bitset_write_all(bitset bs, size_t nbits, bool value) {
   return value ? bitset_set_all(bs, nbits) : bitset_clear_all(bs, nbits);
 }
 
 /// @brief Toggles all bits (and clears padding bits).
 /// @param bs,nbits Bitset and its logical size
 /// @return `bs` (for chaining).
-static_fun bitset bitset_flip_all(bitset bs, size_t nbits) {
+rklib_fun bitset bitset_flip_all(bitset bs, size_t nbits) {
   size_t words = bitset_words(nbits);
   for (size_t w = 0; w < words; ++w) { bs[w] = ~bs[w]; }
   return bitset_clear_padding(bs, nbits);
@@ -3672,7 +3776,7 @@ static_fun bitset bitset_flip_all(bitset bs, size_t nbits) {
 /// @return A **1-based** position of the first leading one, or 0 if none.
 /// @note This matches the “1-based with 0 sentinel” convention used by C23 `<stdbit.h>` query
 /// functions and several compiler builtins.
-static_fun rk_pure size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
@@ -3690,7 +3794,7 @@ static_fun rk_pure size_t bitset_first_leading_one(cbitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first leading zero, or 0 if none.
 /// @note If all valid bits are 1, returns 0.
-static_fun rk_pure size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = bitset_words(nbits) - 1, pos;
   if (rest) {
@@ -3709,7 +3813,7 @@ static_fun rk_pure size_t bitset_first_leading_zero(cbitset bs, size_t nbits) {
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first trailing one, or 0 if none.
-static_fun rk_pure size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     size_t pos = stdc_first_trailing_one(bs[w]);
@@ -3722,7 +3826,7 @@ static_fun rk_pure size_t bitset_first_trailing_one(cbitset bs, size_t nbits) {
 /// @param bs,nbits Bitset and its logical size
 /// @return A **1-based** position of the first trailing zero, or 0 if none.
 /// @note Padding bits are treated as 1 (not eligible as “zero” results).
-static_fun rk_pure size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
   rk_assert(nbits > 0);
   size_t rest = nbits % bitset_word_bits, w = 0, pos;
   for (size_t words = bitset_words(nbits); w < words - (rest != 0); ++w) {
@@ -3740,7 +3844,7 @@ static_fun rk_pure size_t bitset_first_trailing_zero(cbitset bs, size_t nbits) {
 /// @brief Counts leading zeros (from MSB toward LSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive zero bits starting at the MSB.
-static_fun rk_pure size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_leading_one(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3748,7 +3852,7 @@ static_fun rk_pure size_t bitset_leading_zeros(cbitset bs, size_t nbits) {
 /// @brief Counts leading ones (from MSB toward LSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive one bits starting at the MSB.
-static_fun rk_pure size_t bitset_leading_ones(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_leading_ones(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_leading_zero(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3756,7 +3860,7 @@ static_fun rk_pure size_t bitset_leading_ones(cbitset bs, size_t nbits) {
 /// @brief Counts trailing zeros (from LSB toward MSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive zero bits starting at the LSB.
-static_fun rk_pure size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_trailing_one(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3764,7 +3868,7 @@ static_fun rk_pure size_t bitset_trailing_zeros(cbitset bs, size_t nbits) {
 /// @brief Counts trailing ones (from LSB toward MSB).
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of consecutive one bits starting at the LSB.
-static_fun rk_pure size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
   size_t pos = bitset_first_trailing_zero(bs, nbits);
   return pos ? pos - 1 : nbits;
 }
@@ -3772,7 +3876,7 @@ static_fun rk_pure size_t bitset_trailing_ones(cbitset bs, size_t nbits) {
 /// @brief Counts the number of 1 bits.
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of set bits.
-static_fun rk_pure size_t bitset_count_ones(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_count_ones(cbitset bs, size_t nbits) {
   size_t words = bitset_words(nbits), count = 0;
   for (size_t w = 0; w < words; ++w) { count += stdc_count_ones(bs[w]); }
   return count;
@@ -3781,14 +3885,14 @@ static_fun rk_pure size_t bitset_count_ones(cbitset bs, size_t nbits) {
 /// @brief Counts the number of 0 bits.
 /// @param bs,nbits Bitset and its logical size
 /// @return Number of zero bits.
-static_fun rk_pure size_t bitset_count_zeros(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_count_zeros(cbitset bs, size_t nbits) {
   return nbits - bitset_count_ones(bs, nbits);
 }
 
 /// @brief Returns whether any bit is set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if at least one valid bit is 1, else `false`.
-static_fun rk_pure bool bitset_any(cbitset bs, size_t nbits) {
+rklib_fun rk_pure bool bitset_any(cbitset bs, size_t nbits) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     if (bs[w]) { return true; }
   }
@@ -3798,12 +3902,12 @@ static_fun rk_pure bool bitset_any(cbitset bs, size_t nbits) {
 /// @brief Returns whether no bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 0, else `false`.
-static_fun rk_pure bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
+rklib_fun rk_pure bool bitset_none(cbitset bs, size_t nbits) { return !bitset_any(bs, nbits); }
 
 /// @brief Returns whether all bits are set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if all valid bits are 1, else `false`.
-static_fun rk_pure bool bitset_all(cbitset bs, size_t nbits) {
+rklib_fun rk_pure bool bitset_all(cbitset bs, size_t nbits) {
   size_t rest = nbits % bitset_word_bits, w = 0;
   for (size_t words = bitset_words(nbits); w < words - (rest != 0); ++w) {
     if (bs[w] != ((bitset_word)~0)) { return false; }
@@ -3815,7 +3919,7 @@ static_fun rk_pure bool bitset_all(cbitset bs, size_t nbits) {
 /// @brief Returns whether exactly one bit is set.
 /// @param bs,nbits Bitset and its logical size
 /// @return `true` if exactly one valid bit is 1, else `false`.
-static_fun rk_pure bool bitset_has_single_bit(cbitset bs, size_t nbits) {
+rklib_fun rk_pure bool bitset_has_single_bit(cbitset bs, size_t nbits) {
   size_t count = 0;
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) {
     if ((count += stdc_count_ones(bs[w])) > 1) { return false; }
@@ -3828,7 +3932,7 @@ static_fun rk_pure bool bitset_has_single_bit(cbitset bs, size_t nbits) {
 /// @param nbits Logical size of both bitsets
 /// @param b Second bitset
 /// @return `true` if all valid bits match, else `false`.
-static_fun rk_pure bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
+rklib_fun rk_pure bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
   return rk_memcmp(a, b, sizeof_n(*a, bitset_words(nbits))) == 0;
 }
 
@@ -3838,7 +3942,7 @@ static_fun rk_pure bool bitset_equals(cbitset a, size_t nbits, cbitset b) {
 /// @param src Source bitset
 /// @return `dst` (for chaining).
 /// @pre `dst` and `src` are both valid for `nbits` bits.
-static_fun bitset bitset_or(bitset dst, size_t nbits, cbitset src) {
+rklib_fun bitset bitset_or(bitset dst, size_t nbits, cbitset src) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] |= src[w]; }
   return dst;
 }
@@ -3848,7 +3952,7 @@ static_fun bitset bitset_or(bitset dst, size_t nbits, cbitset src) {
 /// @param nbits Logical size of both bitsets
 /// @param src Source bitset
 /// @return `dst` (for chaining).
-static_fun bitset bitset_and(bitset dst, size_t nbits, cbitset src) {
+rklib_fun bitset bitset_and(bitset dst, size_t nbits, cbitset src) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] &= src[w]; }
   return dst;
 }
@@ -3859,7 +3963,7 @@ static_fun bitset bitset_and(bitset dst, size_t nbits, cbitset src) {
 /// @param src Source bitset
 /// @return `dst` (for chaining).
 /// @note With the padding invariant, padding remains zero because `0 ^ 0 == 0`.
-static_fun bitset bitset_xor(bitset dst, size_t nbits, cbitset src) {
+rklib_fun bitset bitset_xor(bitset dst, size_t nbits, cbitset src) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] ^= src[w]; }
   return dst;
 }
@@ -3869,7 +3973,7 @@ static_fun bitset bitset_xor(bitset dst, size_t nbits, cbitset src) {
 /// @param nbits Logical size of both bitsets
 /// @param src Source bitset
 /// @return `dst` (for chaining).
-static_fun bitset bitset_sub(bitset dst, size_t nbits, cbitset src) {
+rklib_fun bitset bitset_sub(bitset dst, size_t nbits, cbitset src) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] &= ~src[w]; }
   return bitset_clear_padding(dst, nbits);
 }
@@ -3879,7 +3983,7 @@ static_fun bitset bitset_sub(bitset dst, size_t nbits, cbitset src) {
 /// @param nbits Logical size of both bitsets
 /// @param src Source bitset
 /// @return `dst` (for chaining).
-static_fun bitset bitset_not(bitset dst, size_t nbits, cbitset src) {
+rklib_fun bitset bitset_not(bitset dst, size_t nbits, cbitset src) {
   for (size_t w = 0, words = bitset_words(nbits); w < words; ++w) { dst[w] = ~src[w]; }
   return bitset_clear_padding(dst, nbits);
 }
@@ -3892,7 +3996,7 @@ static_fun bitset bitset_not(bitset dst, size_t nbits, cbitset src) {
 /// @return `dst` (for chaining).
 /// @note If `sh >= nbits`, the result is all zeros.
 /// @note `dst` may alias `src`.
-static_fun bitset bitset_shift_left_into(bitset dst, size_t nbits, cbitset src, size_t sh) {
+rklib_fun bitset bitset_shift_left_into(bitset dst, size_t nbits, cbitset src, size_t sh) {
   if (sh >= nbits) { return bitset_clear_all(dst, nbits), dst; }
   if (!sh) { return (cbitset)dst != src ? bitset_copy(dst, nbits, src) : dst; }
   size_t ws = sh / bitsof(*dst), bs = sh % bitsof(*dst);
@@ -3913,7 +4017,7 @@ static_fun bitset bitset_shift_left_into(bitset dst, size_t nbits, cbitset src, 
 /// @param bs,nbits Bitset and its logical size
 /// @param sh Shift amount in bits
 /// @return `bs` (for chaining).
-static_fun bitset bitset_shift_left(bitset bs, size_t nbits, size_t sh) {
+rklib_fun bitset bitset_shift_left(bitset bs, size_t nbits, size_t sh) {
   return bitset_shift_left_into(bs, nbits, bs, sh);
 }
 
@@ -3925,7 +4029,7 @@ static_fun bitset bitset_shift_left(bitset bs, size_t nbits, size_t sh) {
 /// @return `dst` (for chaining).
 /// @note If `sh >= nbits`, the result is all zeros.
 /// @note `dst` may alias `src`.
-static_fun bitset bitset_shift_right_into(bitset dst, size_t nbits, cbitset src, size_t sh) {
+rklib_fun bitset bitset_shift_right_into(bitset dst, size_t nbits, cbitset src, size_t sh) {
   if (sh >= nbits) { return bitset_clear_all(dst, nbits), dst; }
   if (!sh) { return (cbitset)dst != src ? bitset_copy(dst, nbits, src) : dst; }
   size_t ws = sh / bitsof(*dst), bs = sh % bitsof(*dst);
@@ -3947,7 +4051,7 @@ static_fun bitset bitset_shift_right_into(bitset dst, size_t nbits, cbitset src,
 /// @param bs,nbits Bitset and its logical size
 /// @param sh Shift amount in bits
 /// @return `bs` (for chaining).
-static_fun bitset bitset_shift_right(bitset bs, size_t nbits, size_t sh) {
+rklib_fun bitset bitset_shift_right(bitset bs, size_t nbits, size_t sh) {
   return bitset_shift_right_into(bs, nbits, bs, sh);
 }
 
@@ -3971,7 +4075,7 @@ static_fun bitset bitset_shift_right(bitset bs, size_t nbits, size_t sh) {
 /// }
 /// // prints: 1, 5, 64
 /// ```
-static_fun rk_pure size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
+rklib_fun rk_pure size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (++cur >= nbits) { return BITSET_NPOS; }
   size_t res, w = bitset_word_index(cur);
@@ -3988,7 +4092,7 @@ static_fun rk_pure size_t bitset_find_next_set(cbitset bs, size_t nbits, size_t 
 /// @param cur Previously visited bit index, or `BITSET_NPOS` to start from the beginning.
 /// @return The index (0-based) of the first zero bit with index `> cur`, or `BITSET_NPOS` if no
 /// such bit exists.
-static_fun rk_pure size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
+rklib_fun rk_pure size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (++cur >= nbits) { return BITSET_NPOS; }
   size_t      res, rest = nbits % W, w = bitset_word_index(cur);
@@ -4009,8 +4113,9 @@ static_fun rk_pure size_t bitset_find_next_clear(cbitset bs, size_t nbits, size_
 /// @param cur Current bit index, or `nbits` to start from the end.
 /// @return The index (0-based) of the last set bit with index `< cur`, or `BITSET_NPOS` if no such
 /// bit exists.
-static_fun rk_pure size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
+rklib_fun rk_pure size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unused, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
+  rk_assert(cur <= nbits);
   if (!cur) { return BITSET_NPOS; }
   --cur;
   size_t      res, w = bitset_word_index(cur);
@@ -4027,7 +4132,7 @@ static_fun rk_pure size_t bitset_find_prev_set(cbitset bs, size_t nbits rk_unuse
 /// @param cur Current bit index, or `nbits` to start from the end.
 /// @return The index (0-based) of the last zero bit with index `< cur`, or `BITSET_NPOS` if no such
 /// bit exists.
-static_fun rk_pure size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
+rklib_fun rk_pure size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_t cur) {
   enum { W = bitsof(*bs) }; // NOLINT
   if (!cur) { return BITSET_NPOS; }
   --cur;
@@ -4045,28 +4150,28 @@ static_fun rk_pure size_t bitset_find_prev_clear(cbitset bs, size_t nbits, size_
 /// @brief Finds the first set bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the first set bit, or `BITSET_NPOS` if none.
-static_fun rk_pure size_t bitset_find_first_set(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_find_first_set(cbitset bs, size_t nbits) {
   return bitset_find_next_set(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the first zero bit when scanning from LSB to MSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the first zero bit, or `BITSET_NPOS` if none.
-static_fun rk_pure size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_find_first_clear(cbitset bs, size_t nbits) {
   return bitset_find_next_clear(bs, nbits, BITSET_NPOS);
 }
 
 /// @brief Finds the last set bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the last set bit, or `BITSET_NPOS` if none.
-static_fun rk_pure size_t bitset_find_last_set(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_find_last_set(cbitset bs, size_t nbits) {
   return bitset_find_prev_set(bs, nbits, nbits);
 }
 
 /// @brief Finds the last zero bit when scanning from MSB to LSB.
 /// @param bs,nbits Bitset and its logical size.
 /// @return The index (0-based) of the last zero bit, or `BITSET_NPOS` if none.
-static_fun rk_pure size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
+rklib_fun rk_pure size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
   return bitset_find_prev_clear(bs, nbits, nbits);
 }
 
@@ -4076,7 +4181,7 @@ static_fun rk_pure size_t bitset_find_last_clear(cbitset bs, size_t nbits) {
 /// @param nbits Logical size of the bitset
 /// @return `dst` (for convenience). The output is `nbits` characters of `'0'`/`'1'`, plus a
 /// trailing `'\0'`.
-static_fun char* bitset_tostr(char* restrict dst, cbitset restrict src, size_t nbits) {
+rklib_fun char* bitset_tostr(char* restrict dst, cbitset restrict src, size_t nbits) {
   for (size_t w = 0; w < nbits; ++w) { dst[w] = '0' + bitset_test(src, nbits, nbits - 1 - w); }
   dst[nbits] = '\0';
   return dst;
@@ -4091,7 +4196,7 @@ static_fun char* bitset_tostr(char* restrict dst, cbitset restrict src, size_t n
 /// @return `dst` (for chaining).
 /// @note This function treats `dst` as a `len`-bit bitset for this call. It writes all bits `[0,
 /// len)` and clears padding bits on return.
-static_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len) {
+rklib_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len) {
   bitset_clear_all(dst, len);
   for (size_t w = 0; w < len; ++w) {
     rk_assert((src[w] == '0' || src[w] == '1') && "Invalid character in bitset string");
@@ -4100,6 +4205,7 @@ static_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t le
   return bitset_clear_padding(dst, len);
 }
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -4114,8 +4220,8 @@ static_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t le
 /// @return `bs`.
 /// @pre `start <= end && end <= nbits`.
 /// @warning Internal API.
-static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset bs, size_t nbits, size_t start,
-                                                              size_t end, int _op) {
+rklib_fun rk_forceinline bitset rki_bitset_range_op(bitset bs, size_t nbits, size_t start,
+                                                    size_t end, int _op) {
   enum optype { FLIP = -1, SET = 1, CLEAR = 0 } op = (enum optype)_op;
   rk_assert(start <= end && end <= nbits), (void)nbits;
   if (start == end) { return bs; }
@@ -4148,7 +4254,9 @@ static_fun rk_forceinline bitset RK__internal_bitset_range_op(bitset bs, size_t 
   }
   return bs;
 }
+
 /// @endcond
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_BITSET_H
@@ -4205,7 +4313,7 @@ RK_HEADER_END
 /* inlined from include/rk_arena.h:21: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
 RK_HEADER_BEGIN
-RK__IGNWARN_CLANG_BEG("-Wreturn-type-c-linkage")
+RKI_IGNWARN_CLANG_BEG("-Wreturn-type-c-linkage")
 
 /// @brief Linear / stack allocator for fast, temporary memory management.
 /// @details The Arena allocator manages a region of memory where allocations increment a pointer,
@@ -4221,7 +4329,7 @@ typedef struct Arena {
 /// @param arr The byte array to serve as the arena's backing memory
 /// @param len The length of `arr`, in bytes
 /// @return New Arena using the array as backing storage
-static_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
+rklib_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
   return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
 }
 
@@ -4232,54 +4340,54 @@ static_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
 /// @return New Arena with the array as backing storage
 /// @warning Do not use with compound literals; use `arena_init()` instead.
 #define arena_init_static(array_non_compound_literal)                                              \
-  RK__arena_init_static(array_non_compound_literal)
+  RKI_ARENA_INIT_STATIC(array_non_compound_literal)
 
 /// @brief Resets the arena, marking all of its allocations as free.
 /// @return `self`, for chaining
-static_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
+rklib_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
 /// @brief Returns the number of bytes an Arena can allocate in total, or 0 if `self` was never
 /// initialized.
-static_fun rk_pure size_t arena_cap(const Arena* self) {
+rklib_fun rk_pure size_t arena_cap(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->end - self->beg) : 0;
 }
 
 /// @brief Returns the number of bytes an Arena has allocated, or 0 if `self` was never initialized.
-static_fun rk_pure size_t arena_used(const Arena* self) {
+rklib_fun rk_pure size_t arena_used(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
 /// @brief Returns the number of bytes an Arena can still allocate before running out of space, or 0
 /// if `self` was never initialized.
-static_fun rk_pure size_t arena_remaining(const Arena* self) {
+rklib_fun rk_pure size_t arena_remaining(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
 /// @brief Returns whether the arena has no allocations. Returns `true` if `self` was never
 /// initialized.
-static_fun rk_pure bool arena_is_empty(const Arena* self) {
+rklib_fun rk_pure bool arena_is_empty(const Arena* self) {
   return rk_likely(self->beg) ? self->cur == self->beg : true;
 }
 
-typedef struct ArenaMark     ArenaMark;
+typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
 
 /// @brief Returns the current position of the arena as an opaque marker. Pass to `arena_rewind_to`
 /// to restore the arena to this state.
 /// @return Pointer to the current position in the arena
-static_fun rk_pure ArenaMark arena_mark(const Arena* self);
+rklib_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
 
 /// @brief Rewinds the arena's current pointer to `mark`, marking memory starting from `mark` as
 /// free.
 /// @return `self`, for chaining
 /// @attention Behavior is undefined if `mark` was not allocated by the arena.
-static_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
+rklib_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
 
 /// @brief Returns whether `ptr` is the most recently made allocation of the given `size`, i.e.
 /// whether it ends exactly at the arena's current position.
 /// @param ptr The allocation to check. Must be an allocation made by the arena.
 /// @param size Size of the allocation in bytes
 /// @return `true` if `ptr` is the top allocation, `false` otherwise
-static_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
+rklib_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
   return (const unsigned char*)ptr + size == self->cur;
 }
 
@@ -4290,12 +4398,12 @@ static_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* p
 /// @param align  Desired alignment; must be a power of two
 /// @param self   Pointer to the arena to allocate from
 /// @return Pointer to the allocated memory
-static_fun void* arena_allocate(size_t nbytes, size_t align, Arena* self);
+rklib_fun void* arena_allocate(size_t nbytes, size_t align, Arena* self);
 
 /// @brief `void* arena_try_allocate(size_t nbytes, size_t align, Arena* self)`
 /// - like `arena_allocate()` but returns NULL if the arena does not have enough space instead of
 ///   invoking the failure handler.
-static_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
+rklib_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
 
 /// @brief `void* arena_resize_top(size_t old_size, size_t new_size, Arena* self)` - Resizes the
 /// most recent allocation in the arena by moving the cursor. Aborts on failure via `RK_ARENA_FAIL`.
@@ -4304,12 +4412,12 @@ static_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
 /// @param new_size Desired size of the allocation in bytes
 /// @param self     Pointer to the arena owning the allocation
 /// @return `ptr` on success
-static_fun void* arena_resize_top(size_t old_size, size_t new_size, Arena* self);
+rklib_fun void* arena_resize_top(size_t old_size, size_t new_size, Arena* self);
 
 /// @brief `void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self)` - Like
 /// `arena_resize_top()` but returns NULL if the arena does not have enough space instead of
 /// invoking the failure handler.
-static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self);
+rklib_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self);
 
 /// @brief `T* arena_new(T, size_t count, Arena* arena)` - Creates a new allocation in the arena for
 /// a given type and count.
@@ -4317,7 +4425,7 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @param  count Number of elements of type T to allocate
 /// @param  arena Pointer to the arena to allocate from
 /// @return T* Pointer to the allocated memory
-#define arena_new(T, count, arena)                RK__arena_NEW(T, count, arena)
+#define arena_new(T, count, arena)                RKI_ARENA_NEW(T, count, arena)
 
 /// @brief `T* arena_try_new(T, size_t count, Arena* arena)` - Like `arena_new()`, but returns
 /// `NULL` if the arena does not have enough space instead of invoking the failure handler.
@@ -4331,7 +4439,7 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @param arena  Pointer to the arena to allocate from
 /// @return Pointer to the allocated memory.
 /// @note Alignment must be a power of two.
-#define arena_new_aligned(T, count, align, arena) RK__arena_ALIGNED_NEW(T, count, align, arena)
+#define arena_new_aligned(T, count, align, arena) RKI_ARENA_ALIGNED_NEW(T, count, align, arena)
 
 /// @brief `T* arena_try_new_aligned(T, size_t count, size_t align, Arena* arena)` like
 /// `arena_new_aligned()`, but returns `NULL` if the arena does not have enough space instead of
@@ -4348,22 +4456,22 @@ static_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* s
 /// @param arena     Arena owning the allocation
 /// @return `ptr` on success, cast to the same pointer type
 #define arena_extend(ptr, old_count, new_count, arena)                                             \
-  ((typeof(ptr))RK__arena_extend(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
+  ((typeof(ptr))rki_arena_extend(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
                                  arena))
 
 /// @brief `T* arena_try_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Like
 /// `arena_extend()` but returns `NULL` if the arena does not have enough space instead of invoking
 /// the failure handler.
 #define arena_try_extend(ptr, old_count, new_count, arena)                                         \
-  ((typeof(ptr))RK__arena_try_extend(ptr, sizeof_n(*(ptr), old_count),                             \
+  ((typeof(ptr))rki_arena_try_extend(ptr, sizeof_n(*(ptr), old_count),                             \
                                      sizeof_n(*(ptr), new_count), arena))
 
-static_fun alloc_allocation_f   RK__arena_allocate;
-static_fun alloc_reallocation_f RK__arena_reallocate;
-static_fun alloc_deallocation_f RK__arena_deallocate;
-static const AllocatorVTable    arena_allocator_vtable = {.alloc_f   = RK__arena_allocate,
-                                                          .realloc_f = RK__arena_reallocate,
-                                                          .dealloc_f = RK__arena_deallocate};
+rklib_fun alloc_allocation_f   rki_arena_allocate;
+rklib_fun alloc_reallocation_f rki_arena_reallocate;
+rklib_fun alloc_deallocation_f rki_arena_deallocate;
+static const AllocatorVTable   arena_allocator_vtable = {.alloc_f   = rki_arena_allocate,
+                                                         .realloc_f = rki_arena_reallocate,
+                                                         .dealloc_f = rki_arena_deallocate};
 
 /// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
 /// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
@@ -4414,28 +4522,21 @@ static_fun rk_const Allocator arena_to_alloc(Arena* arena) {
 /// ```
 #define arr_allocator_create(name, size) arr_allocator(size) name = arr_allocator_init(&name)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
-
-static_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
-
-#define rk_assert_ptr_in_arena(arena, ptr)                                                         \
-  rk_assert(rk_ptr_in_range(ptr, (arena)->beg, (arena)->cur)                                       \
-            && "Pointer was not allocated by this Arena")
-
-static_fun Arena* arena_rewind_to(Arena* self, ArenaMark mark) {
+rklib_fun Arena* arena_rewind_to(Arena* self, ArenaMark mark) {
   if (mark.pos == self->cur) { return self; }
-  rk_assert_ptr_in_arena(self, mark.pos);
+  rk_assert(rk_ptr_in_range(mark.pos, self->beg, self->cur) && "Pointer is outside this Arena");
   self->cur = mark.pos;
   return self;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size_t align,
-                                                             Arena* self) {
+rklib_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size_t align,
+                                                            Arena* self) {
   if rk_unlikely (!self->cur) { return rk_null; }
   size_t pad = rk_align_pad(self->cur, align), avail = arena_remaining(self);
   if (avail < pad || avail - pad < nbytes) { return rk_null; }
@@ -4444,78 +4545,78 @@ static_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size
   return ptr;
 }
 
-static_fun rk_alloc_size(2) void* arena_try_resize_top(size_t old_size, size_t new_size,
-                                                       Arena* self) {
+rklib_fun rk_alloc_size(2) void* arena_try_resize_top(size_t old_size, size_t new_size,
+                                                      Arena* self) {
   if (arena_remaining(self) + old_size < new_size) { return rk_null; }
   unsigned char* ptr = self->cur - old_size;
   self->cur          = ptr + new_size;
   return ptr;
 }
 
-static_fun rk_alloc_size(2) void* arena_resize_top(size_t old_size, size_t new_size, Arena* self) {
+rklib_fun rk_alloc_size(2) void* arena_resize_top(size_t old_size, size_t new_size, Arena* self) {
   void* res = arena_try_resize_top(old_size, new_size, self);
   RK_ARENA_FAIL(res, self, (self->cur - old_size), align_max, new_size);
   return res;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* RK__arena_allocate(size_t nbytes, size_t align,
-                                                             void* ctx) {
+rklib_fun rk_alloc_alignsize(2, 1) void* rki_arena_allocate(size_t nbytes, size_t align,
+                                                            void* ctx) {
   void* ptr = arena_try_allocate(nbytes, align, (Arena*)ctx);
   RK_ARENA_FAIL(ptr, (Arena*)ctx, rk_null, align, nbytes);
   return ptr;
 }
 
-static_fun void RK__arena_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
-                                     void* ctx) {
+rklib_fun void rki_arena_deallocate(void* ptr, size_t old_size, size_t align rk_unused, void* ctx) {
   if (arena_is_top_allocation((Arena*)ctx, ptr, old_size)) {
     (void)arena_try_resize_top(old_size, 0, (Arena*)ctx);
   }
 }
 
-static_fun rk_alloc_alignsize(4, 3) void* RK__arena_reallocate(void* ptr, size_t old_size,
-                                                               size_t new_size, size_t align,
-                                                               void* ctx) {
+rklib_fun rk_alloc_alignsize(4, 3) void* rki_arena_reallocate(void* ptr, size_t old_size,
+                                                              size_t new_size, size_t align,
+                                                              void* ctx) {
   rk_assert_align_pow2(align);
   Arena* self = (Arena*)ctx;
-  if (!old_size) { return RK__arena_allocate(new_size, align, self); }
+  if (!old_size) { return rki_arena_allocate(new_size, align, self); }
   if ((arena_is_top_allocation(self, ptr, old_size)
        && arena_try_resize_top(old_size, new_size, self))
       || new_size <= old_size) { // non-top shrinks are no-ops
     return ptr;
   }
-  void* res = RK__arena_allocate(new_size, align, ctx);
+  void* res = rki_arena_allocate(new_size, align, ctx);
   rk_memcpy(res, ptr, rk_min(old_size, new_size));
   return res;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* arena_allocate(size_t nbytes, size_t align, Arena* self) {
-  return RK__arena_allocate(nbytes, align, self);
+rklib_fun rk_alloc_alignsize(2, 1) void* arena_allocate(size_t nbytes, size_t align, Arena* self) {
+  return rki_arena_allocate(nbytes, align, self);
 }
-static_fun rk_alloc_size(3) void* RK__arena_try_extend(void* ptr, size_t old_size, size_t new_size,
-                                                       Arena* self) {
+rklib_fun rk_alloc_size(3) void* rki_arena_try_extend(void* ptr, size_t old_size, size_t new_size,
+                                                      Arena* self) {
   rk_assert(arena_is_top_allocation(self, ptr, old_size)
             && "Can only resize the top allocation of the arena");
   return arena_try_resize_top(old_size, new_size, self);
 }
 
-static_fun rk_alloc_size(3) void* RK__arena_extend(void* ptr, size_t old_size, size_t new_size,
-                                                   Arena* self) {
-  void* r = RK__arena_try_extend(ptr, old_size, new_size, self);
+rklib_fun rk_alloc_size(3) void* rki_arena_extend(void* ptr, size_t old_size, size_t new_size,
+                                                  Arena* self) {
+  void* r = rki_arena_try_extend(ptr, old_size, new_size, self);
   RK_ARENA_FAIL(r, self, (self->cur - old_size), align_max, new_size);
   return r;
 }
 
-#define RK__arena_init_static(arr)                                                                 \
+#define RKI_ARENA_INIT_STATIC(arr)                                                                 \
   {.beg = (arr) + rk_ensure_valid_storage_type(arr), .cur = (arr), .end = (arr) + sizeof(arr)}
 
-#define RK__arena_ALIGNED_NEW(T, count, align, arena)                                              \
+#define RKI_ARENA_ALIGNED_NEW(T, count, align, arena)                                              \
   ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
                 arena_allocate(sizeof_n(T, count), align, arena)))
-#define RK__arena_NEW(T, count, arena)                                                             \
+#define RKI_ARENA_NEW(T, count, arena)                                                             \
   ((typeof(T)*)(alloc_log_new, arena_allocate(sizeof_n(T, count), alignof(T), arena)))
+RKI_IGNWARN_CLANG_END()
 
 /// @endcond
-RK__IGNWARN_CLANG_END()
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_ARENA_H
@@ -4627,7 +4728,7 @@ RK_HEADER_BEGIN
 #define vec_init(T, init_cap, ...)                                                                 \
   ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
                                      "Over-aligned Types not supported."),                         \
-            rk_overload(RK__vec_init, T, init_cap, ##__VA_ARGS__)))
+            rk_overload(RKI_VEC_INIT, T, init_cap, ##__VA_ARGS__)))
 
 /// @brief `Vec(T) vec_init_list(T, Allocator alloc = alloc_ctx, T... values)` - Initialises a Vec
 /// from a list of values.
@@ -4648,7 +4749,7 @@ RK_HEADER_BEGIN
 #define vec_init_list(T, ...)                                                                      \
   ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
                                      "Over-aligned Types not supported."),                         \
-            RK__vec_init_list(T, ##__VA_ARGS__)))
+            RKI_VEC_INIT_LIST(T, ##__VA_ARGS__)))
 
 /// @brief `Vec(T) vec_from(T* arr, size_t count, Allocator alloc = alloc_ctx)` - Constructs a new
 /// Vec by copying `count` elements from `arr`.
@@ -4669,56 +4770,56 @@ RK_HEADER_BEGIN
 /// Vec(int) v2 = vec_from(arr, 3, my_alloc);  // uses my_alloc
 /// ```
 #define vec_from(arr, count, ...)                                                                  \
-  ((typeof(*(arr))*)rk_overload(RK__vec_from, arr, count, ##__VA_ARGS__))
+  ((typeof(*(arr))*)rk_overload(RKI_VEC_FROM, arr, count, ##__VA_ARGS__))
 
 /// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
 /// NULL.
-#define vec_release(self) ((void)RK__vec_release(self))
+#define vec_release(self) ((void)RKI_VEC_RELEASE(self))
 
 /// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
-static_fun rk_pure size_t vec_count(const Vec(void) self);
-#define vec_COUNT(self) rk_to_rvalue(RK__vec_count(self))
+rklib_fun rk_pure size_t vec_count(const Vec(void) self);
+#define vec_COUNT(self) rk_to_rvalue(RKI_VEC_COUNT(self))
 
 /// @brief Alias for `vec_count()`
-static_fun rk_pure size_t vec_len(const Vec(void) self);
+rklib_fun rk_pure size_t vec_len(const Vec(void) self);
 #define vec_LEN(self) vec_COUNT(self)
 
 /// @brief Returns the current capacity of the Vec, 0 iff `self` is NULL.
-static_fun rk_pure size_t vec_cap(const Vec(void) self);
-#define vec_CAP(self) rk_to_rvalue(RK__vec_cap(self))
+rklib_fun rk_pure size_t vec_cap(const Vec(void) self);
+#define vec_CAP(self) rk_to_rvalue(RKI_VEC_CAP(self))
 
 /// @brief Returns the Allocator the Vec was constructed with, or `alloc_ctx` if `self` is `NULL`
 /// or custom allocators are disabled.
-static_fun rk_pure Allocator vec_allocator(const Vec(void) self);
-#define vec_ALLOCATOR(self) rk_to_rvalue(RK__vec_allocator(self))
+rklib_fun rk_pure Allocator vec_allocator(const Vec(void) self);
+#define vec_ALLOCATOR(self) rk_to_rvalue(RKI_VEC_ALLOCATOR(self))
 
 /// @brief Returns whether the count of a Vec is zero.
-static_fun rk_pure bool vec_is_empty(const Vec(void) self);
+rklib_fun rk_pure bool vec_is_empty(const Vec(void) self);
 
 /// @brief Clears the contents of `self` by setting its count to 0.
-static_fun void         vec_clear(Vec(void) self);
+rklib_fun void         vec_clear(Vec(void) self);
 
 /// @brief `size_t vec_allocation_size(Vec(T) self)` - Returns the total size of memory allocated
-/// for the Vec in bytes, including. its header, 0 iff `self` is NULL.
-#define vec_allocation_size(self) RK__vec_allocation_size(self)
+/// for the Vec in bytes, including its header, 0 iff `self` is NULL.
+#define vec_allocation_size(self) RKI_VEC_ALLOCATION_SIZE(self)
 
 /// @brief Returns the remaining count of elements that can be pushed to a vec without reallocation.
-static_fun rk_pure size_t vec_remaining(const Vec(void) self);
+rklib_fun rk_pure size_t vec_remaining(const Vec(void) self);
 
 /// @brief Returns whether an index is within the range of a Vec.
-static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
+rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 
 /// @brief `void vec_reserve(Vec(T)& self, size_t new_cap)` - Grows the Vec to be able to hold at
 /// least `new_cap` elements.
 /// @attention **Arguments with side effects are not safe in `vec_` macros**
 /// @note Reassigns `self`, if necessary
-#define vec_reserve(self, new_cap)    ((void)RK__vec_reserve(self, new_cap))
+#define vec_reserve(self, new_cap)    ((void)RKI_VEC_RESERVE(self, new_cap))
 
 /// @brief `void vec_resize(Vec(T)& self, size_t len)` - Resizes the Vec to `len`, expanding the
 /// capacity by reallocating and creating uninitialised objects if necessary.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Reassigns `self`, if necessary
-#define vec_resize(self, len)         ((void)RK__vec_resize(self, len))
+#define vec_resize(self, len)         ((void)RKI_VEC_RESIZE(self, len))
 
 /// @brief `void vec_shrink_to_fit(Vec(T)& self)` - Shrinks the Vec's capacity to the next power of
 /// two greater than or equal to its length (matching `str_shrink_to_fit()`'s convention), leaving
@@ -4726,13 +4827,13 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
 /// @note Use `vec_shrink_to_fit_exact()` for an exact-capacity shrink.
-#define vec_shrink_to_fit(self)       ((void)RK__vec_shrink_to_fit(self))
+#define vec_shrink_to_fit(self)       ((void)RKI_VEC_SHRINK_TO_FIT(self))
 
 /// @brief `void vec_shrink_to_fit_exact(Vec(T)& self)` - Shrinks the Vec's capacity to be exactly
 /// equal to its length.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
-#define vec_shrink_to_fit_exact(self) ((void)RK__vec_shrink_to_fit_exact(self))
+#define vec_shrink_to_fit_exact(self) ((void)RKI_VEC_SHRINK_TO_FIT_EXACT(self))
 
 /// @brief `void vec_assign(Vec(T)& self, T* arr, size_t count)` - Assigns `count` objects of `arr`
 /// to the Vec, overriding its contents and expanding `self`, if necessary.
@@ -4742,24 +4843,24 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination.
 /// @note Reassigns `self`, if necessary.
-#define vec_assign(self, arr, count)  ((void)RK__vec_assign(self, arr, count))
+#define vec_assign(self, arr, count)  ((void)RKI_VEC_ASSIGN(self, arr, count))
 
 /// @brief `T& vec_front(Vec(T) self)` - Returns an Lvalue reference to the first element of the
 /// Vec.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behaviour undefined for empty or uninitialised vec
-#define vec_front(self)               (((typeof(self))RK__vec_check_front(self))[0])
+#define vec_front(self)               (((typeof(self))rki_vec_check_front(self))[0])
 
 /// @brief `T& vec_back(Vec(T) self)` - Returns an Lvalue reference to the last element of the Vec.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behaviour undefined for empty or uninitialised vec
-#define vec_back(self)                (*((typeof(self))RK__vec_check_back(sizeof(*(self)), self)))
+#define vec_back(self)                (*((typeof(self))rki_vec_check_back(sizeof(*(self)), self)))
 
 /// @brief `void vec_push(Vec(T)& self, T obj)` - Pushes a value onto the Vec, resising the
 /// allocation, if necessary.
 /// @attention **`obj` must not modify the vec due to sequencing issues**
 /// @note Reassigns `self`, if necessary
-#define vec_push(self, obj)           ((void)RK__vec_push(self, obj)) // NOLINT
+#define vec_push(self, obj)           ((void)RKI_VEC_PUSH(self, obj)) // NOLINT
 
 /// @brief `void vec_push_n(Vec(T)& self, T* arr, size_t count)` - Copies `count` values of `arr`
 /// onto `self`. `arr` must be a pointer variable of type `T*`.
@@ -4767,31 +4868,31 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @attention `arr[0..count)` must not overlap the Vec's own backing allocation, for the same
 /// reasons documented on `vec_assign()`.
 /// @note Reassigns `self`, if necessary
-#define vec_push_n(self, arr, count)  ((void)RK__vec_push_arr(self, arr, count))
+#define vec_push_n(self, arr, count)  ((void)RKI_VEC_PUSH_ARR(self, arr, count))
 
 /// @brief `void vec_push_unchecked(Vec(T)& self, T obj)` - Pushes a value onto the Vec, not
 /// checking for capacity.
 /// @attention **`obj` must not modify the vec due to sequencing issues**
-#define vec_push_unchecked(self, obj) ((void)(RK__vec_push_u(self, obj)))
+#define vec_push_unchecked(self, obj) ((void)(RKI_VEC_PUSH_U(self, obj)))
 
 /// @brief `T vec_pop(Vec(T)& self)` - Pops the last value off the Vec and decreases its length.
 /// @return The popped value
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behaviour in case of empty or uninitialised Vec is undefined
-#define vec_pop(self)                 ((self)[--RK__vec_count(RK__check_vec_pop(self))])
+#define vec_pop(self)                 ((self)[--RKI_VEC_COUNT(rki_check_vec_pop(self))])
 
 /// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
 /// its length.
 /// @return A pointer to the popped memory region, to copy away from
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of `count >= vec_count(self)` undefined
-#define vec_pop_n(self, count)        (typeof(self))RK__vec_pop_n(sizeof(*(self)), self, count)
+/// @note Behaviour in case of `count > vec_count(self)` undefined
+#define vec_pop_n(self, count)        (typeof(self))rki_vec_pop_n(sizeof(*(self)), self, count)
 
 /// @brief `void vec_insert_at(Vec(T)& self, size_t idx, T obj)` - Inserts an object at index `idx`,
 /// shifting subsequent elements back and expanding `self`, if necessary.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Reassigns `self`, if necessary. Behavior is undefined if `idx` is out of bounds.
-#define vec_insert_at(self, idx, obj) ((void)(RK__vec_insert_at(self, idx, obj)))
+#define vec_insert_at(self, idx, obj) ((void)(RKI_VEC_INSERT_AT(self, idx, obj)))
 
 /// @brief `void vec_insert_at_unordered(Vec(T)& self, size_t idx, T obj)` - Inserts `obj` at index
 /// `idx` without preserving element order. The element currently at `idx` is moved to the back
@@ -4799,7 +4900,7 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// which is O(n).
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Reassigns `self`, if necessary. Behavior is undefined if `idx` > vec_count(self).
-#define vec_insert_at_unordered(self, idx, obj) ((void)RK__vec_insert_at_unordered(self, idx, obj))
+#define vec_insert_at_unordered(self, idx, obj) ((void)RKI_VEC_INSERT_AT_UNORDERED(self, idx, obj))
 
 /// @brief `void vec_insert_arr_at(Vec(T)& self, size_t idx, T* obj, size_t count)` - Batched
 /// `vec_insert()`, faster when adding multiple elements at once.
@@ -4817,13 +4918,13 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @endcode
 /// @note Behavior is undefined if `idx` > vec_count(self)
 #define vec_insert_arr_at(self, idx, ptr, count)                                                   \
-  ((void)(RK__vec_insert_arr_at(self, idx, ptr, count)))
+  ((void)(RKI_VEC_INSERT_ARR_AT(self, idx, ptr, count)))
 
 /// @brief `void vec_erase_at(Vec(T) self, size_t idx)` - Erases an element from `self` at index
 /// `idx`, shifting subsequent elements forward.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behavior is undefined if `idx` is out of bounds.
-#define vec_erase_at(self, idx) ((void)(RK__vec_erase_at(self, idx)))
+#define vec_erase_at(self, idx) ((void)(RKI_VEC_ERASE_AT(self, idx)))
 
 /// @brief `void vec_erase_at_unordered(Vec(T) self, size_t idx)` - Erases an element at index `idx`
 /// without preserving element order. The last element is moved into the erased slot. O(1), unlike
@@ -4831,17 +4932,17 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behavior is undefined if `idx` is out of bounds.
 #define vec_erase_at_unordered(self, idx)                                                          \
-  ((void)(((self)[idx] = (self)[RK__decrease_index_check(self)])))
+  ((void)(((self)[idx] = (self)[rki_decrease_index_check(self)])))
 
 /// @brief `void vec_erase_at_n(Vec(T) self, size_t idx, size_t count)` - Erases `count` elements at
 /// index `idx` from `self`, shifting subsequent elements forward.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
 /// @note Behavior is undefined if `idx` + count > vec_count()
-#define vec_erase_at_n(self, idx, count) ((void)(RK__vec_erase_at_n(self, idx, count)))
+#define vec_erase_at_n(self, idx, count) ((void)(RKI_VEC_ERASE_AT_N(self, idx, count)))
 
 /// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
 /// `self` or `NULL` if `self` is `NULL`.
-#define vec_end(self)                    ((self) ? ((self) + RK__vec_count(self)) : (self))
+#define vec_end(self)                    ((self) ? ((self) + RKI_VEC_COUNT(self)) : (self))
 
 /// @brief Convenience Macro to loop over the elements of a vec.
 /// @param vec The Vec to loop over
@@ -4856,15 +4957,15 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// vec_foreach(vec, it) { printf("%d\n", *it); }
 /// ```
 #define vec_foreach(vec, it)                                                                       \
-  for (typeof(*(vec))*RK___VEC = (vec), *const RK___END = vec_end(RK___VEC); RK___VEC != RK___END; \
-       ++RK___VEC)                                                                                 \
-    for (typeof(*RK___VEC)*const it = RK___VEC, *RK___ONCE = RK___VEC; RK___ONCE; RK___ONCE = 0)
+  for (typeof(*(vec))*RKI__VEC = (vec), *const RKI__END = vec_end(RKI__VEC); RKI__VEC != RKI__END; \
+       ++RKI__VEC)                                                                                 \
+    for (typeof(*RKI__VEC)*const it = RKI__VEC, *RKI__ONCE = RKI__VEC; RKI__ONCE; RKI__ONCE = 0)
 
 /// @brief Like vec_foreach(), iterating in reverse order.
 #define vec_foreach_reversed(vec, it)                                                              \
-  for (typeof(*(vec))*const RK___VEC = (vec), *RK___END = vec_end(RK___VEC);                       \
-       RK___VEC != RK___END;)                                                                      \
-    for (typeof(*RK___VEC)*const it = --RK___END, *RK___ONCE = it; RK___ONCE; RK___ONCE = 0)
+  for (typeof(*(vec))*const RKI__VEC = (vec), *RKI__END = vec_end(RKI__VEC);                       \
+       RKI__VEC != RKI__END;)                                                                      \
+    for (typeof(*RKI__VEC)*const it = --RKI__END, *RKI__ONCE = it; RKI__ONCE; RKI__ONCE = 0)
 
 /// @brief Convenience Macro to erase all elements in a Vec that satisfy a predicate.
 /// @param vec         The Vec to loop over
@@ -4875,223 +4976,223 @@ static_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// ```c
 /// Vec(int) vec = vec_init(int, 10);
 /// vec_push(vec, 1), vec_push(vec, 2);
-/// vec_erase_if(vec, it, *it % 2); // remove even numbers
+/// vec_erase_if(vec, it, *it % 2); // remove odd numbers
 /// ```
 #define vec_erase_if(vec, it, pred)                                                                \
   do {                                                                                             \
-    RK__IGNWARN_MSC_BEG(4114)                                                                      \
-    typeof(vec) RK___VEC = (vec);                                                                  \
-    if (!vec_count(RK___VEC)) { break; }                                                           \
-    typeof(*RK___VEC)*RK___BEG = RK___VEC, *const RK___END = RK___BEG + RK__vec_count(RK___BEG);   \
-    for (typeof(*RK___VEC)* RK___IT = RK___VEC; RK___IT != RK___END; ++RK___IT) {                  \
-      typeof(*RK___VEC)* const it = RK___IT;                                                       \
-      if (!(pred)) { *RK___BEG++ = *RK___IT; }                                                     \
+    RKI_IGNWARN_MSC_BEG(4114)                                                                      \
+    typeof(vec) RKI__VEC = (vec);                                                                  \
+    if (!vec_count(RKI__VEC)) { break; }                                                           \
+    typeof(*RKI__VEC)*RKI__BEG = RKI__VEC, *const RKI__END = RKI__BEG + RKI_VEC_COUNT(RKI__BEG);   \
+    for (typeof(*RKI__VEC)* RKI__IT = RKI__VEC; RKI__IT != RKI__END; ++RKI__IT) {                  \
+      typeof(*RKI__VEC)* const it = RKI__IT;                                                       \
+      if (!(pred)) { *RKI__BEG++ = *RKI__IT; }                                                     \
     }                                                                                              \
-    RK__vec_count(RK___VEC) = (size_t)(RK___BEG - RK___VEC);                                       \
-    RK__IGNWARN_MSC_END()                                                                          \
+    RKI_VEC_COUNT(RKI__VEC) = (size_t)(RKI__BEG - RKI__VEC);                                       \
+    RKI_IGNWARN_MSC_END()                                                                          \
   } while (0)
 
 /// @brief Reverse the elements of a Vec in place.
 #define vec_reverse(vec)                                                                           \
   do {                                                                                             \
-    typeof(vec) RK___BEG = (vec);                                                                  \
-    if (!vec_count(RK___BEG)) { break; }                                                           \
-    typeof(RK___BEG) RK___END = RK___BEG + RK__vec_count(RK___BEG) - 1;                            \
-    for (; RK___BEG < RK___END; ++RK___BEG, --RK___END) { rk_SWAP(*RK___BEG, *RK___END); }         \
+    typeof(vec) RKI__BEG = (vec);                                                                  \
+    if (!vec_count(RKI__BEG)) { break; }                                                           \
+    typeof(RKI__BEG) RKI__END = RKI__BEG + RKI_VEC_COUNT(RKI__BEG) - 1;                            \
+    for (; RKI__BEG < RKI__END; ++RKI__BEG, --RKI__END) { rk_SWAP(*RKI__BEG, *RKI__END); }         \
   } while (0)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
 /// @brief Header of a dynamically allocated Vec. The Vec is implemented as a contiguous block of
-/// memory with a header (`RK__VecHdr`) that stores metadata about the vec, such as its capacity,
+/// memory with a header (`RKI_VecHdr`) that stores metadata about the vec, such as its capacity,
 /// length, and allocator.
-typedef struct RK__VecHdr {
+typedef struct RKI_VecHdr {
 #if RK_CUSTOM_ALLOCATORS
   Allocator alloc; ///< Allocator (can be disabled)
 #endif
   size_t                    cap;    ///< Capacity of the Vec (in terms of elements)
   size_t                    count;  ///< Length of the Vec (in terms of elements)
   alignas_max unsigned char data[]; ///< Vec Data
-} RK__VecHdr;
+} RKI_VecHdr;
 
-#define RK__vec_hdr(self)                                                                          \
-  ((RK__VecHdr*)(void*)((char*)(self)                                                              \
-                        - offsetof(RK__VecHdr,                                                     \
-                                   data))) // NOLINT(clang-analyzer-security.ArrayBound)
-#define RK__vec_allocator(self)                                                                    \
-  RK__allocatorof(RK__vec_hdr(self)) // NOLINT(clang-analyzer-security.ArrayBound)
+#define RKI_VEC_HDR(self)                                                                          \
+  ((RKI_VecHdr*)(void*)((char*)(self)                                                              \
+                        - offsetof(RKI_VecHdr,                                                     \
+                                   data)))             // NOLINT(clang-analyzer-security.ArrayBound)
+#define RKI_VEC_CAP(self)   (RKI_VEC_HDR(self)->cap)   // NOLINT(clang-analyzer-security.ArrayBound)
+#define RKI_VEC_COUNT(self) (RKI_VEC_HDR(self)->count) // NOLINT(clang-analyzer-security.ArrayBound)
+#define RKI_VEC_ALLOCATOR(self)                                                                    \
+  RKI_allocatorof(RKI_VEC_HDR(self)) // NOLINT(clang-analyzer-security.ArrayBound)
 
-#define RK__vec_cap(self)   (RK__vec_hdr(self)->cap) // NOLINT(clang-analyzer-security.ArrayBound)
-
-#define RK__vec_count(self) (RK__vec_hdr(self)->count) // NOLINT(clang-analyzer-security.ArrayBound)
-
-static_fun rk_pure size_t vec_count(const Vec(void) self) { return self ? RK__vec_count(self) : 0; }
-static_fun rk_pure size_t vec_len(const Vec(void) self) { return vec_count(self); }
-static_fun rk_pure size_t vec_cap(const Vec(void) self) { return self ? RK__vec_cap(self) : 0; }
-static_fun rk_pure bool   vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
-static_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
+rklib_fun rk_pure size_t vec_count(const Vec(void) self) { return self ? RKI_VEC_COUNT(self) : 0; }
+rklib_fun rk_pure size_t vec_len(const Vec(void) self) { return vec_count(self); }
+rklib_fun rk_pure size_t vec_cap(const Vec(void) self) { return self ? RKI_VEC_CAP(self) : 0; }
+rklib_fun rk_pure bool   vec_is_empty(const Vec(void) self) { return vec_count(self) == 0; }
+rklib_fun rk_pure Allocator vec_allocator(const Vec(void) self) {
   return self ? vec_ALLOCATOR(self) : alloc_ctx;
 }
-static_fun void vec_clear(Vec(void) self) {
-  if (self) { RK__vec_count(self) = 0; }
+rklib_fun void vec_clear(Vec(void) self) {
+  if (self) { RKI_VEC_COUNT(self) = 0; }
 }
-static_fun rk_pure size_t vec_remaining(const Vec(void) self) {
-  return self ? RK__vec_cap(self) - RK__vec_count(self) : 0;
+rklib_fun rk_pure size_t vec_remaining(const Vec(void) self) {
+  return self ? RKI_VEC_CAP(self) - RKI_VEC_COUNT(self) : 0;
 }
 
-static_fun rk_pure bool vec_index_in_range(const Vec(void) self, size_t idx) {
+rklib_fun rk_pure bool vec_index_in_range(const Vec(void) self, size_t idx) {
   return idx < vec_count(self);
 }
 
-static_fun rk_forceinline size_t RK__decrease_index_check(void* self) {
+rklib_fun rk_forceinline size_t rki_decrease_index_check(void* self) {
   rk_assert(vec_count(self) && "Cannot decrease count of empty vec");
-  return --RK__vec_count(self);
+  return --RKI_VEC_COUNT(self);
 }
 
-static_fun rk_forceinline void* RK__check_vec_push_u(void* self) {
+rklib_fun rk_forceinline void* rki_check_vec_push_u(void* self) {
   rk_assert(vec_remaining(self) && "Not enough capacity for unchecked push");
   return self;
 }
 
-static_fun rk_forceinline void* RK__check_vec_pop(void* self) {
+rklib_fun rk_forceinline void* rki_check_vec_pop(void* self) {
   rk_assert(vec_count(self) && "Attempting to pop from zero-length vec");
   return self;
 }
 
-static_fun rk_forceinline void* RK__vec_pop_n(size_t elsize, void* self, size_t count) {
+rklib_fun rk_forceinline void* rki_vec_pop_n(size_t elsize, void* self, size_t count) {
   rk_assert(vec_count(self) >= count && "Attempting to pop more than vec_count() elements");
-  RK__vec_count(self) -= count;
-  return (char*)self + rk_mult(elsize, RK__vec_count(self));
+  RKI_VEC_COUNT(self) -= count;
+  return (char*)self + rk_mult(elsize, RKI_VEC_COUNT(self));
 }
 
-static_fun rk_forceinline void* RK__vec_check_front(void* self) {
+rklib_fun rk_forceinline void* rki_vec_check_front(void* self) {
   rk_assert(vec_count(self) && "Attempting to access front of zero-sized vec");
   return self;
 }
 
-static_fun rk_forceinline void* RK__vec_check_back(size_t elsize, void* self) {
+rklib_fun rk_forceinline void* rki_vec_check_back(size_t elsize, void* self) {
   rk_assert(vec_count(self) && "Attempting to access back of zero-sized vec");
-  return (char*)self + rk_mult(elsize, RK__vec_count(self) - 1);
+  return (char*)self + rk_mult(elsize, RKI_VEC_COUNT(self) - 1);
 }
 
-static_fun rk_forceinline size_t RK__vec_assert_insertbounds(void* self, size_t i) {
+rklib_fun rk_forceinline size_t rki_vec_assert_insertbounds(void* self, size_t i) {
   rk_assert(i <= vec_count(self) && "Attempting to insert into Vec at out of bounds index");
   return i;
 }
 
-static_fun rk_forceinline size_t RK__vec_assert_erasebounds_n(void* self, size_t i, size_t n) {
+rklib_fun rk_forceinline size_t rki_vec_assert_erasebounds_n(void* self, size_t i, size_t n) {
   rk_assert((i <= vec_count(self) && n <= vec_count(self) - i)
             && "Attempting to erase from Vec at out of bounds index");
   return i;
 }
 
 //  logical size of a vec if type information not available
-#define RK__VECSIZE_UT(elsize, elcount) (offsetof(RK__VecHdr, data) + rk_mult(elsize, elcount))
-#define RK__VEC_COMPUTE_SIZE(V, C)      RK__VECSIZE_UT(sizeof(*(V)), C)
-#define RK__vec_allocsize(V)            RK__VEC_COMPUTE_SIZE(V, RK__vec_cap(V))
+#define RKI_VECSIZE_UT(elsize, elcount) (offsetof(RKI_VecHdr, data) + rk_mult(elsize, elcount))
+#define RKI_VEC_COMPUTE_SIZE(V, C)      RKI_VECSIZE_UT(sizeof(*(V)), C)
+#define RKI_VEC_ALLOCSIZE(V)            RKI_VEC_COMPUTE_SIZE(V, RKI_VEC_CAP(V))
 
-#define RK__vec_allocation_size(self)   RK__vec_allocation_size_f(self, sizeof(*(self)))
-static_fun rk_forceinline rk_pure size_t RK__vec_allocation_size_f(const Vec(void) self,
-                                                                   size_t          elsize) {
-  return self ? RK__VECSIZE_UT(elsize, RK__vec_cap(self)) : 0;
+#define RKI_VEC_ALLOCATION_SIZE(self)   rki_vec_allocation_size(self, sizeof(*(self)))
+rklib_fun rk_forceinline rk_pure size_t rki_vec_allocation_size(const Vec(void) self,
+                                                                size_t          elsize) {
+  return self ? RKI_VECSIZE_UT(elsize, RKI_VEC_CAP(self)) : 0;
 }
 
-static_fun rk_forceinline RK__VecHdr* rk_alloc_size(2)
-    RK__vec_init_f(size_t init_cap, size_t total_size,
-                   size_t init_count RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
-  RK__VecHdr* v = (RK__VecHdr*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
+rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
+    rki_vec_init(size_t init_cap, size_t total_size,
+                 size_t init_count RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
+  RKI_VecHdr* v = (RKI_VecHdr*)alloc_allocate(total_size, align_max RK_IFALLOC(, alloc));
   v->cap = init_cap, v->count = init_count;
   RK_IFALLOC(v->alloc = alloc;)
   return v;
 }
-#define RK__VEC_NEW_NONZERO(T, cap, count, alloc)                                                  \
-  ((typeof(T)*)(void*)(RK__vec_init_f(cap, offsetof(RK__VecHdr, data) + sizeof_n(T, cap),          \
-                                      count RK_IFALLOC(, alloc))                                   \
+#define RKI_VEC_NEW_NONZERO(T, cap, count, alloc)                                                  \
+  ((typeof(T)*)(void*)(rki_vec_init(cap, offsetof(RKI_VecHdr, data) + sizeof_n(T, cap),            \
+                                    count RK_IFALLOC(, alloc))                                     \
                            ->data))
-#define RK__VEC_NEW(T, cap, count, alloc)                                                          \
-  ((cap) ? RK__VEC_NEW_NONZERO(T, cap, count, alloc) : rk_null)
+#define RKI_VEC_NEW(T, cap, count, alloc)                                                          \
+  ((cap) ? RKI_VEC_NEW_NONZERO(T, cap, count, alloc) : rk_null)
 
 // initialises a Vec with positive cap (no cap 0 check) and assigns it to V
-#define RK__VEC_INIT_ASSIGN(V, C, A) ((V) = RK__VEC_NEW_NONZERO(*(V), (C), 0, (A)))
+#define RKI_VEC_INIT_ASSIGN(V, C, A) ((V) = RKI_VEC_NEW_NONZERO(*(V), (C), 0, (A)))
 
-#define RK__vec_init(T, C, A)        RK__VEC_NEW(T, (C), 0, (A))
-#define RK__vec_init3(T, C, A)       rk_disable_if(RK__vec_init(T, C, A))
-#define RK__vec_init2(T, C)          RK__vec_init(T, C, alloc_ctx)
+#define RKI_VEC_INIT(T, C, A)        RKI_VEC_NEW(T, (C), 0, (A))
+#define RKI_VEC_INIT3(T, C, A)       RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_INIT(T, C, A))
+#define RKI_VEC_INIT2(T, C)          RKI_VEC_INIT(T, C, alloc_ctx)
 
-#define RK__vec_from(arr, count, alloc)                                                            \
-  ((count) ? rk_copy(RK__VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count)) : rk_null)
+#define RKI_VEC_FROM(arr, count, alloc)                                                            \
+  ((count) ? rk_copy(RKI_VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count)) : rk_null)
 
-#define RK__vec_from3(arr, count, alloc) rk_disable_if(RK__vec_from(arr, count, alloc))
-#define RK__vec_from2(arr, count)        RK__vec_from(arr, count, alloc_ctx)
+#define RKI_VEC_FROM3(arr, count, alloc)                                                           \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_FROM(arr, count, alloc))
+#define RKI_VEC_FROM2(arr, count) RKI_VEC_FROM(arr, count, alloc_ctx)
 
-#define RK__vec_release(V)                                                                         \
+#define RKI_VEC_RELEASE(V)                                                                         \
   ((V)                                                                                             \
-   && (alloc_deallocate(RK__vec_hdr(V), RK__vec_allocsize(V),                                      \
-                        align_max RK_IFALLOC(, RK__vec_allocator(V))),                             \
+   && (alloc_deallocate(RKI_VEC_HDR(V), RKI_VEC_ALLOCSIZE(V),                                      \
+                        align_max RK_IFALLOC(, RKI_VEC_ALLOCATOR(V))),                             \
        (V) = rk_null))
 
 /// always reallocates to a positive cap, sets cap accordingly
-#define RK__VEC_CHANGE_CAP(V, C)                                                                   \
-  ((V) = (typeof(V))(void*)(((RK__VecHdr*)alloc_reallocate(                                        \
-                                 RK__vec_hdr(V), RK__vec_allocsize(V), RK__VEC_COMPUTE_SIZE(V, C), \
-                                 align_max RK_IFALLOC(, RK__vec_allocator(V))))                    \
+#define RKI_VEC_CHANGE_CAP(V, C)                                                                   \
+  ((V) = (typeof(V))(void*)(((RKI_VecHdr*)alloc_reallocate(                                        \
+                                 RKI_VEC_HDR(V), RKI_VEC_ALLOCSIZE(V), RKI_VEC_COMPUTE_SIZE(V, C), \
+                                 align_max RK_IFALLOC(, RKI_VEC_ALLOCATOR(V))))                    \
                                 ->data),                                                           \
-   RK__vec_cap(V) = (C), (V))
+   RKI_VEC_CAP(V) = (C), (V))
 
 /*doubles capacity if at limit*/
-#define RK__vec_reserve_1(V)                                                                       \
-  ((V) ? (RK__vec_count(V) == RK__vec_cap(V) ? RK__VEC_CHANGE_CAP(V, rk_mult(RK__vec_cap(V), 2))   \
+#define RKI_VEC_RESERVE_1(V)                                                                       \
+  ((V) ? (RKI_VEC_COUNT(V) == RKI_VEC_CAP(V) ? RKI_VEC_CHANGE_CAP(V, rk_mult(RKI_VEC_CAP(V), 2))   \
                                              : (V))                                                \
-       : RK__VEC_INIT_ASSIGN(V, 1, alloc_ctx))
+       : RKI_VEC_INIT_ASSIGN(V, 1, alloc_ctx))
 
-#define RK__vec_reserve(V, C)                                                                      \
-  ((V) ? ((C) > RK__vec_cap(V) ? RK__VEC_CHANGE_CAP(V, C) : (V))                                   \
-       : ((C) ? RK__VEC_INIT_ASSIGN(V, C, alloc_ctx) : rk_null))
+#define RKI_VEC_RESERVE(V, C)                                                                      \
+  ((V) ? ((C) > RKI_VEC_CAP(V) ? RKI_VEC_CHANGE_CAP(V, C) : (V))                                   \
+       : ((C) ? RKI_VEC_INIT_ASSIGN(V, C, alloc_ctx) : rk_null))
 
-#define RK__vec_resize(V, C) (RK__vec_reserve(V, C), (V) && (RK__vec_count(V) = (C)))
+#define RKI_VEC_RESIZE(V, C) (RKI_VEC_RESERVE(V, C), (V) && (RKI_VEC_COUNT(V) = (C)))
 
-#define RK__vec_shrink_to_fit_exact(V)                                                             \
-  ((V) && RK__vec_count(V) < RK__vec_cap(V)                                                        \
-   && (RK__vec_count(V) ? RK__VEC_CHANGE_CAP(V, RK__vec_count(V))                                  \
+#define RKI_VEC_SHRINK_TO_FIT_EXACT(V)                                                             \
+  ((V) && RKI_VEC_COUNT(V) < RKI_VEC_CAP(V)                                                        \
+   && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, RKI_VEC_COUNT(V))                                  \
                         : (vec_release(V), (V) = rk_null)))
 
-#define RK__vec_shrink_to_fit(V)                                                                   \
-  ((V) && (RK__vec_count(V) ? stdc_bit_ceil(RK__vec_count(V)) : 0) < RK__vec_cap(V)                \
-   && (RK__vec_count(V) ? RK__VEC_CHANGE_CAP(V, stdc_bit_ceil(RK__vec_count(V)))                   \
+#define RKI_VEC_SHRINK_TO_FIT(V)                                                                   \
+  ((V) && (RKI_VEC_COUNT(V) ? stdc_bit_ceil(RKI_VEC_COUNT(V)) : 0) < RKI_VEC_CAP(V)                \
+   && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, stdc_bit_ceil(RKI_VEC_COUNT(V)))                   \
                         : (vec_release(V), (V) = rk_null)))
 
-#define RK__vec_push_u(V, O)        ((V)[RK__vec_count(RK__check_vec_push_u(V))++] = (O))
-#define RK__vec_push(V, O)          (RK__vec_reserve_1(V), RK__vec_push_u(V, O))
+#define RKI_VEC_PUSH_U(V, O)        ((V)[RKI_VEC_COUNT(rki_check_vec_push_u(V))++] = (O))
+#define RKI_VEC_PUSH(V, O)          (RKI_VEC_RESERVE_1(V), RKI_VEC_PUSH_U(V, O))
 
-#define RK__vec_push_arr_u(V, O, N) (rk_copy((V) + RK__vec_count(V), O, N), RK__vec_count(V) += (N))
-#define RK__vec_push_arr(V, O, N)                                                                  \
-  ((void)((N) && (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_push_arr_u(V, O, N), 1)))
+#define RKI_VEC_PUSH_ARR_U(V, O, N) (rk_copy((V) + RKI_VEC_COUNT(V), O, N), RKI_VEC_COUNT(V) += (N))
+#define RKI_VEC_PUSH_ARR(V, O, N)                                                                  \
+  ((void)((N) && (RKI_VEC_RESERVE(V, vec_count(V) + (N)), RKI_VEC_PUSH_ARR_U(V, O, N), 1)))
 
-static_fun rk_forceinline void RK__vec_insert_arr_at_f(size_t elsize, void* restrict v, size_t i,
-                                                       const void* restrict arr, size_t n) {
-  size_t old_count = RK__vec_count(v); // NOLINT(clang-analyzer-security.ArrayBound)
+rklib_fun rk_forceinline void rki_vec_insert_arr_at(size_t elsize, void* restrict v, size_t i,
+                                                    const void* restrict arr, size_t n) {
+  size_t old_count = RKI_VEC_COUNT(v); // NOLINT(clang-analyzer-security.ArrayBound)
   char * src = (char*)v + rk_mult(i, elsize), *dst = src + rk_mult(n, elsize);
   memmove(dst, src, rk_mult(old_count - i, elsize));
   memcpy(src, arr, rk_mult(elsize, n));
-  RK__vec_count(v) = old_count + n; // NOLINT(clang-analyzer-security.ArrayBound)
+  RKI_VEC_COUNT(v) = old_count + n; // NOLINT(clang-analyzer-security.ArrayBound)
 }
 
-#define RK__vec_insert_arr_at_u(V, I, O, N)                                                        \
-  RK__vec_insert_arr_at_f(sizeof(*(V)), (V), RK__vec_assert_insertbounds(V, I), (O), (N))
-#define RK__vec_insert_at_u(V, I, O) RK__vec_insert_arr_at_u(V, I, ((typeof (*(V))[1]){(O)}), 1)
+#define RKI_VEC_INSERT_ARR_AT_U(V, I, O, N)                                                        \
+  rki_vec_insert_arr_at(sizeof(*(V)), (V), rki_vec_assert_insertbounds(V, I), (O), (N))
+#define RKI_VEC_INSERT_AT_U(V, I, O) RKI_VEC_INSERT_ARR_AT_U(V, I, ((typeof (*(V))[1]){(O)}), 1)
 
-#define RK__vec_insert_at(V, I, O)   (RK__vec_reserve_1(V), RK__vec_insert_at_u(V, I, O))
+#define RKI_VEC_INSERT_AT(V, I, O)   (RKI_VEC_RESERVE_1(V), RKI_VEC_INSERT_AT_U(V, I, O))
 
-#define RK__vec_insert_arr_at(V, I, O, N)                                                          \
-  ((void)((N) && (RK__vec_reserve(V, vec_count(V) + (N)), RK__vec_insert_arr_at_u(V, I, O, N), 1)))
+#define RKI_VEC_INSERT_ARR_AT(V, I, O, N)                                                          \
+  ((void)((N) && (RKI_VEC_RESERVE(V, vec_count(V) + (N)), RKI_VEC_INSERT_ARR_AT_U(V, I, O, N), 1)))
 
-static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void* restrict vec,
-                                                             size_t i, const void* restrict o) {
-  size_t count = RK__vec_count(vec); // NOLINT(clang-analyzer-security.ArrayBound)
+rklib_fun rk_forceinline void rki_vec_insert_at_unordered(size_t elsize, void* restrict vec,
+                                                          size_t i, const void* restrict o) {
+  size_t count = RKI_VEC_COUNT(vec); // NOLINT(clang-analyzer-security.ArrayBound)
   char*  dst   = (char*)vec + rk_mult(elsize, count);
   if (i < count) {
     char* src = (char*)vec + rk_mult(elsize, i);
@@ -5100,50 +5201,50 @@ static_fun rk_forceinline void RK__vec_insert_at_unordered_f(size_t elsize, void
   } else {
     memcpy(dst, o, elsize);
   }
-  ++RK__vec_count(vec); // NOLINT(clang-analyzer-security.ArrayBound)
+  ++RKI_VEC_COUNT(vec); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 
-#define RK__vec_insert_at_unordered(V, I, O)                                                       \
-  (RK__vec_reserve_1(V),                                                                           \
-   RK__vec_insert_at_unordered_f(sizeof(*(V)), V, RK__vec_assert_insertbounds(V, I),               \
-                                 ((typeof (*(V))[1]){(O)})))
+#define RKI_VEC_INSERT_AT_UNORDERED(V, I, O)                                                       \
+  (RKI_VEC_RESERVE_1(V),                                                                           \
+   rki_vec_insert_at_unordered(sizeof(*(V)), V, rki_vec_assert_insertbounds(V, I),                 \
+                               ((typeof (*(V))[1]){(O)})))
 
-static_fun rk_forceinline void RK__vec_erase_at_n_f(size_t elsize, void* v, size_t i, size_t n) {
+rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
   if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
-          rk_mult(((RK__vec_count(v) -= n) - i),
+          rk_mult(((RKI_VEC_COUNT(v) -= n) - i),
                   elsize)); // NOLINT(clang-analyzer-security.ArrayBound)
 }
-#define RK__vec_erase_at_n(V, I, N)                                                                \
-  RK__vec_erase_at_n_f(sizeof(*(V)), (V), RK__vec_assert_erasebounds_n(V, I, N), (N))
-#define RK__vec_erase_at(V, I) RK__vec_erase_at_n(V, I, 1)
+#define RKI_VEC_ERASE_AT_N(V, I, N)                                                                \
+  RKI_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
+#define RKI_VEC_ERASE_AT(V, I) RKI_VEC_ERASE_AT_N(V, I, 1)
 
-#define RK__vec_assign(V, O, N)                                                                    \
-  (RK__vec_reserve(V, N), (V) && (RK__vec_count(V) = (N), rk_copy(V, O, N)))
+#define RKI_VEC_ASSIGN(V, O, N)                                                                    \
+  (RKI_VEC_RESERVE(V, N), (V) && (RKI_VEC_COUNT(V) = (N), rk_copy(V, O, N)))
 
 // msvc sizeof returns 0
-#define RK__vec_init_list_(T, arr, alloc)                                                          \
-  memcpy(RK__VEC_NEW_NONZERO(T, rk_COUNTOF(arr), rk_COUNTOF(arr), alloc), arr, sizeof(arr))
+#define RKI_VEC_INIT_LIST_(T, arr, alloc)                                                          \
+  memcpy(RKI_VEC_NEW_NONZERO(T, rk_COUNTOF(arr), rk_COUNTOF(arr), alloc), arr, sizeof(arr))
 
-#define RK__VEC_contrav(T, x) _Generic(x, T: x, Allocator: (T){RK_ZINIT})
+#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RK_ZINIT})
 
 #if RK_CUSTOM_ALLOCATORS
-# define RK__vec_init_list(T, ...)                                                                 \
+# define RKI_VEC_INIT_LIST(T, ...)                                                                 \
    _Generic(VA_FIRST(__VA_ARGS__),                                                                 \
-       Allocator: RK__vec_init_list_(T, ((const T[]){VA_REST(__VA_ARGS__)}),                       \
-                                     RK__contrav(Allocator, VA_FIRST(__VA_ARGS__))),               \
-       default: RK__vec_init_list_(                                                                \
-                T, ((const T[]){RK__VEC_contrav(T, VA_FIRST(__VA_ARGS__)), VA_REST(__VA_ARGS__)}), \
+       Allocator: RKI_VEC_INIT_LIST_(T, ((const T[]){VA_REST(__VA_ARGS__)}),                       \
+                                     RKI_contrav(Allocator, VA_FIRST(__VA_ARGS__))),               \
+       default: RKI_VEC_INIT_LIST_(                                                                \
+                T, ((const T[]){RKI_VEC_CONTRAV(T, VA_FIRST(__VA_ARGS__)), VA_REST(__VA_ARGS__)}), \
                 alloc_ctx))
 #else
-# define RK__vec_init_list(T, ...)                                                                 \
-   RK__vec_init_list_(                                                                             \
-       T, ((const T[]){RK__VEC_contrav(T, VA_FIRST(__VA_ARGS__)), VA_REST(__VA_ARGS__)}), 0)
+# define RKI_VEC_INIT_LIST(T, ...)                                                                 \
+   RKI_VEC_INIT_LIST_(                                                                             \
+       T, ((const T[]){RKI_VEC_CONTRAV(T, VA_FIRST(__VA_ARGS__)), VA_REST(__VA_ARGS__)}), 0)
 #endif
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_VEC_H
@@ -5232,7 +5333,7 @@ RK_HEADER_BEGIN
 /// @param CMP_FUN Comparison function (`int CMP_FUN(T a, T b)`), returning negative, zero, or
 ///                positive, following the same convention as `strcmp` and the tree comparators.
 /// @attention Must be invoked at file scope, once per `T`.
-#define HEAP_DEFINE(T, CMP_FUN)          RK__HEAP_DEFINE(T, CMP_FUN)
+#define HEAP_DEFINE(T, CMP_FUN)          RKI_HEAP_DEFINE(T, CMP_FUN)
 
 /// @brief Macro to indicate that an object is a Heap.
 /// @param T The type of elements stored in the Heap
@@ -5254,7 +5355,7 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Heap(T)` containing a heap-ordered copy of `arr`'s first `n` values
-#define heap_from(T, arr, n, ...)        rk_overload(RK__HEAP_FROM, T, arr, n, ##__VA_ARGS__)
+#define heap_from(T, arr, n, ...)        rk_overload(RKI_HEAP_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `Heap(T) heap_adopt(T, Vec(T) vec)` - Constructs a new Heap by taking ownership of `vec`
 /// and heapifying it in place, with no copy.
@@ -5263,7 +5364,7 @@ RK_HEADER_BEGIN
 /// @return A `Heap(T)` wrapping `vec`'s own storage, now in heap order
 /// @attention `vec` is consumed: its storage now belongs to the returned Heap. Do not read, mutate,
 /// or `vec_release()` the original `vec` variable afterwards; release the Heap instead.
-#define heap_adopt(T, vec)               RK__HEAP_PUB(T, adopt)(vec)
+#define heap_adopt(T, vec)               RKI_HEAP_PUB(T, adopt)(vec)
 
 /// @brief `void heap_release(Heap(T)* self)` - Frees the backing Vec and resets the Heap to an
 /// empty state.
@@ -5310,33 +5411,33 @@ RK_HEADER_BEGIN
 /// triggered, the old buffer is freed before the copy from `arr` happens, turning an `arr` that
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination.
-#define heap_assign(T, self, arr, n)     RK__HEAP_PUB(T, assign)(self, arr, n)
+#define heap_assign(T, self, arr, n)     RKI_HEAP_PUB(T, assign)(self, arr, n)
 
 /// @brief `const T* heap_peek(T, const Heap(T)* self)` - Returns a pointer to the minimum element
 /// without removing it.
 /// @param T Element type
 /// @return Pointer to the minimum element, or `NULL` if the Heap is empty
 /// @note Invalidated by any later mutation of the Heap.
-#define heap_peek(T, self)               RK__HEAP_PUB(T, peek)(self)
+#define heap_peek(T, self)               RKI_HEAP_PUB(T, peek)(self)
 
 /// @brief `void heap_push(T, Heap(T)* self, T value)` - Inserts `value` into the Heap.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note A push may reallocate the backing Vec, invalidating prior pointers into it.
-#define heap_push(T, self, value)        RK__HEAP_PUB(T, push)(self, value)
+#define heap_push(T, self, value)        RKI_HEAP_PUB(T, push)(self, value)
 
 /// @brief `T heap_pop(T, Heap(T)* self)` - Removes and returns the minimum element.
 /// @param T Element type
 /// @return The (former) minimum element
 /// @attention Requires a nonempty Heap.
-#define heap_pop(T, self)                RK__HEAP_PUB(T, pop)(self)
+#define heap_pop(T, self)                RKI_HEAP_PUB(T, pop)(self)
 
 /// @brief `bool heap_try_pop(T, Heap(T)* self, T* out)` - Removes the minimum element and writes
 /// it to `*out`, if the Heap is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Heap is empty.
 /// @return `true` if an element was removed, `false` if the Heap was empty
-#define heap_try_pop(T, self, out)       RK__HEAP_PUB(T, try_pop)(self, out)
+#define heap_try_pop(T, self, out)       RKI_HEAP_PUB(T, try_pop)(self, out)
 
 /// @brief `T heap_replace_top(T, Heap(T)* self, T value)` - Removes the minimum element and
 /// inserts `value`, in a single sift-down.
@@ -5346,7 +5447,7 @@ RK_HEADER_BEGIN
 /// @attention Requires a nonempty Heap.
 /// @note Equivalent to, but cheaper than, `heap_pop()` followed by `heap_push()`: it never shrinks
 /// or reallocates the backing Vec.
-#define heap_replace_top(T, self, value) RK__HEAP_PUB(T, replace_top)(self, value)
+#define heap_replace_top(T, self, value) RKI_HEAP_PUB(T, replace_top)(self, value)
 
 /// @brief `void heap_extend(T, Heap(T)* self, const T* arr, size_t n)` - Appends `arr`'s first `n`
 /// values to the Heap's existing contents, then re-heapifies the combined set in O(count + n).
@@ -5358,43 +5459,42 @@ RK_HEADER_BEGIN
 /// `heap_push()` (O(n log count)) stays cheaper than re-heapifying everything (O(count + n)).
 /// @attention `arr[0..n)` must not overlap the Heap's own backing allocation, for the same reasons
 /// documented on `heap_assign()`.
-#define heap_extend(T, self, arr, n)     RK__HEAP_PUB(T, extend)(self, arr, n)
+#define heap_extend(T, self, arr, n)     RKI_HEAP_PUB(T, extend)(self, arr, n)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__HEAP_PUB(T, FNAME)           heap_##T##_##FNAME
-#define RK__HEAP_PRI(T, FNAME)           RK__heap_##T##_##FNAME
+#define RKI_HEAP_PUB(T, FNAME) heap_##T##_##FNAME
+#define RKI_HEAP_PRI(T, FNAME) rki_heap_##T##_##FNAME
 
-#define RK__HEAP_DEFINE(T, CMP_FUN)                                                                \
+#define RKI_HEAP_DEFINE(T, CMP_FUN)                                                                \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct Heap(T) { Vec(T) data; } Heap(T);                                                 \
-  static_fun rk_pure size_t RK__HEAP_PUB(T, count)(const Heap(T) * self) {                         \
+  rklib_fun rk_pure size_t RKI_HEAP_PUB(T, count)(const Heap(T) * self) {                          \
     return vec_count(self->data);                                                                  \
   }                                                                                                \
-  static_fun rk_pure size_t RK__HEAP_PUB(T, cap)(const Heap(T) * self) {                           \
+  rklib_fun rk_pure size_t RKI_HEAP_PUB(T, cap)(const Heap(T) * self) {                            \
     return vec_cap(self->data);                                                                    \
   }                                                                                                \
-  static_fun rk_pure bool RK__HEAP_PUB(T, is_empty)(const Heap(T) * self) {                        \
+  rklib_fun rk_pure bool RKI_HEAP_PUB(T, is_empty)(const Heap(T) * self) {                         \
     return vec_count(self->data) == 0;                                                             \
   }                                                                                                \
-  static_fun rk_pure Allocator RK__HEAP_PUB(T, allocator)(const Heap(T) * self) {                  \
+  rklib_fun rk_pure Allocator RKI_HEAP_PUB(T, allocator)(const Heap(T) * self) {                   \
     return vec_allocator(self->data);                                                              \
   }                                                                                                \
-  static_fun rk_pure const T* RK__HEAP_PUB(T, peek)(const Heap(T) * self) {                        \
+  rklib_fun rk_pure const T* RKI_HEAP_PUB(T, peek)(const Heap(T) * self) {                         \
     return vec_count(self->data) ? &self->data[0] : rk_null;                                       \
   }                                                                                                \
-  static_fun void RK__HEAP_PUB(T, release)(Heap(T) * self) { vec_release(self->data); }            \
-  static_fun void RK__HEAP_PUB(T, clear)(Heap(T) * self) { vec_clear(self->data); }                \
-  static_fun void RK__HEAP_PUB(T, reserve)(Heap(T) * self, size_t cap) {                           \
+  rklib_fun void RKI_HEAP_PUB(T, release)(Heap(T) * self) { vec_release(self->data); }             \
+  rklib_fun void RKI_HEAP_PUB(T, clear)(Heap(T) * self) { vec_clear(self->data); }                 \
+  rklib_fun void RKI_HEAP_PUB(T, reserve)(Heap(T) * self, size_t cap) {                            \
     vec_reserve(self->data, cap);                                                                  \
   }                                                                                                \
-  static_fun void RK__HEAP_PUB(T, shrink_to_fit)(Heap(T) * self) {                                 \
-    vec_shrink_to_fit(self->data);                                                                 \
-  }                                                                                                \
-  static_fun void RK__HEAP_PRI(T, sift_down)(Heap(T) * self, size_t i, T value, size_t n) {        \
+  rklib_fun void RKI_HEAP_PUB(T, shrink_to_fit)(Heap(T) * self) { vec_shrink_to_fit(self->data); } \
+  rklib_fun void RKI_HEAP_PRI(T, sift_down)(Heap(T) * self, size_t i, T value, size_t n) {         \
     while (i < n / 2) {                                                                            \
       size_t child = 2 * i + 1;                                                                    \
       if (child + 1 < n && CMP_FUN(self->data[child + 1], self->data[child]) < 0) { ++child; }     \
@@ -5404,33 +5504,33 @@ RK_HEADER_BEGIN
     }                                                                                              \
     self->data[i] = value;                                                                         \
   }                                                                                                \
-  static_fun void RK__HEAP_PRI(T, heapify)(Heap(T) * self) {                                       \
+  rklib_fun void RKI_HEAP_PRI(T, heapify)(Heap(T) * self) {                                        \
     const size_t n = vec_count(self->data);                                                        \
     for (size_t i = n / 2; i > 0;) {                                                               \
       --i;                                                                                         \
-      RK__HEAP_PRI(T, sift_down)(self, i, self->data[i], n);                                       \
+      RKI_HEAP_PRI(T, sift_down)(self, i, self->data[i], n);                                       \
     }                                                                                              \
   }                                                                                                \
-  static_fun Heap(T) RK__HEAP_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) { \
+  rklib_fun Heap(T) RKI_HEAP_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {  \
     Heap(T) h = heap_init(T, n RK_IFALLOC(, alloc));                                               \
     vec_push_n(h.data, arr, n);                                                                    \
-    RK__HEAP_PRI(T, heapify)(&h);                                                                  \
+    RKI_HEAP_PRI(T, heapify)(&h);                                                                  \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun Heap(T) RK__HEAP_PUB(T, adopt)(Vec(T) vec) {                                          \
+  rklib_fun Heap(T) RKI_HEAP_PUB(T, adopt)(Vec(T) vec) {                                           \
     Heap(T) h = {vec};                                                                             \
-    RK__HEAP_PRI(T, heapify)(&h);                                                                  \
+    RKI_HEAP_PRI(T, heapify)(&h);                                                                  \
     return h;                                                                                      \
   }                                                                                                \
-  static_fun void RK__HEAP_PUB(T, assign)(Heap(T) * self, const T* arr, size_t n) {                \
+  rklib_fun void RKI_HEAP_PUB(T, assign)(Heap(T) * self, const T* arr, size_t n) {                 \
     vec_assign(self->data, arr, n);                                                                \
-    RK__HEAP_PRI(T, heapify)(self);                                                                \
+    RKI_HEAP_PRI(T, heapify)(self);                                                                \
   }                                                                                                \
-  static_fun void RK__HEAP_PUB(T, extend)(Heap(T) * self, const T* arr, size_t n) {                \
+  rklib_fun void RKI_HEAP_PUB(T, extend)(Heap(T) * self, const T* arr, size_t n) {                 \
     vec_push_n(self->data, arr, n);                                                                \
-    RK__HEAP_PRI(T, heapify)(self);                                                                \
+    RKI_HEAP_PRI(T, heapify)(self);                                                                \
   }                                                                                                \
-  static_fun void RK__HEAP_PUB(T, push)(Heap(T) * self, T value) {                                 \
+  rklib_fun void RKI_HEAP_PUB(T, push)(Heap(T) * self, T value) {                                  \
     vec_push(self->data, value);                                                                   \
     size_t i = vec_count(self->data) - 1;                                                          \
     while (i > 0) {                                                                                \
@@ -5441,31 +5541,33 @@ RK_HEADER_BEGIN
     }                                                                                              \
     self->data[i] = value;                                                                         \
   }                                                                                                \
-  static_fun T RK__HEAP_PUB(T, pop)(Heap(T) * self) {                                              \
+  rklib_fun T RKI_HEAP_PUB(T, pop)(Heap(T) * self) {                                               \
     rk_assert(vec_count(self->data) && "Cannot pop an empty heap");                                \
     const T      result = self->data[0], last = vec_pop(self->data);                               \
     const size_t n = vec_count(self->data);                                                        \
-    if (n) { RK__HEAP_PRI(T, sift_down)(self, 0, last, n); }                                       \
+    if (n) { RKI_HEAP_PRI(T, sift_down)(self, 0, last, n); }                                       \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun bool RK__HEAP_PUB(T, try_pop)(Heap(T) * self, T * out) {                              \
+  rklib_fun bool RKI_HEAP_PUB(T, try_pop)(Heap(T) * self, T * out) {                               \
     if (!vec_count(self->data)) { return false; }                                                  \
-    return *out = RK__HEAP_PUB(T, pop)(self), true;                                                \
+    return *out = RKI_HEAP_PUB(T, pop)(self), true;                                                \
   }                                                                                                \
-  static_fun T RK__HEAP_PUB(T, replace_top)(Heap(T) * self, T value) {                             \
+  rklib_fun T RKI_HEAP_PUB(T, replace_top)(Heap(T) * self, T value) {                              \
     rk_assert(vec_count(self->data) && "Cannot replace_top an empty heap");                        \
     const T result = self->data[0];                                                                \
-    RK__HEAP_PRI(T, sift_down)(self, 0, value, vec_count(self->data));                             \
+    RKI_HEAP_PRI(T, sift_down)(self, 0, value, vec_count(self->data));                             \
     return result;                                                                                 \
   }                                                                                                \
   RK_EXTERNC_END
 
-#define RK__HEAP_FROM(T, arr, n, alloc)  RK__HEAP_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
-#define RK__HEAP_FROM4(T, arr, n, alloc) rk_disable_if(RK__HEAP_FROM(T, arr, n, alloc))
-#define RK__HEAP_FROM3(T, arr, n)        RK__HEAP_FROM(T, arr, n, alloc_ctx)
+#define RKI_HEAP_FROM(T, arr, n, alloc) RKI_HEAP_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
+#define RKI_HEAP_FROM4(T, arr, n, alloc)                                                           \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_HEAP_FROM(T, arr, n, alloc))
+#define RKI_HEAP_FROM3(T, arr, n) RKI_HEAP_FROM(T, arr, n, alloc_ctx)
 
+/// @endcond
+#pragma endregion implementation
 RK_HEADER_END
-
 /// @}
 #endif // RK_HEAP_H
 
@@ -5534,7 +5636,7 @@ RK_HEADER_BEGIN
 /// or struct type.
 /// @attention Must be invoked at file scope, once per `T`.
 /// @note Allocator functions handle allocation failures according to `rk_alloc.h`.
-#define DEQUE_DEFINE(T)               RK__DEQUE_DEFINE(T)
+#define DEQUE_DEFINE(T)               RKI_DEQUE_DEFINE(T)
 
 /// @brief Macro to indicate that an object is a Deque.
 /// @param T The type of elements stored in the Deque
@@ -5548,7 +5650,7 @@ RK_HEADER_BEGIN
 /// @return An initialised, empty `Deque(T)`
 /// @note A zero-initialized `Deque(T)` is also a valid, empty deque; it allocates using `alloc_ctx`
 /// on first insertion.
-#define deque_init(T, cap, ...)       rk_overload(RK__DEQUE_INIT, T, cap, ##__VA_ARGS__)
+#define deque_init(T, cap, ...)       rk_overload(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
 
 /// @brief `Deque(T) deque_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` -
 /// Constructs a new Deque by copying `n` values from `arr`, in front-to-back order.
@@ -5557,13 +5659,13 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Deque(T)` containing a copy of `arr`'s first `n` values
-#define deque_from(T, arr, n, ...)    rk_overload(RK__DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
+#define deque_from(T, arr, n, ...)    rk_overload(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `void deque_release(T, Deque(T)* self)` - Frees the backing buffer and resets the Deque
 /// to an empty state.
 /// @param T Element type
 /// @note Safe to call on a zero-initialized Deque.
-#define deque_release(T, self)        RK__DEQUE_PUB(T, release)(self)
+#define deque_release(T, self)        RKI_DEQUE_PUB(T, release)(self)
 
 /// @brief `size_t deque_count(Deque(T)* self)` - Returns the number of elements stored in the
 /// Deque.
@@ -5580,7 +5682,7 @@ RK_HEADER_BEGIN
 /// @brief `Allocator deque_allocator(Deque(T)* self)` - Returns the Allocator the Deque was
 /// constructed with, or `alloc_ctx` if the Deque was never initialized or custom allocators are
 /// disabled.
-#define deque_allocator(self)         RK__allocatorof(self)
+#define deque_allocator(self)         RKI_allocatorof(self)
 
 /// @brief `bool deque_is_empty(Deque(T)* self)` - Returns `true` iff the Deque contains no
 /// elements.
@@ -5589,14 +5691,14 @@ RK_HEADER_BEGIN
 /// @brief `void deque_clear(T, Deque(T)* self)` - Removes all elements without freeing the backing
 /// buffer.
 /// @param T Element type
-#define deque_clear(T, self)          RK__DEQUE_PUB(T, clear)(self)
+#define deque_clear(T, self)          RKI_DEQUE_PUB(T, clear)(self)
 
 /// @brief `void deque_reserve(T, Deque(T)* self, size_t cap)` - Ensures the backing buffer holds at
 /// least `cap` elements without reallocating.
 /// @param T   Element type
 /// @param cap Minimum capacity to reserve (in elements)
 /// @note Existing elements retain their logical order.
-#define deque_reserve(T, self, cap)   RK__DEQUE_PUB(T, reserve)(self, cap)
+#define deque_reserve(T, self, cap)   RKI_DEQUE_PUB(T, reserve)(self, cap)
 
 /// @brief `void deque_shrink_to_fit(T, Deque(T)* self)` - Shrinks the Deque's capacity to the next
 /// power of two greater than or equal to its length, with a floor of 8 for a nonempty Deque
@@ -5604,7 +5706,7 @@ RK_HEADER_BEGIN
 /// unchanged.
 /// @param T Element type
 /// @note Frees the backing buffer entirely if the Deque is empty.
-#define deque_shrink_to_fit(T, self)  RK__DEQUE_PUB(T, shrink_to_fit)(self)
+#define deque_shrink_to_fit(T, self)  RKI_DEQUE_PUB(T, shrink_to_fit)(self)
 
 /// @brief `void deque_assign(T, Deque(T)* self, const T* arr, size_t n)` - Replaces the Deque's
 /// contents with a copy of `arr`'s first `n` values, reusing the existing backing buffer (growing
@@ -5614,7 +5716,7 @@ RK_HEADER_BEGIN
 /// @param n   Number of values to copy
 /// @attention `arr[0..n)` must not overlap the Deque's own backing allocation, for the same reasons
 /// documented on `deque_push_back_n()`.
-#define deque_assign(T, self, arr, n) RK__DEQUE_PUB(T, assign)(self, arr, n)
+#define deque_assign(T, self, arr, n) RKI_DEQUE_PUB(T, assign)(self, arr, n)
 
 /// @brief Returns the first element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_front()`, requires a nonempty Deque.
@@ -5624,8 +5726,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_front(T, self)                                                                       \
   (*_Generic((self),                                                                               \
-       const Deque(T)*: RK__DEQUE_PUB(T, front_const),                                             \
-       default: RK__DEQUE_PUB(T, front))(self))
+       const Deque(T)*: RKI_DEQUE_PUB(T, front_const),                                             \
+       default: RKI_DEQUE_PUB(T, front))(self))
 
 /// @brief Returns the last element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_back()`, requires a nonempty Deque.
@@ -5635,8 +5737,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_back(T, self)                                                                        \
   (*_Generic((self),                                                                               \
-       const Deque(T)*: RK__DEQUE_PUB(T, back_const),                                              \
-       default: RK__DEQUE_PUB(T, back))(self))
+       const Deque(T)*: RKI_DEQUE_PUB(T, back_const),                                              \
+       default: RKI_DEQUE_PUB(T, back))(self))
 
 /// @brief Returns a pointer to the element at the zero-based logical index (counting from the
 /// front): `T*` for `Deque(T)* self`, `const T*` for `const Deque(T)* self`.
@@ -5645,7 +5747,7 @@ RK_HEADER_BEGIN
 /// @return Pointer to the element, or `NULL` if `index` is out of bounds
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_at(T, self, index)                                                                   \
-  _Generic((self), const Deque(T)*: RK__DEQUE_PUB(T, at_const), default: RK__DEQUE_PUB(T, at))(    \
+  _Generic((self), const Deque(T)*: RKI_DEQUE_PUB(T, at_const), default: RKI_DEQUE_PUB(T, at))(    \
       (self), (index))
 
 /// @brief Returns a pointer to the first element: `T*` for `Deque(T)* self`, `const T*` for
@@ -5655,8 +5757,8 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_peek_front(T, self)                                                                  \
   _Generic((self),                                                                                 \
-      const Deque(T)*: RK__DEQUE_PUB(T, peek_front_const),                                         \
-      default: RK__DEQUE_PUB(T, peek_front))(self)
+      const Deque(T)*: RKI_DEQUE_PUB(T, peek_front_const),                                         \
+      default: RKI_DEQUE_PUB(T, peek_front))(self)
 
 /// @brief Returns a pointer to the last element: `T*` for `Deque(T)* self`, `const T*` for
 /// `const Deque(T)* self`.
@@ -5665,15 +5767,15 @@ RK_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_peek_back(T, self)                                                                   \
   _Generic((self),                                                                                 \
-      const Deque(T)*: RK__DEQUE_PUB(T, peek_back_const),                                          \
-      default: RK__DEQUE_PUB(T, peek_back))(self)
+      const Deque(T)*: RKI_DEQUE_PUB(T, peek_back_const),                                          \
+      default: RKI_DEQUE_PUB(T, peek_back))(self)
 
 /// @brief `void deque_push_front(T, Deque(T)* self, T value)` - Inserts `value` at the front of the
 /// Deque.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_front(T, self, value)        RK__DEQUE_PUB(T, push_front)(self, value)
+#define deque_push_front(T, self, value)        RKI_DEQUE_PUB(T, push_front)(self, value)
 
 /// @brief `void deque_push_front_n(T, Deque(T)* self, const T* arr, size_t count)` - Prepends
 /// `count` values from `arr` to the front of the Deque, preserving `arr`'s own order (`arr[0]`
@@ -5691,14 +5793,14 @@ RK_HEADER_BEGIN
 /// points into it into a use-after-free; even without growth, the underlying copy is a plain
 /// `memcpy`, which is undefined for overlapping source and destination. To insert elements taken
 /// from the same Deque, copy them into a temporary buffer first.
-#define deque_push_front_n(T, self, arr, count) RK__DEQUE_PUB(T, push_front_n)(self, arr, count)
+#define deque_push_front_n(T, self, arr, count) RKI_DEQUE_PUB(T, push_front_n)(self, arr, count)
 
 /// @brief `void deque_push_back(T, Deque(T)* self, T value)` - Inserts `value` at the back of the
 /// Deque.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_back(T, self, value)         RK__DEQUE_PUB(T, push_back)(self, value)
+#define deque_push_back(T, self, value)         RKI_DEQUE_PUB(T, push_back)(self, value)
 
 /// @brief `void deque_push_back_n(T, Deque(T)* self, const T* arr, size_t count)` - Appends `count`
 /// values from `arr` to the back of the Deque, in order, as a single bulk operation.
@@ -5710,33 +5812,33 @@ RK_HEADER_BEGIN
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
 /// @attention `arr[0..count)` must not overlap the Deque's own backing allocation, for the same
 /// reasons documented on `deque_push_front_n()`.
-#define deque_push_back_n(T, self, arr, count)  RK__DEQUE_PUB(T, push_back_n)(self, arr, count)
+#define deque_push_back_n(T, self, arr, count)  RKI_DEQUE_PUB(T, push_back_n)(self, arr, count)
 
 /// @brief `T deque_pop_front(T, Deque(T)* self)` - Removes and returns the first element.
 /// @param T Element type
 /// @return The (former) first element
 /// @attention Requires a nonempty Deque.
-#define deque_pop_front(T, self)                RK__DEQUE_PUB(T, pop_front)(self)
+#define deque_pop_front(T, self)                RKI_DEQUE_PUB(T, pop_front)(self)
 
 /// @brief `T deque_pop_back(T, Deque(T)* self)` - Removes and returns the last element.
 /// @param T Element type
 /// @return The (former) last element
 /// @attention Requires a nonempty Deque.
-#define deque_pop_back(T, self)                 RK__DEQUE_PUB(T, pop_back)(self)
+#define deque_pop_back(T, self)                 RKI_DEQUE_PUB(T, pop_back)(self)
 
 /// @brief `bool deque_try_pop_front(T, Deque(T)* self, T* out)` - Removes the first element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_front(T, self, out)       RK__DEQUE_PUB(T, try_pop_front)(self, out)
+#define deque_try_pop_front(T, self, out)       RKI_DEQUE_PUB(T, try_pop_front)(self, out)
 
 /// @brief `bool deque_try_pop_back(T, Deque(T)* self, T* out)` - Removes the last element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param T   Element type
 /// @param out Destination for the removed value. Left untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_back(T, self, out)        RK__DEQUE_PUB(T, try_pop_back)(self, out)
+#define deque_try_pop_back(T, self, out)        RKI_DEQUE_PUB(T, try_pop_back)(self, out)
 
 /// @brief Visits every element of a Deque in front-to-back order.
 /// @param self The Deque to loop over (a pointer). Evaluated once.
@@ -5749,55 +5851,56 @@ RK_HEADER_BEGIN
 /// deque_foreach(&q, it) { printf("%d\n", *it); }
 /// ```
 #define deque_foreach(self, it)                                                                    \
-  for (typeof(self) RK___DEQUE = (self); RK___DEQUE; RK___DEQUE = rk_null)                         \
-    for (size_t RK___i = 0; RK___i < RK___DEQUE->count; ++RK___i)                                  \
-      for (typeof(RK__DEQUE_ITER_PTR(RK___DEQUE)) it                                               \
-           = &RK___DEQUE->data[(RK___DEQUE->head + RK___i) & (RK___DEQUE->cap - 1)],               \
-           RK___once            = it;                                                              \
-           RK___once; RK___once = rk_null)
+  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
+    for (size_t RKI__i = 0; RKI__i < RKI__DEQUE->count; ++RKI__i)                                  \
+      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
+           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
+           RKI__once            = it;                                                              \
+           RKI__once; RKI__once = rk_null)
 
 /// @brief Like `deque_foreach()`, visiting elements in back-to-front order. Iterator element
 /// constness follows the constness of the Deque pointed to by `self`.
 #define deque_foreach_reversed(self, it)                                                           \
-  for (typeof(self) RK___DEQUE = (self); RK___DEQUE; RK___DEQUE = rk_null)                         \
-    for (size_t RK___i = RK___DEQUE->count; RK___i-- > 0;)                                         \
-      for (typeof(RK__DEQUE_ITER_PTR(RK___DEQUE)) it                                               \
-           = &RK___DEQUE->data[(RK___DEQUE->head + RK___i) & (RK___DEQUE->cap - 1)],               \
-           RK___once            = it;                                                              \
-           RK___once; RK___once = rk_null)
+  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
+    for (size_t RKI__i = RKI__DEQUE->count; RKI__i-- > 0;)                                         \
+      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
+           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
+           RKI__once            = it;                                                              \
+           RKI__once; RKI__once = rk_null)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__DEQUE_PUB(K, FNAME) deque_##K##_##FNAME
-#define RK__DEQUE_PRI(K, FNAME) RK__deque_##K##_##FNAME
+#define RKI_DEQUE_PUB(K, FNAME) deque_##K##_##FNAME
+#define RKI_DEQUE_PRI(K, FNAME) rki_deque_##K##_##FNAME
 
 // The member `data` is a mutable pointer even when the Deque is const; propagate the
 // container's constness explicitly when choosing an iterator pointer type.
-#define RK__DEQUE_ITER_PTR(self)                                                                   \
+#define RKI_DEQUE_ITER_PTR(self)                                                                   \
   _Generic((self),                                                                                 \
       const typeof(*(self))*: (const typeof((self)->data[0])*)0,                                   \
       default: (typeof((self)->data))0)
-#define RK__DEQUE_DEFINE(T)                                                                        \
+#define RKI_DEQUE_DEFINE(T)                                                                        \
   RK_EXTERNC_BEG                                                                                   \
   typedef struct Deque(T) {                                                                        \
     T*     data;                                                                                   \
     size_t head, count, cap;                                                                       \
     RK_IFALLOC(Allocator alloc;)                                                                   \
   } Deque(T);                                                                                      \
-  static_fun size_t rk_pure RK__DEQUE_PUB(T, count)(const Deque(T) * self) { return self->count; } \
-  static_fun size_t rk_pure RK__DEQUE_PUB(T, cap)(const Deque(T) * self) { return self->cap; }     \
-  static_fun bool rk_pure   RK__DEQUE_PUB(T, is_empty)(const Deque(T) * self) {                    \
+  rklib_fun size_t rk_pure RKI_DEQUE_PUB(T, count)(const Deque(T) * self) { return self->count; }  \
+  rklib_fun size_t rk_pure RKI_DEQUE_PUB(T, cap)(const Deque(T) * self) { return self->cap; }      \
+  rklib_fun bool rk_pure   RKI_DEQUE_PUB(T, is_empty)(const Deque(T) * self) {                     \
     return !self->count;                                                                           \
   }                                                                                                \
-  static_fun Allocator rk_pure RK__DEQUE_PUB(T, allocator)(const Deque(T) * self) {                \
-    return RK__allocatorof(self);                                                                  \
+  rklib_fun Allocator rk_pure RKI_DEQUE_PUB(T, allocator)(const Deque(T) * self) {                 \
+    return RKI_allocatorof(self);                                                                  \
   }                                                                                                \
                                                                                                    \
-  static_fun Deque(T) RK__DEQUE_PUB(T, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {           \
-    RK_IFALLOC(rk_assert_allocator_valid(alloc);)                                                  \
+  rklib_fun Deque(T) RKI_DEQUE_PUB(T, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {            \
+    RK_IFALLOC(RKI_assert_allocator_valid(alloc);)                                                 \
     Deque(T) result = {rk_null, 0, 0, 0 RK_IFALLOC(, alloc)};                                      \
     if (cap) {                                                                                     \
       cap = stdc_bit_ceil(rk_MAX((size_t)8, cap));                                                 \
@@ -5807,12 +5910,12 @@ RK_HEADER_BEGIN
     }                                                                                              \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, release)(Deque(T) * self) {                                     \
+  rklib_fun void RKI_DEQUE_PUB(T, release)(Deque(T) * self) {                                      \
     if (self->data) { alloc_delete(self->data, self->cap RK_IFALLOC(, self->alloc)); }             \
     self->data = rk_null, self->head = self->count = self->cap = 0;                                \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, clear)(Deque(T) * self) { self->head = self->count = 0; }       \
-  static_fun void RK__DEQUE_PRI(T, realloc_to)(Deque(T) * self, size_t new_cap) {                  \
+  rklib_fun void RKI_DEQUE_PUB(T, clear)(Deque(T) * self) { self->head = self->count = 0; }        \
+  rklib_fun void RKI_DEQUE_PRI(T, realloc_to)(Deque(T) * self, size_t new_cap) {                   \
     T* data = alloc_new(T, new_cap RK_IFALLOC(, self->alloc));                                     \
     if (self->count) {                                                                             \
       size_t first = self->count < self->cap - self->head ? self->count : self->cap - self->head;  \
@@ -5824,135 +5927,137 @@ RK_HEADER_BEGIN
     if (self->data) { alloc_delete(self->data, self->cap RK_IFALLOC(, self->alloc)); }             \
     self->data = data, self->head = 0, self->cap = new_cap;                                        \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, reserve)(Deque(T) * self, size_t requested) {                   \
+  rklib_fun void RKI_DEQUE_PUB(T, reserve)(Deque(T) * self, size_t requested) {                    \
     if (requested <= self->cap) { return; }                                                        \
     size_t cap = stdc_bit_ceil(rk_MAX((size_t)8, requested));                                      \
     rk_assert(cap && "Deque capacity overflow");                                                   \
-    RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
-    RK__DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
+    RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
+    RKI_DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, shrink_to_fit)(Deque(T) * self) {                               \
+  rklib_fun void RKI_DEQUE_PUB(T, shrink_to_fit)(Deque(T) * self) {                                \
     if (!self->count) {                                                                            \
-      RK__DEQUE_PUB(T, release)(self);                                                             \
+      RKI_DEQUE_PUB(T, release)(self);                                                             \
       return;                                                                                      \
     }                                                                                              \
     size_t cap = stdc_bit_ceil(rk_MAX((size_t)8, self->count));                                    \
     if (cap == self->cap) { return; }                                                              \
-    RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
-    RK__DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
+    RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
+    RKI_DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                  \
+  rklib_fun T* RKI_DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                   \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                \
+  rklib_fun const T* RKI_DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                 \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                    \
-    return RK__DEQUE_PUB(T, at)(self, 0);                                                          \
+  rklib_fun T* RKI_DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                     \
+    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                  \
-    return RK__DEQUE_PUB(T, at_const)(self, 0);                                                    \
+  rklib_fun const T* RKI_DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                   \
+    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                     \
-    return self->count ? RK__DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
+  rklib_fun T* RKI_DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                      \
+    return self->count ? RKI_DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
   }                                                                                                \
-  static_fun T const* RK__DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                   \
-    return self->count ? RK__DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
+  rklib_fun T const* RKI_DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                    \
+    return self->count ? RKI_DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, front)(Deque(T) * self) {                                         \
+  rklib_fun T* RKI_DEQUE_PUB(T, front)(Deque(T) * self) {                                          \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RK__DEQUE_PUB(T, at)(self, 0);                                                          \
+    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, front_const)(const Deque(T) * self) {                       \
+  rklib_fun const T* RKI_DEQUE_PUB(T, front_const)(const Deque(T) * self) {                        \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RK__DEQUE_PUB(T, at_const)(self, 0);                                                    \
+    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
   }                                                                                                \
-  static_fun T* RK__DEQUE_PUB(T, back)(Deque(T) * self) {                                          \
+  rklib_fun T* RKI_DEQUE_PUB(T, back)(Deque(T) * self) {                                           \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RK__DEQUE_PUB(T, at)(self, self->count - 1);                                            \
+    return RKI_DEQUE_PUB(T, at)(self, self->count - 1);                                            \
   }                                                                                                \
-  static_fun const T* RK__DEQUE_PUB(T, back_const)(const Deque(T) * self) {                        \
+  rklib_fun const T* RKI_DEQUE_PUB(T, back_const)(const Deque(T) * self) {                         \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RK__DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
+    return RKI_DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                         \
+  rklib_fun void RKI_DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                          \
     if (self->count == self->cap) {                                                                \
       rk_assert(self->cap <= SIZE_MAX / 2 && "Deque capacity overflow");                           \
-      RK__DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
+      RKI_DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
     }                                                                                              \
     self->head             = (self->head - 1) & (self->cap - 1);                                   \
     self->data[self->head] = value;                                                                \
     ++self->count;                                                                                 \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_back)(Deque(T) * self, T value) {                          \
+  rklib_fun void RKI_DEQUE_PUB(T, push_back)(Deque(T) * self, T value) {                           \
     if (self->count == self->cap) {                                                                \
       rk_assert(self->cap <= SIZE_MAX / 2 && "Deque capacity overflow");                           \
-      RK__DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
+      RKI_DEQUE_PUB(T, reserve)(self, self->cap ? self->cap * 2 : 8);                              \
     }                                                                                              \
     self->data[(self->head + self->count) & (self->cap - 1)] = value;                              \
     ++self->count;                                                                                 \
   }                                                                                                \
-  static_fun T RK__DEQUE_PUB(T, pop_front)(Deque(T) * self) {                                      \
+  rklib_fun T RKI_DEQUE_PUB(T, pop_front)(Deque(T) * self) {                                       \
     rk_assert(self->count && "Cannot pop an empty deque");                                         \
     T result   = self->data[self->head];                                                           \
     self->head = (self->head + 1) & (self->cap - 1);                                               \
     if (!--self->count) { self->head = 0; }                                                        \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun T RK__DEQUE_PUB(T, pop_back)(Deque(T) * self) {                                       \
+  rklib_fun T RKI_DEQUE_PUB(T, pop_back)(Deque(T) * self) {                                        \
     rk_assert(self->count && "Cannot pop an empty deque");                                         \
     T result = self->data[(self->head + self->count - 1) & (self->cap - 1)];                       \
     if (!--self->count) { self->head = 0; }                                                        \
     return result;                                                                                 \
   }                                                                                                \
-  static_fun bool RK__DEQUE_PUB(T, try_pop_front)(Deque(T) * self, T * out) {                      \
-    return self->count ? (*out = RK__DEQUE_PUB(T, pop_front)(self), true) : false;                 \
+  rklib_fun bool RKI_DEQUE_PUB(T, try_pop_front)(Deque(T) * self, T * out) {                       \
+    return self->count ? (*out = RKI_DEQUE_PUB(T, pop_front)(self), true) : false;                 \
   }                                                                                                \
-  static_fun bool RK__DEQUE_PUB(T, try_pop_back)(Deque(T) * self, T * out) {                       \
-    return self->count ? (*out = RK__DEQUE_PUB(T, pop_back)(self), true) : false;                  \
+  rklib_fun bool RKI_DEQUE_PUB(T, try_pop_back)(Deque(T) * self, T * out) {                        \
+    return self->count ? (*out = RKI_DEQUE_PUB(T, pop_back)(self), true) : false;                  \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_front_n)(Deque(T) * self, const T* arr, size_t n) {        \
+  rklib_fun void RKI_DEQUE_PUB(T, push_front_n)(Deque(T) * self, const T* arr, size_t n) {         \
     if (!n) { return; }                                                                            \
     rk_assert(n <= SIZE_MAX - self->count && "Deque capacity overflow");                           \
-    RK__DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
+    RKI_DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
     self->head   = (self->head - n) & (self->cap - 1);                                             \
     size_t first = self->cap - self->head < n ? self->cap - self->head : n;                        \
     rk_memcpy(self->data + self->head, arr, sizeof_n(T, first));                                   \
     if (first < n) { rk_memcpy(self->data, arr + first, sizeof_n(T, n - first)); }                 \
     self->count += n;                                                                              \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, push_back_n)(Deque(T) * self, const T* arr, size_t n) {         \
+  rklib_fun void RKI_DEQUE_PUB(T, push_back_n)(Deque(T) * self, const T* arr, size_t n) {          \
     if (!n) { return; }                                                                            \
     rk_assert(n <= SIZE_MAX - self->count && "Deque capacity overflow");                           \
-    RK__DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
+    RKI_DEQUE_PUB(T, reserve)(self, self->count + n);                                              \
     size_t start = (self->head + self->count) & (self->cap - 1);                                   \
     size_t first = self->cap - start < n ? self->cap - start : n;                                  \
     rk_memcpy(self->data + start, arr, sizeof_n(T, first));                                        \
     if (first < n) { rk_memcpy(self->data, arr + first, sizeof_n(T, n - first)); }                 \
     self->count += n;                                                                              \
   }                                                                                                \
-  static_fun void RK__DEQUE_PUB(T, assign)(Deque(T) * self, const T* arr, size_t n) {              \
-    RK__DEQUE_PUB(T, clear)(self);                                                                 \
-    RK__DEQUE_PUB(T, push_back_n)(self, arr, n);                                                   \
+  rklib_fun void RKI_DEQUE_PUB(T, assign)(Deque(T) * self, const T* arr, size_t n) {               \
+    RKI_DEQUE_PUB(T, clear)(self);                                                                 \
+    RKI_DEQUE_PUB(T, push_back_n)(self, arr, n);                                                   \
   }                                                                                                \
-  static_fun Deque(T)                                                                              \
-      RK__DEQUE_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {               \
-    Deque(T) d = RK__DEQUE_PUB(T, init)(n RK_IFALLOC(, alloc));                                    \
-    RK__DEQUE_PUB(T, push_back_n)(&d, arr, n);                                                     \
+  rklib_fun Deque(T)                                                                               \
+      RKI_DEQUE_PUB(T, from)(const T* arr, size_t n RK_IFALLOC(, Allocator alloc)) {               \
+    Deque(T) d = RKI_DEQUE_PUB(T, init)(n RK_IFALLOC(, alloc));                                    \
+    RKI_DEQUE_PUB(T, push_back_n)(&d, arr, n);                                                     \
     return d;                                                                                      \
   }                                                                                                \
   RK_EXTERNC_END
 
+#define RKI_DEQUE_INIT(T, cap, alloc)  RKI_DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
+#define RKI_DEQUE_INIT3(T, cap, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_INIT(T, cap, alloc))
+#define RKI_DEQUE_INIT2(T, cap)        RKI_DEQUE_INIT(T, cap, alloc_ctx)
+
+#define RKI_DEQUE_FROM(T, arr, n, alloc) RKI_DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
+#define RKI_DEQUE_FROM4(T, arr, n, alloc)                                                          \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_FROM(T, arr, n, alloc))
+#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
+
+/// @endcond
+#pragma endregion implementation
 RK_HEADER_END
-
-#define RK__DEQUE_INIT(T, cap, alloc)     RK__DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
-#define RK__DEQUE_INIT3(T, cap, alloc)    rk_disable_if(RK__DEQUE_INIT(T, cap, alloc))
-#define RK__DEQUE_INIT2(T, cap)           RK__DEQUE_INIT(T, cap, alloc_ctx)
-
-#define RK__DEQUE_FROM(T, arr, n, alloc)  RK__DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
-#define RK__DEQUE_FROM4(T, arr, n, alloc) rk_disable_if(RK__DEQUE_FROM(T, arr, n, alloc))
-#define RK__DEQUE_FROM3(T, arr, n)        RK__DEQUE_FROM(T, arr, n, alloc_ctx)
-
 /// @}
 #endif // RK_DEQUE_H
 
@@ -6039,14 +6144,14 @@ typedef struct ArenaStack {
 /// @param arena_size  The desired size of each arena
 /// @param alloc       Optional allocator; defaults to `alloc_ctx`
 /// @return A new ArenaStack
-#define arenastack_init(arena_size, ...) rk_overload(RK__ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
+#define arenastack_init(arena_size, ...) rk_overload(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
 /// @brief Releases all arenas within the ArenaStack.
-static_fun void              arenastack_release(ArenaStack* self);
+rklib_fun void              arenastack_release(ArenaStack* self);
 
 /// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` was never
 /// initialized, or custom allocators are disabled.
-static_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
+rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
   return vec_allocator(self->arenas);
 }
 
@@ -6054,18 +6159,18 @@ static_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
 /// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
 /// the current index are left unchanged until reused.
 /// @return `self`, for chaining.
-static_fun ArenaStack*       arenastack_clear(ArenaStack* self);
+rklib_fun ArenaStack*       arenastack_clear(ArenaStack* self);
 
 /// @brief Returns the current position of the active arena as an opaque marker. Pass to
 /// `arenastack_rewind_to` to restore the ArenaStack to this state.
 /// @note Returns a null marker if `self` was never initialized.
-static_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
+rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
   return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
 }
 /// @brief Rewinds the ArenaStack to a specific mark returned by `arenastack_mark()`, marking every
 /// allocation in every Arena of the Stack as free until the mark is reached.
 /// @return `self`, for chaining.
-static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
+rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
 /// `nbytes` bytes with the given alignment from the ArenaStack, growing into a new arena if
@@ -6074,7 +6179,7 @@ static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark
 /// @param align  Desired alignment; must be a power of two
 /// @param self   ArenaStack to allocate from
 /// @return Pointer to the allocated memory
-static_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
+rklib_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
 
 /// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Create a new allocation
 /// in the arena for a given type T and count.
@@ -6082,7 +6187,7 @@ static_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaSta
 /// @param  count       Number of elements of type T to allocate
 /// @param  arena_stack Pointer to the ArenaStack to allocate from
 /// @return Pointer to the allocated memory
-#define arenastack_new(T, count, arena_stack) RK__arenastack_NEW(T, count, arena_stack)
+#define arenastack_new(T, count, arena_stack) RKI_ARENASTACK_NEW(T, count, arena_stack)
 
 /// @brief `T* arenastack_new_aligned(T, size_t count, size_t align, ArenaStack* arena_stack)` -
 /// Create a new, allocation in the ArenaStack for a given type T and count with a given alignment.
@@ -6093,32 +6198,33 @@ static_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaSta
 /// @return Pointer to the allocated memory.
 /// @note If alignment is not a power of two, behaviour is undefined
 #define arenastack_new_aligned(T, count, align, arena_stack)                                       \
-  RK__arenastack_ALIGNED_NEW(T, count, align, arena_stack)
+  RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)
 
-static_fun alloc_allocation_f   RK__arenastack_allocate;
-static_fun alloc_reallocation_f RK__arenastack_reallocate;
-static_fun alloc_deallocation_f RK__arenastack_deallocate;
-static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = RK__arenastack_allocate,
-                                                            .realloc_f = RK__arenastack_reallocate,
-                                                            .dealloc_f = RK__arenastack_deallocate};
+rklib_fun alloc_allocation_f   rki_arenastack_allocate;
+rklib_fun alloc_reallocation_f rki_arenastack_reallocate;
+rklib_fun alloc_deallocation_f rki_arenastack_deallocate;
+static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = rki_arenastack_allocate,
+                                                            .realloc_f = rki_arenastack_reallocate,
+                                                            .dealloc_f = rki_arenastack_deallocate};
 
 static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__arenastack_ALIGNED_NEW(T, count, align, arena_stack)                                   \
+#define RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)                                   \
   ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
                 arenastack_allocate(sizeof_n(T, count), align, arena_stack)))
 
-#define RK__arenastack_NEW(T, count, arena_stack)                                                  \
+#define RKI_ARENASTACK_NEW(T, count, arena_stack)                                                  \
   ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
-static_fun void arenastack_release(ArenaStack* self) {
+rklib_fun void arenastack_release(ArenaStack* self) {
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
   vec_foreach(self->arenas, arena) {
     alloc_deallocate(arena->beg, (size_t)(arena->end - arena->beg), align_max RK_IFALLOC(, alloc));
@@ -6127,13 +6233,13 @@ static_fun void arenastack_release(ArenaStack* self) {
   self->arena_size = 0, self->cur = 0;
 }
 
-static_fun ArenaStack* arenastack_clear(ArenaStack* self) {
+rklib_fun ArenaStack* arenastack_clear(ArenaStack* self) {
   if rk_unlikely (!self->arena_size) { return self; }
   for (size_t cur = self->cur, i = 0; i <= cur; ++i) { arena_clear(&self->arenas[i]); }
   return self->cur = 0, self;
 }
 
-static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
+rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
   const unsigned char* ptr = mark.pos;
   if rk_unlikely (!ptr) { return self; }
   for (size_t i = self->cur + 1; i-- > 0;) {
@@ -6149,8 +6255,8 @@ static_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark
   unreachable();
 }
 
-static_fun ArenaStack RK__arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun ArenaStack rki_arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   cap = stdc_bit_ceil(cap); /*1 if cap==0*/
   return (ArenaStack){
       .arena_size = cap,
@@ -6159,15 +6265,16 @@ static_fun ArenaStack RK__arenastack_init(size_t cap RK_IFALLOC(, Allocator allo
                      (unsigned char*)alloc_allocate(cap, align_max RK_IFALLOC(, alloc)), cap)),
       .cur = 0};
 }
-#define RK__ARENASTACK_INIT(_cap, _alloc)  RK__arenastack_init(_cap RK_IFALLOC(, _alloc))
-#define RK__ARENASTACK_INIT2(_cap, _alloc) rk_disable_if(RK__ARENASTACK_INIT(_cap, _alloc))
-#define RK__ARENASTACK_INIT1(cap)          RK__ARENASTACK_INIT(cap, alloc_ctx)
+#define RKI_ARENASTACK_INIT(cap, alloc) rki_arenastack_init(cap RK_IFALLOC(, alloc))
+#define RKI_ARENASTACK_INIT2(cap, _alloc)                                                          \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ARENASTACK_INIT(cap, alloc))
+#define RKI_ARENASTACK_INIT1(cap) RKI_ARENASTACK_INIT(cap, alloc_ctx)
 
-#define RK__arena_alloc_init(_SIZE, _ALIGN, _ALLOC)                                                \
+#define RKI_ARENA_ALLOC_INIT(_SIZE, _ALIGN, _ALLOC)                                                \
   arena_init((unsigned char*)alloc_allocate(_SIZE, _ALIGN RK_IFALLOC(, _ALLOC)), _SIZE)
 
-static_fun rk_alloc_alignsize(2, 1) void* RK__arenastack_allocate(size_t nbytes, size_t align,
-                                                                  void* ctx) {
+rklib_fun rk_alloc_alignsize(2, 1) void* rki_arenastack_allocate(size_t nbytes, size_t align,
+                                                                 void* ctx) {
   rk_assert_align_pow2(align);
   ArenaStack* self   = (ArenaStack*)ctx;
   size_t      needed = nbytes + (align - 1);
@@ -6188,19 +6295,19 @@ static_fun rk_alloc_alignsize(2, 1) void* RK__arenastack_allocate(size_t nbytes,
   // out an `align`-aligned pointer from any align_max-aligned chunk.
   // Matches the align_max used to deallocate arenas in arenastack_release().
   vec_insert_at_unordered(self->arenas, self->cur,
-                          RK__arena_alloc_init(stdc_bit_ceil(rk_MAX(needed, self->arena_size)),
+                          RKI_ARENA_ALLOC_INIT(stdc_bit_ceil(rk_MAX(needed, self->arena_size)),
                                                align_max, vec_allocator(self->arenas)));
   return arena_allocate(nbytes, align, &self->arenas[self->cur]);
 }
 
-static_fun void RK__arenastack_deallocate(void* ptr, size_t old_size, size_t align, void* ctx) {
+rklib_fun void rki_arenastack_deallocate(void* ptr, size_t old_size, size_t align, void* ctx) {
   ArenaStack* self = (ArenaStack*)ctx;
-  RK__arena_deallocate(ptr, old_size, align, &self->arenas[self->cur]);
+  rki_arena_deallocate(ptr, old_size, align, &self->arenas[self->cur]);
 }
 
-static_fun rk_alloc_alignsize(4, 3) void* RK__arenastack_reallocate(void* ptr, size_t old_size,
-                                                                    size_t new_size, size_t align,
-                                                                    void* ctx) {
+rklib_fun rk_alloc_alignsize(4, 3) void* rki_arenastack_reallocate(void* ptr, size_t old_size,
+                                                                   size_t new_size, size_t align,
+                                                                   void* ctx) {
   rk_assert_align_pow2(align);
   ArenaStack* self = (ArenaStack*)ctx;
   if (!old_size) { return arenastack_allocate(new_size, align, self); }
@@ -6214,15 +6321,15 @@ static_fun rk_alloc_alignsize(4, 3) void* RK__arenastack_reallocate(void* ptr, s
   return res;
 }
 
-static_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size_t align,
-                                                              ArenaStack* self) {
-  return RK__arenastack_allocate(nbytes, align, self);
+rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size_t align,
+                                                             ArenaStack* self) {
+  return rki_arenastack_allocate(nbytes, align, self);
 }
 
-#undef RK__arena_alloc_init
+#undef RKI_ARENA_ALLOC_INIT
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_ARENASTACK_H
@@ -6334,10 +6441,10 @@ typedef struct Str {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns the string data ([const] char*) or any Stringlike.
-#define str_dat(strlike)        RK__str_dat(strlike)
+#define str_dat(strlike)        RKI_STR_DAT(strlike)
 
 /// @brief `size_t str_len(strlike)` - Returns the length of any Stringlike.
-#define str_len(strlike)        RK__str_len(strlike)
+#define str_len(strlike)        RKI_STR_LEN(strlike)
 
 /// @brief `bool str_is_empty(strlike)` - Returns if stringlike is empty.
 #define str_is_empty(strlike)   ((bool)(str_len(strlike) == 0))
@@ -6346,13 +6453,13 @@ typedef struct Str {
 /// @param strlike the Stringlike, by value
 /// @return Lvalue reference to the first character in strlike
 /// @note behaviour undefined for empty strings
-#define str_front(strlike)      (*RK__qcharptr(strlike, RK__str_front_ptr(strv_from(strlike))))
+#define str_front(strlike)      (*RKI_STR_QCHARPTR(strlike, rki_str_front_ptr(strv_from(strlike))))
 
 /// @brief Returns an lvalue reference to the last character of a string.
 /// @param strlike the Stringlike, by value
 /// @return Lvalue reference to the last character in strlike
 /// @note behaviour undefined for empty strings
-#define str_back(strlike)       (*RK__qcharptr(strlike, RK__str_back_ptr(strv_from(strlike))))
+#define str_back(strlike)       (*RKI_STR_QCHARPTR(strlike, rki_str_back_ptr(strv_from(strlike))))
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Lifetime/Ownership
@@ -6363,7 +6470,7 @@ typedef struct Str {
 /// @param init_cap size_t The initial capacity of the string (in elements)
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx`
 /// @return A `Str` object with the given capacity
-#define str_init(init_cap, ...) rk_overload(RK__STR_INIT, init_cap, ##__VA_ARGS__)
+#define str_init(init_cap, ...) rk_overload(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
 
 /// @brief `Str str_from(Strlike strlike, Allocator alloc = alloc_ctx)` - Constructs a Str from a
 /// Stringlike object, copying the data.
@@ -6372,7 +6479,7 @@ typedef struct Str {
 /// this defaults to the Allocator of the cloned Strlike if it is a Str object, or alloc_ctx
 /// otherwise.
 /// @return A `Str` object with the copied string data
-#define str_from(strlike, ...)  rk_overload(RK__STR_FROM, strlike, ##__VA_ARGS__)
+#define str_from(strlike, ...)  rk_overload(RKI_STR_FROM, strlike, ##__VA_ARGS__)
 
 /// @brief `Str str_from_literal(STRING_LITERAL, Allocator alloc = alloc_ctx)`
 /// - Construct a Str from a string literal.
@@ -6380,10 +6487,10 @@ typedef struct Str {
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx` if not
 /// provided
 /// @return A `Str` object initialised with the literal's contents
-#define str_from_literal(strlit, ...) rk_overload(RK__STR_FROMLIT, strlit, ##__VA_ARGS__)
+#define str_from_literal(strlit, ...) rk_overload(RKI_STR_FROMLIT, strlit, ##__VA_ARGS__)
 
 /// @brief Frees the underlying memory of `self`.
-static_fun void str_release(Str* restrict self) {
+rklib_fun void str_release(Str* restrict self) {
   if (self->str) { alloc_delete(self->str, self->cap RK_IFALLOC(, self->alloc)); }
   self->len = self->cap = 0, self->str = rk_null;
 }
@@ -6398,14 +6505,14 @@ static_fun void str_release(Str* restrict self) {
 /// provided.
 /// @return A `Str` object containing the joined string
 #define str_join_strv_n(svs, count, sep, ...)                                                      \
-  rk_overload(RK__STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
+  rk_overload(RKI_STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Accessors
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns whether the String is null-terminated.
-static_fun rk_pure bool str_is_null_terminated(const Str* self) {
+rklib_fun rk_pure bool str_is_null_terminated(const Str* self) {
   return self->cap > self->len && self->str[self->len] == '\0';
 }
 
@@ -6421,20 +6528,20 @@ static_fun rk_pure bool str_is_null_terminated(const Str* self) {
 ///
 /// @warning This function does not enforce null-termination or perform any allocation. Callers must
 /// ensure null-termination if access to the full contents as a C string is required.
-static_fun rk_pure const char* str_cstr(const Str* self) {
+rklib_fun rk_pure const char* str_cstr(const Str* self) {
   return str_is_null_terminated(self) ? self->str : "";
 }
 
 /// @brief Returns the current capacity of `self`, in bytes.
-static_fun rk_pure size_t    str_cap(const Str* self) { return self->cap; }
+rklib_fun rk_pure size_t    str_cap(const Str* self) { return self->cap; }
 
 /// @brief Returns the Allocator `self` was constructed with, or `alloc_ctx` if `self` was never
 /// initialized, or custom allocators are disabled.
-static_fun rk_pure Allocator str_allocator(const Str* self) { return RK__allocatorof(self); }
+rklib_fun rk_pure Allocator str_allocator(const Str* self) { return RKI_allocatorof(self); }
 
 /// @brief Clears the contents of `self`, setting its length to zero and null-terminating it, if it
 /// owns an allocation.
-static_fun Str*              str_clear(Str* restrict self) {
+rklib_fun Str*              str_clear(Str* restrict self) {
   if (self->str) { self->str[self->len = 0] = '\0'; }
   return self;
 }
@@ -6445,21 +6552,21 @@ static_fun Str*              str_clear(Str* restrict self) {
 
 /// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`, reallocating, if
 /// necessary.
-static_fun Str* str_reserve(Str* restrict self, size_t new_cap);
+rklib_fun Str* str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
 /// null-terminating it.
-static_fun Str* str_resize(Str* restrict self, size_t new_len);
+rklib_fun Str* str_resize(Str* restrict self, size_t new_len);
 
 /// @brief Resizes a Str's capacity to the next power of two larger than its length,
 /// null-terminating it (matching `vec_shrink_to_fit()`'s convention). Leaves some slack to reduce
 /// reallocation on subsequent growth.
 /// @note Use `str_shrink_to_fit_exact()` for an exact-capacity shrink.
-static_fun Str* str_shrink_to_fit(Str* restrict self);
+rklib_fun Str* str_shrink_to_fit(Str* restrict self);
 
 /// @brief Resizes a Str's capacity to exactly its length + 1 (matching
 /// `vec_shrink_to_fit_exact()`'s convention).
-static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
+rklib_fun Str* str_shrink_to_fit_exact(Str* restrict self);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Mutators
@@ -6474,27 +6581,27 @@ static_fun Str* str_shrink_to_fit_exact(Str* restrict self);
 
 /// @brief Null-Terminates a Str object if it is not, resizing if necessary.
 /// @note Null-Terminators added via this function leave the length unchanged.
-static_fun Str* str_null_terminate(Str* restrict self);
+rklib_fun Str* str_null_terminate(Str* restrict self);
 
 /// @brief Like `str_null_terminate()` without checking for capacity.
-static_fun Str* str_null_terminate_unchecked(Str* restrict self);
+rklib_fun Str* str_null_terminate_unchecked(Str* restrict self);
 
 /// @brief Terminates a `Str` with `suffix` if it does not already end with it and then
 /// null-terminates it if it isn't.
-#define str_terminate(self, suffix) RK__str_terminate(self, suffix)
+#define str_terminate(self, suffix) RKI_STR_TERMINATE(self, suffix)
 
 /// @brief Adds a character to a Str object, resizing if necessary.
 /// @note Appends int as a character of its value, doing `str_push(s, 1)` is likely a bug.
-static_fun Str* str_push(Str* restrict self, char c);
+rklib_fun Str* str_push(Str* restrict self, char c);
 
 /// @brief Like `str_push()` without checking for capacity.
-static_fun Str* str_push_unchecked(Str* restrict self, char c);
+rklib_fun Str* str_push_unchecked(Str* restrict self, char c);
 
 /// @brief Like `str_push()` without null-terminating the Str.
-static_fun Str* str_push_raw(Str* restrict self, char c);
+rklib_fun Str* str_push_raw(Str* restrict self, char c);
 
 /// @brief Like `str_push_unchecked()` but without null-terminating the Str.
-static_fun Str* str_push_unchecked_raw(Str* restrict self, char c);
+rklib_fun Str* str_push_unchecked_raw(Str* restrict self, char c);
 
 /// @brief Generic Convenience Macro for appending Strlikes or characters to a string, automatically
 /// converting `strlike` to Strv and null-terminating `self`. May reallocate `self`.
@@ -6504,10 +6611,10 @@ static_fun Str* str_push_unchecked_raw(Str* restrict self, char c);
 /// @note Appends int as a character of its value, `str_cat(s, 1)` is likely wrong.
 /// @attention Appending a substring of `self` (i.e. overlapping memory) results in undefined
 /// behavior. Use `str_cat_mayalias()` in that case.
-#define str_cat(self, strlike)          RK__str_cat(self, strlike)
+#define str_cat(self, strlike)          RKI_STR_CAT(self, strlike)
 
 /// @brief Like `str_cat()` but checks for overlap between `self` and `strlike`.
-#define str_cat_mayalias(self, strlike) RK__str_cat_mayalias(self, strlike)
+#define str_cat_mayalias(self, strlike) RKI_STR_CAT_MAYALIAS(self, strlike)
 
 /// @brief Like `str_cat()`, specialised on string literals. Avoids a runtime `strlen()` call via
 /// compile-time `sizeof()` and ensures a compile-time error if `strlit` is not a string literal.
@@ -6519,19 +6626,19 @@ static_fun Str* str_push_unchecked_raw(Str* restrict self, char c);
 /// @param fmt  A printf-style format string
 /// @param ...  Format arguments
 /// @return The updated string on success, or `NULL` on formatting error
-static_fun Str* str_cat_fmt(Str* self, const char* fmt, ...);
+rklib_fun Str* str_cat_fmt(Str* self, const char* fmt, ...);
 
 /// @brief Inserts a Stringlike into a Str, resizing the str if necessary.
 /// @return `self`, for chaining
 /// @attention Appending a substring of `self` to itself via this is undefined
-#define str_insert_at(self, idx, strlike)          RK__str_insert_at(self, idx, strlike)
+#define str_insert_at(self, idx, strlike)          RKI_STR_INSERT_AT(self, idx, strlike)
 
 /// @brief Like `str_insert_at()` but checks for pointer aliasing between self and strlike.
-#define str_insert_at_mayalias(self, idx, strlike) RK__str_insert_at_mayalias(self, idx, strlike)
+#define str_insert_at_mayalias(self, idx, strlike) RKI_STR_INSERT_AT_MAYALIAS(self, idx, strlike)
 
 /// @brief Pops the last character off the Str, decreasing its length and null-terminating it.
 /// @note Returns the `\0` if the Str is empty.
-static_fun char str_pop(Str* restrict self) {
+rklib_fun char str_pop(Str* restrict self) {
   if (self->len == 0) { return '\0'; }
   char tmp                    = self->str[--self->len];
   return self->str[self->len] = '\0', tmp;
@@ -6540,7 +6647,7 @@ static_fun char str_pop(Str* restrict self) {
 /// @brief Pops the last n character off the Str, decreasing its length and null-terminating it.
 /// @note no-op for size 0 strings. Popping more characters than the length of the Str is asserted
 /// in debug builds.
-static_fun void str_pop_n(Str* restrict self, size_t n) {
+rklib_fun void str_pop_n(Str* restrict self, size_t n) {
   if (!n) { return; }
   rk_assert(n <= self->len && "Attempted to pop more than Str length");
   self->len -= n, self->str[self->len] = '\0';
@@ -6550,14 +6657,14 @@ static_fun void str_pop_n(Str* restrict self, size_t n) {
 /// @param self The string to modify
 /// @param idx  The position of the character to remove. Must be < str->len
 /// @attention Passing an out-of-bounds index results in undefined behavior.
-static_fun Str* str_erase_at(Str* restrict self, size_t idx);
+rklib_fun Str* str_erase_at(Str* restrict self, size_t idx);
 
 /// @brief Removes `count` characters starting at `idx` from the string.
 /// @param self  The string to modify
 /// @param idx   The starting position of characters to erase
 /// @param count The number of characters to remove
 /// @attention Supplying an out-of-range index or count is undefined
-static_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
+rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 
 /// @brief Convenience Macro to erase all elements in `self` that satisfy a predicate.
 /// @param self        Str* The Str to loop over
@@ -6572,21 +6679,21 @@ static_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 /// ```
 #define str_erase_if(self, it, pred)                                                               \
   do {                                                                                             \
-    Str* RK__STR = self;                                                                           \
-    if (!RK__STR->str) { break; }                                                                  \
-    char*             RK__WRITE = RK__STR->str;                                                    \
-    const char* const RK__READ  = RK__STR->str;                                                    \
-    for (const char *RK__IT = RK__READ, *const RK__END = RK__READ + RK__STR->len;                  \
-         RK__IT < RK__END; ++RK__IT) {                                                             \
-      const char* const it = RK__IT;                                                               \
-      if (!(pred)) { *RK__WRITE++ = *RK__IT; }                                                     \
+    Str* RKI_STR = self;                                                                           \
+    if (!RKI_STR->str) { break; }                                                                  \
+    char*             RKI_WRITE = RKI_STR->str;                                                    \
+    const char* const RKI_READ  = RKI_STR->str;                                                    \
+    for (const char *RKI_IT = RKI_READ, *const RKI_END = RKI_READ + RKI_STR->len;                  \
+         RKI_IT < RKI_END; ++RKI_IT) {                                                             \
+      const char* const it = RKI_IT;                                                               \
+      if (!(pred)) { *RKI_WRITE++ = *RKI_IT; }                                                     \
     }                                                                                              \
-    RK__STR->len               = (size_t)(RK__WRITE - RK__STR->str);                               \
-    RK__STR->str[RK__STR->len] = '\0';                                                             \
+    RKI_STR->len               = (size_t)(RKI_WRITE - RKI_STR->str);                               \
+    RKI_STR->str[RKI_STR->len] = '\0';                                                             \
   } while (0)
 
 /// @brief Replaces all instances of `oldc` in `self` with `newc`.
-static_fun Str* str_replace(Str* restrict self, char oldc, char newc);
+rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc);
 
 /// @brief Replaces the character at position `pos` in `self` with `c`. Does not modify the `len`
 /// field, even if `c == '\0'`. This allows temporarily inserting a null terminator within the
@@ -6594,16 +6701,16 @@ static_fun Str* str_replace(Str* restrict self, char oldc, char newc);
 /// needing to modify the `len` field.
 /// @return The previously stored character at position `pos`
 /// @note Behaviour is undefined if `pos >= self->len`.
-static_fun char str_replace_at(Str* restrict self, size_t pos, char c);
+rklib_fun char str_replace_at(Str* restrict self, size_t pos, char c);
 
 /// @brief Converts all lowercase letters in `self` to uppercase.
-static_fun Str* str_to_upper(Str* restrict self);
+rklib_fun Str* str_to_upper(Str* restrict self);
 
 /// @brief Converts all uppercase letters in `self` to lowercase.
-static_fun Str* str_to_lower(Str* restrict self);
+rklib_fun Str* str_to_lower(Str* restrict self);
 
 /// @brief Reverses `self` in place.
-static_fun Str* str_reverse(Str* restrict self);
+rklib_fun Str* str_reverse(Str* restrict self);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name Strv Construction and View
@@ -6612,15 +6719,14 @@ static_fun Str* str_reverse(Str* restrict self);
 /// @brief Constructs a Strv from a string literal.
 #define strv_from_literal(strlit) {.str = strlit, .len = lenof(strlit)}
 
-static_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
+rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
   return (Strv){.str = str, .len = len};
 }
 /// @brief Constructs a Strv from a Stringlike.
-#define strv_from(strlike)              RK__strv_from(strlike)
+#define strv_from(strlike)              RKI_STRV_FROM(strlike)
 
-/// @brief Creates a Strv from a substring of a Stringlike. If `start > str_len(strlike)`, an empty
-/// view is returned. if `start + count > str_len(strlike)` is larger than length, the String from
-/// start to end is copied.
+/// @brief Returns a view over [start, min(end, len)). If start > len or end < start, returns an
+/// empty view.
 /// @param strlike The source Stringlike, by value
 /// @param start   The starting position of the substring
 /// @param end     The end position of the substring
@@ -6655,7 +6761,7 @@ static_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// while (v.len != STR_SPLIT_END) { buf[i++] = str_split(&v, ' '); }
 /// rk_assert(i == 4);
 /// ```
-#define str_split(strvptr, delims) RK__str_split(strvptr, delims)
+#define str_split(strvptr, delims) RKI_STR_SPLIT(strvptr, delims)
 
 /// @brief Tokenises the Stringlike without modifying the underlying data, allocating an array of
 /// Strv Objects.
@@ -6666,7 +6772,7 @@ static_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// `alloc_ctx` (or malloc_allocator, if `RK_CUSTOM_ALLOCATORS` == `0`)
 /// @return A Strv* to the array of tokens.
 #define str_split_alloc(strlike, delims, out_count, ...)                                           \
-  rk_overload(RK__STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
+  rk_overload(RKI_STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
 
 /// @brief Trims a Stringlike by adjusting both its starting and ending position past any leading
 /// and trailing space characters.
@@ -6704,161 +6810,162 @@ static_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// @param subs     A Stringlike, the needle
 /// @return A `(const) char*` to the first occurrence or a nullpointer if the substring is not
 /// found.
-#define str_find(strlike, subs)         RK__qcharptr(strlike, RK__str_find(strlike, subs))
+#define str_find(strlike, subs)         RKI_STR_QCHARPTR(strlike, RKI_STR_FIND(strlike, subs))
 
 /// @brief Finds the last occurrence of `subs` in `strlike`.
 /// @param strlike  A Stringlike, the haystack
 /// @param subs     A Stringlike, the needle
 /// @return A `(const) char*` to the last occurrence or a nullpointer if the substring is not found.
-#define str_findr(strlike, subs)        RK__qcharptr(strlike, RK__str_findr(strlike, subs))
+#define str_findr(strlike, subs)        RKI_STR_QCHARPTR(strlike, RKI_STR_FINDR(strlike, subs))
 
 /// @brief Checks whether a Stringlike contains another Stringlike.
 /// @param strlike  A Stringlike, the haystack
 /// @param subs     A Stringlike, the needle
 /// @return `true`, if strlike contains subs, `false` otherwise
-#define str_contains(strlike, subs)     RK__str_contains(strlike, subs)
+#define str_contains(strlike, subs)     RKI_STR_CONTAINS(strlike, subs)
 
 /// @brief Tests if a `pre` is a prefix of `strlike`.
 /// @param strlike A Stringlike, by value
 /// @param pre    The potential prefix of strlike
 /// @return `true` if pre is prefix of strlike, `false` otherwise
-#define str_starts_with(strlike, pre)   RK__str_starts_with(strlike, pre)
+#define str_starts_with(strlike, pre)   RKI_STR_STARTS_WITH(strlike, pre)
 
 /// @brief Tests if a `suf` is a suffix of `strlike`.
 /// @param strlike A Stringlike, by value
 /// @param suf  The potential suffix of strlike
 /// @return `true` if suf is suffix of strlike, `false` otherwise
-#define str_ends_with(strlike, suf)     RK__str_ends_with(strlike, suf)
+#define str_ends_with(strlike, suf)     RKI_STR_ENDS_WITH(strlike, suf)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__str_dat(_S)                                                                            \
+#define RKI_STR_DAT(_S)                                                                            \
   _Generic(_S,                                                                                     \
-      Str: (char*)RK__contrav(Str, _S).str,                                                        \
-      Strv: (const char*)RK__contrav(Strv, _S).str,                                                \
-      char*: (char*)RK__contrav_p(char*, _S),                                                      \
-      const char*: (const char*)RK__contrav_p(const char*, _S))
+      Str: (char*)RKI_contrav(Str, _S).str,                                                        \
+      Strv: (const char*)RKI_contrav(Strv, _S).str,                                                \
+      char*: (char*)RKI_contrav_p(char*, _S),                                                      \
+      const char*: (const char*)RKI_contrav_p(const char*, _S))
 
-#define RK__str_len(_S)                                                                            \
+#define RKI_STR_LEN(_S)                                                                            \
   ((size_t)_Generic(_S,                                                                            \
-       Str: RK__contrav(Str, _S).len,                                                              \
-       Strv: RK__contrav(Strv, _S).len,                                                            \
-       char*: strlen(RK__contrav_p(char*, _S)),                                                    \
-       const char*: strlen(RK__contrav_p(const char*, _S)),                                        \
+       Str: RKI_contrav(Str, _S).len,                                                              \
+       Strv: RKI_contrav(Strv, _S).len,                                                            \
+       char*: strlen(RKI_contrav_p(char*, _S)),                                                    \
+       const char*: strlen(RKI_contrav_p(const char*, _S)),                                        \
        int: 1,                                                                                     \
        char: 1))
 
 // conditionally cast away const (const is default)
-#define RK__qcharptr(_S, expr)                                                                     \
+#define RKI_STR_QCHARPTR(_S, expr)                                                                 \
   _Generic(_S, Str: (char*)(expr), Strv: expr, char*: (char*)(expr), const char*: expr)
 
-#define RK__strv_from(_S)                                                                          \
+#define RKI_STRV_FROM(_S)                                                                          \
   _Generic(_S,                                                                                     \
-      Str: RK__contrav(Str, _S).v,                                                                 \
-      Strv: RK__contrav(Strv, _S),                                                                 \
-      char*: strv_from_cstr(RK__contrav_p(char*, _S)),                                             \
-      const char*: strv_from_cstr(RK__contrav_p(const char*, _S)))
+      Str: RKI_contrav(Str, _S).v,                                                                 \
+      Strv: RKI_contrav(Strv, _S),                                                                 \
+      char*: strv_from_cstr(RKI_contrav_p(char*, _S)),                                             \
+      const char*: strv_from_cstr(RKI_contrav_p(const char*, _S)))
 
 // only to satisfy _Generic when the type cannot be int or char
-#define RK__strv_from_fallback(_S)                                                                 \
+#define RKI_STRV_FROM_FALLBACK(_S)                                                                 \
   _Generic(_S,                                                                                     \
-      Str: RK__contrav(Str, _S).v,                                                                 \
-      Strv: RK__contrav(Strv, _S),                                                                 \
-      char*: strv_from_cstr(RK__contrav_p(char*, _S)),                                             \
-      const char*: strv_from_cstr(RK__contrav_p(const char*, _S)),                                 \
+      Str: RKI_contrav(Str, _S).v,                                                                 \
+      Strv: RKI_contrav(Strv, _S),                                                                 \
+      char*: strv_from_cstr(RKI_contrav_p(char*, _S)),                                             \
+      const char*: strv_from_cstr(RKI_contrav_p(const char*, _S)),                                 \
       int: (Strv){rk_null, 0},                                                                     \
       char: (Strv){rk_null, 0})
 
-#define RK__IsCharLitLike(C, _if, _else)                                                           \
+#define RKI_ISCHARLITLIKE(C, _if, _else)                                                           \
   rk_static_if(_Generic(C, char: 1, int: 1, default: 0), _if, _else)
-#define RK__GetCharLitLike(_S) _Generic(_S, char: _S, int: _S, default: 0)
+#define RKI_GETCHARLITLIKE(_S) _Generic(_S, char: _S, int: _S, default: 0)
 
-#define RK__str_insert_at(self, idx, strlike)                                                      \
-  RK__IsCharLitLike(strlike, str_insert_at_char(self, idx, RK__GetCharLitLike(strlike)),           \
-                    str_insert_at_strv(self, idx, RK__strv_from_fallback(strlike)))
+#define RKI_STR_INSERT_AT(self, idx, strlike)                                                      \
+  RKI_ISCHARLITLIKE(strlike, str_insert_at_char(self, idx, RKI_GETCHARLITLIKE(strlike)),           \
+                    str_insert_at_strv(self, idx, RKI_STRV_FROM_FALLBACK(strlike)))
 
-#define RK__str_insert_at_mayalias(self, idx, strlike)                                             \
-  RK__IsCharLitLike(strlike, str_insert_at_char(self, idx, RK__GetCharLitLike(strlike)),           \
-                    str_insert_at_strv_mayalias(self, idx, RK__strv_from_fallback(strlike)))
+#define RKI_STR_INSERT_AT_MAYALIAS(self, idx, strlike)                                             \
+  RKI_ISCHARLITLIKE(strlike, str_insert_at_char(self, idx, RKI_GETCHARLITLIKE(strlike)),           \
+                    str_insert_at_strv_mayalias(self, idx, RKI_STRV_FROM_FALLBACK(strlike)))
 
-#define RK__str_split(strvptr, delims)                                                             \
-  RK__IsCharLitLike(delims, str_split_char(strvptr, RK__GetCharLitLike(delims)),                   \
-                    str_split_strv(strvptr, RK__strv_from_fallback(delims)))
+#define RKI_STR_SPLIT(strvptr, delims)                                                             \
+  RKI_ISCHARLITLIKE(delims, str_split_char(strvptr, RKI_GETCHARLITLIKE(delims)),                   \
+                    str_split_strv(strvptr, RKI_STRV_FROM_FALLBACK(delims)))
 
-#define RK__str_terminate(self, suffix)                                                            \
-  RK__IsCharLitLike(suffix, str_terminate_char(self, RK__GetCharLitLike(suffix)),                  \
-                    str_terminate_strv(self, RK__strv_from_fallback(suffix)))
+#define RKI_STR_TERMINATE(self, suffix)                                                            \
+  RKI_ISCHARLITLIKE(suffix, str_terminate_char(self, RKI_GETCHARLITLIKE(suffix)),                  \
+                    str_terminate_strv(self, RKI_STRV_FROM_FALLBACK(suffix)))
 
-#define RK__str_cat(self, strlike)                                                                 \
-  RK__IsCharLitLike(strlike, str_push(self, RK__GetCharLitLike(strlike)),                          \
+#define RKI_STR_CAT(self, strlike)                                                                 \
+  RKI_ISCHARLITLIKE(strlike, str_push(self, RKI_GETCHARLITLIKE(strlike)),                          \
                     str_cat_strv(self, strv_from(strlike)))
 
-#define RK__str_cat_mayalias(self, strlike)                                                        \
-  RK__IsCharLitLike(strlike, str_push(self, RK__GetCharLitLike(strlike)),                          \
+#define RKI_STR_CAT_MAYALIAS(self, strlike)                                                        \
+  RKI_ISCHARLITLIKE(strlike, str_push(self, RKI_GETCHARLITLIKE(strlike)),                          \
                     str_cat_strv_mayalias(self, strv_from(strlike)))
 
-#define RK__str_find(strlike, subs)                                                                \
-  RK__IsCharLitLike(subs, str_find_char(strv_from(strlike), RK__GetCharLitLike(subs)),             \
-                    str_find_strv(strv_from(strlike), RK__strv_from_fallback(subs)))
+#define RKI_STR_FIND(strlike, subs)                                                                \
+  RKI_ISCHARLITLIKE(subs, str_find_char(strv_from(strlike), RKI_GETCHARLITLIKE(subs)),             \
+                    str_find_strv(strv_from(strlike), RKI_STRV_FROM_FALLBACK(subs)))
 
-#define RK__str_findr(strlike, subs)                                                               \
-  RK__IsCharLitLike(subs, str_findr_char(strv_from(strlike), RK__GetCharLitLike(subs)),            \
-                    str_findr_strv(strv_from(strlike), RK__strv_from_fallback(subs)))
+#define RKI_STR_FINDR(strlike, subs)                                                               \
+  RKI_ISCHARLITLIKE(subs, str_findr_char(strv_from(strlike), RKI_GETCHARLITLIKE(subs)),            \
+                    str_findr_strv(strv_from(strlike), RKI_STRV_FROM_FALLBACK(subs)))
 
-#define RK__str_contains(strlike, subs)                                                            \
-  RK__IsCharLitLike(subs, str_contains_char(strv_from(strlike), RK__GetCharLitLike(subs)),         \
-                    str_contains_strv(strv_from(strlike), RK__strv_from_fallback(subs)))
+#define RKI_STR_CONTAINS(strlike, subs)                                                            \
+  RKI_ISCHARLITLIKE(subs, str_contains_char(strv_from(strlike), RKI_GETCHARLITLIKE(subs)),         \
+                    str_contains_strv(strv_from(strlike), RKI_STRV_FROM_FALLBACK(subs)))
 
-#define RK__str_starts_with(strlike, prefix)                                                       \
-  RK__IsCharLitLike(prefix, str_starts_with_char(strv_from(strlike), RK__GetCharLitLike(prefix)),  \
-                    str_starts_with_strv(strv_from(strlike), RK__strv_from_fallback(prefix)))
+#define RKI_STR_STARTS_WITH(strlike, prefix)                                                       \
+  RKI_ISCHARLITLIKE(prefix, str_starts_with_char(strv_from(strlike), RKI_GETCHARLITLIKE(prefix)),  \
+                    str_starts_with_strv(strv_from(strlike), RKI_STRV_FROM_FALLBACK(prefix)))
 
-#define RK__str_ends_with(strlike, prefix)                                                         \
-  RK__IsCharLitLike(prefix, str_ends_with_char(strv_from(strlike), RK__GetCharLitLike(prefix)),    \
-                    str_ends_with_strv(strv_from(strlike), RK__strv_from_fallback(prefix)))
+#define RKI_STR_ENDS_WITH(strlike, prefix)                                                         \
+  RKI_ISCHARLITLIKE(prefix, str_ends_with_char(strv_from(strlike), RKI_GETCHARLITLIKE(prefix)),    \
+                    str_ends_with_strv(strv_from(strlike), RKI_STRV_FROM_FALLBACK(prefix)))
 
-static_fun rk_pure Strv strv_from_cstr(const char* s) {
+rklib_fun rk_pure Strv strv_from_cstr(const char* s) {
   return (Strv){.str = s, .len = s ? strlen(s) : 0};
 }
 
-static_fun rk_const Strv strv_from_strv(Strv str) { return str; }
+rklib_fun rk_const Strv strv_from_strv(Strv str) { return str; }
 
-#define RK__STR_FROMLIT(a, alloc)  str_from_strv((Strv)strv_from_literal(a) RK_IFALLOC(, alloc))
-#define RK__STR_FROMLIT2(a, alloc) rk_disable_if(RK__STR_FROMLIT(a, alloc))
-#define RK__STR_FROMLIT1(a)        RK__STR_FROMLIT(a, alloc_ctx)
+#define RKI_STR_FROMLIT2(a, alloc)                                                                 \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(str_from_strv((Strv)strv_from_literal(a), alloc))
+#define RKI_STR_FROMLIT1(a) str_from_strv((Strv)strv_from_literal(a) RK_IFALLOC(, alloc_ctx))
 
-static_fun rk_const Strv strv_from_str(Str str) { return str.v; }
-static_fun rk_pure bool  str_equals_strv(Strv s1, Strv s2) {
+rklib_fun rk_const Strv strv_from_str(Str str) { return str.v; }
+rklib_fun rk_pure bool  str_equals_strv(Strv s1, Strv s2) {
   size_t mlen = rk_MIN(s1.len, s2.len);
   return s1.len == s2.len && !rk_memcmp(s1.str, s2.str, mlen);
 }
-static_fun rk_pure int str_compare_strv(Strv s1, Strv s2) {
+rklib_fun rk_pure int str_compare_strv(Strv s1, Strv s2) {
   size_t mlen = rk_MIN(s1.len, s2.len);
   int    res  = rk_memcmp(s1.str, s2.str, mlen);
   return res ? res : (s1.len < s2.len ? -1 : (s1.len > s2.len ? 1 : 0));
 }
 
-static_fun rk_pure bool str_starts_with_char(Strv sv, char c) { return sv.len && sv.str[0] == c; }
-static_fun rk_pure bool str_starts_with_strv(Strv sv, Strv pref) {
+rklib_fun rk_pure bool str_starts_with_char(Strv sv, char c) { return sv.len && sv.str[0] == c; }
+rklib_fun rk_pure bool str_starts_with_strv(Strv sv, Strv pref) {
   return pref.len <= sv.len && !rk_memcmp(sv.str, pref.str, pref.len);
 }
-static_fun rk_pure bool str_ends_with_char(Strv sv, char c) {
+rklib_fun rk_pure bool str_ends_with_char(Strv sv, char c) {
   return sv.len && sv.str[sv.len - 1] == c;
 }
 
-static_fun rk_pure bool str_ends_with_strv(Strv sv, Strv suf) {
+rklib_fun rk_pure bool str_ends_with_strv(Strv sv, Strv suf) {
   if (!suf.len) { return true; }
   return suf.len <= sv.len && !rk_memcmp(sv.str + sv.len - suf.len, suf.str, suf.len);
 }
 
-static_fun rk_pure const char* str_find_char(Strv sv, char c) {
+rklib_fun rk_pure const char* str_find_char(Strv sv, char c) {
   return sv.str ? (const char*)memchr(sv.str, (unsigned char)c, sv.len) : sv.str;
 }
 
-static_fun rk_pure const char* str_find_strv(Strv hs, Strv ne) {
+rklib_fun rk_pure const char* str_find_strv(Strv hs, Strv ne) {
   if (ne.len == 0) { return hs.str; }
   if (ne.len > hs.len) { return rk_null; }
   if (ne.len <= 3) {
@@ -6880,13 +6987,13 @@ static_fun rk_pure const char* str_find_strv(Strv hs, Strv ne) {
     return rk_null;
   }
 }
-static_fun rk_pure const char* str_findr_char(Strv sv, char c) {
+rklib_fun rk_pure const char* str_findr_char(Strv sv, char c) {
   while (sv.len--) {
     if (sv.str[sv.len] == c) { return sv.str + sv.len; }
   }
   return rk_null;
 }
-static_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
+rklib_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
   if (ne.len == 0) { return hs.str; }
   if (ne.len > hs.len) { return rk_null; }
   for (size_t i = hs.len - ne.len + 1, j; i-- > 0;) {
@@ -6898,14 +7005,14 @@ static_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
   return rk_null;
 }
 
-static_fun rk_pure bool str_contains_char(Strv sv, char c) {
+rklib_fun rk_pure bool str_contains_char(Strv sv, char c) {
   for (size_t i = 0; i < sv.len; ++i) {
     if (sv.str[i] == c) { return true; }
   }
   return false;
 }
 
-static_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
+rklib_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
   if (!s2.len) { return true; }
   for (size_t i = 0, j; i < s1.len && s1.len - i >= s2.len; ++i) {
     for (j = 0; j < s2.len; ++j) {
@@ -6916,52 +7023,50 @@ static_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
   return false;
 }
 
-static_fun Str RK__str_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun Str rki_str_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   cap       = stdc_bit_ceil(cap); // 1 if cap == 0 (-> space for terminator)
   char* str = alloc_new(char, cap RK_IFALLOC(, alloc));
   str[0]    = '\0';
   return (Str){.str = str, .len = 0, .cap = cap RK_IFALLOC(, .alloc = alloc)};
 }
-#define RK__STR_INIT(cap, alloc)  RK__str_init(cap RK_IFALLOC(, alloc))
-#define RK__STR_INIT2(cap, alloc) rk_disable_if(RK__STR_INIT(cap, alloc))
-#define RK__STR_INIT1(cap)        RK__STR_INIT(cap, alloc_ctx)
+#define RKI_STR_INIT2(cap, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_str_init(cap, alloc))
+#define RKI_STR_INIT1(cap)        rki_str_init(cap RK_IFALLOC(, alloc_ctx))
 
-static_fun void RK__str_change_cap(Str* restrict self, size_t new_cap) {
-  rk_set_alloc_fallback(self->alloc);
+rklib_fun void rki_str_change_cap(Str* restrict self, size_t new_cap) {
+  RKI_set_alloc_fallback(self->alloc);
   self->str = alloc_renew(self->str, self->cap, new_cap RK_IFALLOC(, self->alloc));
   self->cap = new_cap;
 }
-static_fun void RK__str_ensure_cap(Str* restrict self, size_t new_cap) {
-  if (new_cap > self->cap) { RK__str_change_cap(self, stdc_bit_ceil(new_cap)); }
+rklib_fun void rki_str_ensure_cap(Str* restrict self, size_t new_cap) {
+  if (new_cap > self->cap) { rki_str_change_cap(self, stdc_bit_ceil(new_cap)); }
 }
 
-static_fun rk_const const char* RK__str_front_ptr(Strv sv) {
+rklib_fun rk_const const char* rki_str_front_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access first element of empty string");
   return sv.str;
 }
 
-static_fun rk_const const char* RK__str_back_ptr(Strv sv) {
+rklib_fun rk_const const char* rki_str_back_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access last element of empty string");
   return sv.str + sv.len - 1;
 }
 
-static_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   size_t cap = stdc_bit_ceil(sv.len + 1);
   char*  str = alloc_new(char, cap RK_IFALLOC(, alloc));
   if (sv.len) { memcpy(str, sv.str, sv.len); }
   str[sv.len] = '\0';
   return (Str){.str = str, .len = sv.len, .cap = cap RK_IFALLOC(, .alloc = alloc)};
 }
-#define RK__STR_FROM(_S, alloc)  str_from_strv(strv_from(_S) RK_IFALLOC(, alloc))
-#define RK__STR_FROM2(_S, alloc) rk_disable_if(RK__STR_FROM(_S, alloc))
-#define RK__STR_FROM1(_S)                                                                          \
-  RK__STR_FROM(_S, RK_IFALLOC(_Generic(_S, Str: RK__contrav(Str, _S).alloc, default: alloc_ctx)))
+#define RKI_STR_FROM2(_S, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(str_from_strv(strv_from(_S), alloc))
+#define RKI_STR_FROM1(_S)                                                                          \
+  str_from_strv(strv_from(_S) RK_IFALLOC(                                                          \
+      , _Generic(_S, Str: RKI_contrav(Str, _S).alloc, default: alloc_ctx)))
 
-static_fun Str RK__str_join_strv_n(Strv* svs, size_t count,
-                                   Strv sep RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun Str rki_str_join_strv_n(Strv* svs, size_t count, Strv sep RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   Str res;
   res.len = 0;
   RK_IFALLOC(res.alloc = alloc;)
@@ -6979,22 +7084,19 @@ static_fun Str RK__str_join_strv_n(Strv* svs, size_t count,
   res.str[res.len] = '\0';
   return res;
 }
-// rk_disable_if
+#define RKI_STR_JOIN_STRV_N4(svs, count, sep, alloc)                                               \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_str_join_strv_n(svs, count, sep, alloc))
+#define RKI_STR_JOIN_STRV_N3(svs, count, sep)                                                      \
+  rki_str_join_strv_n(svs, count, sep RK_IFALLOC(, alloc_ctx))
 
-#define RK__STR_JOIN_STRV_N(svs, count, sep, alloc)                                                \
-  RK__str_join_strv_n(svs, count, sep RK_IFALLOC(, alloc))
-#define RK__STR_JOIN_STRV_N4(svs, count, sep, alloc)                                               \
-  rk_disable_if(RK__STR_JOIN_STRV_N(svs, count, sep, alloc))
-#define RK__STR_JOIN_STRV_N3(svs, count, sep) RK__STR_JOIN_STRV_N(svs, count, sep, alloc_ctx)
-
-static_fun Str* str_assign_strv(Str* restrict self, Strv sv) {
-  RK__str_ensure_cap(self, sv.len + 1);
+rklib_fun Str* str_assign_strv(Str* restrict self, Strv sv) {
+  rki_str_ensure_cap(self, sv.len + 1);
   if (sv.len) { memmove(self->str, sv.str, sv.len); }
   self->str[self->len = sv.len] = '\0';
   return self;
 }
 
-static_fun rk_const Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
+rklib_fun rk_const Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
   if (start > sv.len || end < start) {
     sv.len = 0;
   } else {
@@ -7004,41 +7106,41 @@ static_fun rk_const Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
   return sv;
 }
 
-static_fun Str* str_reserve(Str* restrict self, size_t new_cap) {
-  RK__str_ensure_cap(self, new_cap);
+rklib_fun Str* str_reserve(Str* restrict self, size_t new_cap) {
+  rki_str_ensure_cap(self, new_cap);
   return self;
 }
 
-static_fun Str* str_resize(Str* restrict self, size_t new_len) {
-  RK__str_ensure_cap(self, new_len + 1);
+rklib_fun Str* str_resize(Str* restrict self, size_t new_len) {
+  rki_str_ensure_cap(self, new_len + 1);
   return self->str[self->len = new_len] = '\0', self;
 }
 
-static_fun Str* str_shrink_to_fit(Str* restrict self) {
+rklib_fun Str* str_shrink_to_fit(Str* restrict self) {
   size_t new_cap = stdc_bit_ceil(self->len + 1);
-  if (self->cap > new_cap) { RK__str_change_cap(self, new_cap); }
+  if (self->cap > new_cap) { rki_str_change_cap(self, new_cap); }
   return self;
 }
-static_fun Str* str_shrink_to_fit_exact(Str* restrict self) {
-  if (self->cap > self->len + 1) { RK__str_change_cap(self, self->len + 1); }
+rklib_fun Str* str_shrink_to_fit_exact(Str* restrict self) {
+  if (self->cap > self->len + 1) { rki_str_change_cap(self, self->len + 1); }
   return self;
 }
 
-static_fun Str* str_cat_strv(Str* restrict self, Strv sv) {
+rklib_fun Str* str_cat_strv(Str* restrict self, Strv sv) {
   if (!sv.len) { return self; }
   size_t new_len = sv.len + self->len;
-  RK__str_ensure_cap(self, new_len + 1);
+  rki_str_ensure_cap(self, new_len + 1);
   memcpy(self->str + self->len, sv.str, sv.len);
   self->str[self->len = new_len] = '\0';
   return self;
 }
 
-static_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
+rklib_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
   if (!sv.len) { return self; }
   size_t new_len = sv.len + self->len;
   if (new_len + 1 > self->cap) {
     uptr sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
-    RK__str_ensure_cap(self, new_len + 1);
+    rki_str_ensure_cap(self, new_len + 1);
     if (cbeg >= sbeg && cbeg < send) {
       // offset of the char* into the str mem since a Str is not a
       // substring, char is always at higher address
@@ -7050,19 +7152,19 @@ static_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
   return self;
 }
 
-static_fun Str* str_insert_at_strv(Str* restrict self, size_t at, Strv sv) {
+rklib_fun Str* str_insert_at_strv(Str* restrict self, size_t at, Strv sv) {
   rk_assert(at <= self->len && "Attempted to insert of out Str bounds");
   if (!sv.len) { return self; }
   if (at == self->len) { return str_cat_strv(self, sv); }
   size_t new_len = sv.len + self->len;
-  RK__str_ensure_cap(self, new_len + 1);
+  rki_str_ensure_cap(self, new_len + 1);
   memmove(self->str + at + sv.len, self->str + at, self->len + 1 - at);
   memcpy(self->str + at, sv.str, sv.len);
   self->len = new_len;
   return self;
 }
 
-static_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv sv) {
+rklib_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv sv) {
   rk_assert(idx <= self->len && "Attempted to insert out of Str bounds");
   if (!sv.len) { return self; }
   if (idx == self->len) { return str_cat_strv_mayalias(self, sv); }
@@ -7070,18 +7172,18 @@ static_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv
   bool   alias = cbeg >= sbeg && cbeg < send;
   size_t new_len;
   if (alias) {
-    rk_set_alloc_fallback(self->alloc);
+    RKI_set_alloc_fallback(self->alloc);
     char* from = alloc_new(char, sv.len RK_IFALLOC(, self->alloc));
     memcpy(from, sv.str, sv.len);
     new_len = sv.len + self->len;
-    RK__str_ensure_cap(self, new_len + 1);
+    rki_str_ensure_cap(self, new_len + 1);
     memmove(self->str + idx + sv.len, self->str + idx, self->len + 1 - idx);
     memcpy(self->str + idx, from, sv.len);
     alloc_delete(from, sv.len RK_IFALLOC(, self->alloc));
   } else {
     const char* from = sv.str;
     new_len          = sv.len + self->len;
-    RK__str_ensure_cap(self, new_len + 1);
+    rki_str_ensure_cap(self, new_len + 1);
     memmove(self->str + idx + sv.len, self->str + idx, self->len + 1 - idx);
     memcpy(self->str + idx, from, sv.len);
   }
@@ -7089,60 +7191,60 @@ static_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv
   return self;
 }
 
-static_fun Str* str_insert_at_char(Str* restrict self, size_t at, char chr) {
+rklib_fun Str* str_insert_at_char(Str* restrict self, size_t at, char chr) {
   rk_assert(at <= self->len && "Attempted to insert out of Str bounds");
   if (at == self->len) { return str_push(self, chr); }
-  RK__str_ensure_cap(self, self->len + 2);
+  rki_str_ensure_cap(self, self->len + 2);
   memmove(self->str + at + 1, self->str + at, self->len + 1 - at);
   self->str[at] = chr;
   ++self->len;
   return self;
 }
 
-static_fun Str* str_null_terminate(Str* restrict self) {
-  RK__str_ensure_cap(self, self->len + 1);
+rklib_fun Str* str_null_terminate(Str* restrict self) {
+  rki_str_ensure_cap(self, self->len + 1);
   return str_null_terminate_unchecked(self);
 }
 
-static_fun Str* str_null_terminate_unchecked(Str* restrict self) {
+rklib_fun Str* str_null_terminate_unchecked(Str* restrict self) {
   rk_assert(self->cap > self->len && "Attempted to push beyond the capacity of the Str");
   return self->str[self->len] = '\0', self;
 }
 
-static_fun Str* str_terminate_char(Str* restrict self, char suf) {
+rklib_fun Str* str_terminate_char(Str* restrict self, char suf) {
   if (!str_ends_with_char(self->v, suf)) { str_push(self, suf); }
   return self;
 }
 
-static_fun Str* str_terminate_strv(Str* restrict self, Strv suf) {
+rklib_fun Str* str_terminate_strv(Str* restrict self, Strv suf) {
   if (!str_ends_with_strv(self->v, suf)) { str_cat_strv(self, suf); }
   return self;
 }
 
-static_fun Str* str_push(Str* restrict self, char c) {
-  RK__str_ensure_cap(self, self->len + 2);
+rklib_fun Str* str_push(Str* restrict self, char c) {
+  rki_str_ensure_cap(self, self->len + 2);
   return str_push_unchecked(self, c);
 }
-static_fun Str* str_push_unchecked(Str* restrict self, char c) {
+rklib_fun Str* str_push_unchecked(Str* restrict self, char c) {
   rk_assert(self->cap > self->len + 1 && "Attempted to push beyond the capacity of the Str");
   return self->str[self->len++] = c, str_null_terminate_unchecked(self);
 }
-static_fun Str* str_push_raw(Str* restrict self, char c) {
-  RK__str_ensure_cap(self, self->len + 1);
+rklib_fun Str* str_push_raw(Str* restrict self, char c) {
+  rki_str_ensure_cap(self, self->len + 1);
   return str_push_unchecked_raw(self, c);
 }
-static_fun Str* str_push_unchecked_raw(Str* restrict self, char c) {
+rklib_fun Str* str_push_unchecked_raw(Str* restrict self, char c) {
   rk_assert(self->cap > self->len && "Attempted to push beyond the capacity of the Str");
   return self->str[self->len++] = c, self;
 }
 
-static_fun Str* str_erase_at(Str* restrict self, size_t idx) {
+rklib_fun Str* str_erase_at(Str* restrict self, size_t idx) {
   rk_assert(idx < self->len && "Erase out of bounds");
   memmove(self->str + idx, self->str + idx + 1, self->len - idx);
   return --self->len, self;
 }
 
-static_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count) {
+rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count) {
   rk_assert(idx <= self->len && count <= self->len - idx && "Erase out of bounds");
   if (count) {
     memmove(self->str + idx, self->str + idx + count, self->len - idx - count + 1);
@@ -7151,20 +7253,20 @@ static_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count) {
   return self;
 }
 
-static_fun Str* str_replace(Str* restrict self, char oldc, char newc) {
+rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc) {
   for (size_t i = 0, len = self->len; i < len; ++i) {
     if (self->str[i] == oldc) { self->str[i] = newc; }
   }
   return self;
 }
 
-static_fun char str_replace_at(Str* restrict self, size_t pos, char c) {
+rklib_fun char str_replace_at(Str* restrict self, size_t pos, char c) {
   rk_assert(pos < self->len);
   rk_SWAP(c, self->str[pos]);
   return c;
 }
 
-static_fun Str* str_to_upper(Str* restrict self) {
+rklib_fun Str* str_to_upper(Str* restrict self) {
   char* s = self->str;
   for (size_t i = 0, len = self->len; i < len; ++i) {
     // The adjustment is always exactly 0 or 'a'-'A', so the result always
@@ -7173,39 +7275,39 @@ static_fun Str* str_to_upper(Str* restrict self) {
   }
   return self;
 }
-static_fun Str* str_to_lower(Str* restrict self) {
+rklib_fun Str* str_to_lower(Str* restrict self) {
   char* s = self->str;
   for (size_t i = 0, len = self->len; i < len; ++i) {
     s[i] = (char)(s[i] + (s[i] >= 'A' && s[i] <= 'Z') * ('a' - 'A'));
   }
   return self;
 }
-static_fun Str* str_reverse(Str* restrict self) {
+rklib_fun Str* str_reverse(Str* restrict self) {
   for (size_t i = 0, len = self->len; i < len / 2; ++i) {
     rk_SWAP(self->str[i], self->str[len - 1 - i]);
   }
   return self;
 }
 
-#define RK__STR_CHAR_ISSPACE(c) ((c) == ' ' || ((c) >= '\t' && (c) <= '\r'))
-static_fun rk_pure Strv str_trimmed_left_strv(Strv sv) {
+#define RKI_STR_CHAR_ISSPACE(c) ((c) == ' ' || ((c) >= '\t' && (c) <= '\r'))
+rklib_fun rk_pure Strv str_trimmed_left_strv(Strv sv) {
   size_t i = 0;
-  for (; i < sv.len && RK__STR_CHAR_ISSPACE(sv.str[i]); ++i);
+  for (; i < sv.len && RKI_STR_CHAR_ISSPACE(sv.str[i]); ++i);
   if (sv.str) { sv.str += i, sv.len -= i; }
   return sv;
 }
-static_fun rk_pure Strv str_trimmed_right_strv(Strv sv) {
-  for (; sv.len && RK__STR_CHAR_ISSPACE(sv.str[sv.len - 1]); --sv.len);
+rklib_fun rk_pure Strv str_trimmed_right_strv(Strv sv) {
+  for (; sv.len && RKI_STR_CHAR_ISSPACE(sv.str[sv.len - 1]); --sv.len);
   return sv;
 }
-static_fun rk_pure Strv str_trimmed_strv(Strv sv) {
+rklib_fun rk_pure Strv str_trimmed_strv(Strv sv) {
   return str_trimmed_right_strv(str_trimmed_left_strv(sv));
 }
-#undef RK__STR_CHAR_ISSPACE
+#undef RKI_STR_CHAR_ISSPACE
 
-static_fun Strv*(str_split_alloc)(Strv str, Strv dels,
-                                  size_t* restrict out_count RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun Strv*(str_split_alloc)(Strv str, Strv dels,
+                                 size_t* restrict out_count RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   typedef unsigned char uchar;
   uchar                 dbits[256] = {RK_ZINIT};
   for (size_t i = 0; i < dels.len; ++i) { dbits[(uchar)dels.str[i]] = 1; }
@@ -7223,14 +7325,12 @@ static_fun Strv*(str_split_alloc)(Strv str, Strv dels,
   *out_count   = count;
   return data;
 }
+#define RKI_STR_SPLIT_ALLOC4(str, delims, count, alloc)                                            \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(str_split_alloc(str, delims, count, alloc))
+#define RKI_STR_SPLIT_ALLOC3(str, delims, count)                                                   \
+  str_split_alloc(str, delims, count RK_IFALLOC(, alloc_ctx))
 
-#define RK__STR_SPLIT_ALLOC(str, delims, count, alloc)                                             \
-  str_split_alloc(str, delims, count RK_IFALLOC(, alloc))
-#define RK__STR_SPLIT_ALLOC4(str, delims, count, alloc)                                            \
-  rk_disable_if(RK__STR_SPLIT_ALLOC(str, delims, count, alloc))
-#define RK__STR_SPLIT_ALLOC3(str, delims, count) RK__STR_SPLIT_ALLOC(str, delims, count, alloc_ctx)
-
-static_fun Str* rk_attr_printf(2, 3) str_cat_fmt(Str* self, const char* fmt, ...) {
+rklib_fun Str* rk_attr_printf(2, 3) str_cat_fmt(Str* self, const char* fmt, ...) {
   size_t  len = self->len, rem = self->cap - len;
   va_list ap, ap_probe;
   va_start(ap, fmt), va_copy(ap_probe, ap);
@@ -7238,7 +7338,7 @@ static_fun Str* rk_attr_printf(2, 3) str_cat_fmt(Str* self, const char* fmt, ...
   va_end(ap_probe);
   if (n < 0) { return va_end(ap), rk_null; }
   if (rem < (size_t)n + 1) {
-    RK__str_ensure_cap(self, len + (size_t)n + 1);
+    rki_str_ensure_cap(self, len + (size_t)n + 1);
     n = vsnprintf(self->str + len, self->cap - len, fmt, ap);
     if (n < 0) { return va_end(ap), rk_null; }
   }
@@ -7246,7 +7346,7 @@ static_fun Str* rk_attr_printf(2, 3) str_cat_fmt(Str* self, const char* fmt, ...
   return va_end(ap), self;
 }
 
-static_fun Strv str_split_char(Strv* self, char delim) {
+rklib_fun Strv str_split_char(Strv* self, char delim) {
   Strv tok = {.str = self->str, .len = 0};
   if (!self->len) { return self->len = STR_SPLIT_END, tok; } // uses unsigned wraparound
   const char* p  = str_find_char(*self, delim);
@@ -7255,7 +7355,7 @@ static_fun Strv str_split_char(Strv* self, char delim) {
   self->len     -= tok.len + 1;
   return tok;
 }
-static_fun Strv str_split_strv(Strv* self, Strv dels) {
+rklib_fun Strv str_split_strv(Strv* self, Strv dels) {
   Strv tok = {.str = self->str, .len = 0};
   if (!self->len) { return self->len = STR_SPLIT_END, tok; }
   size_t i = 0;
@@ -7270,7 +7370,7 @@ static_fun Strv str_split_strv(Strv* self, Strv dels) {
 }
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_STRING_H
@@ -7332,13 +7432,13 @@ RK_HEADER_BEGIN
 /// this macro defines either a dynamic pool (`Pool(T)`) or a static/fixed pool (`Pool(T, C)`).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
-#define POOL_DEFINE(T, ...)     RK__STATOVERLOAD(RK__POOL_DEFINE, T, ##__VA_ARGS__)
+#define POOL_DEFINE(T, ...)     RKI_STATOVERLOAD(RKI_POOL_DEFINE, T, ##__VA_ARGS__)
 
 /// @brief Alias for the pool type (dynamic or static).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
 /// @note Static Pools take a second capacity parameter
-#define Pool(T, ...)            RK__STATOVERLOAD__(RK__POOL, T, ##__VA_ARGS__)
+#define Pool(T, ...)            RKI_STATOVERLOAD__(RKI_POOL, T, ##__VA_ARGS__)
 #define StaticPool(T, CAP)      Pool_##CAP##_##T
 #define DynPool(T)              Pool_##T
 
@@ -7348,7 +7448,7 @@ RK_HEADER_BEGIN
 /// @param cap Desired capacity
 /// @param alloc Optional allocator
 /// @return Initialized pool struct
-#define pool_init(T, _cap, ...) rk_overload(RK__DPOOL_INIT, T, _cap, ##__VA_ARGS__)
+#define pool_init(T, _cap, ...) rk_overload(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
 
 /// @brief Compile-time zero-initializer for a `Pool(T, C)` (`StaticPool`). Suitable for global and
 /// static variables. No memory is allocated.
@@ -7359,23 +7459,23 @@ RK_HEADER_BEGIN
 /// @brief `void pool_release(Pool(T, ...)* self)` - Releases the associated resources of the pool
 /// (if the pool is dynamic) and resets its members. For static pools, this resets the allocation
 /// bitset but does not modify the underlying element storage.
-#define pool_release(self)      ((void)RK__pool_release(self))
+#define pool_release(self)      ((void)RKI_POOL_RELEASE(self))
 
 /// @brief `size_t pool_cap(Pool(T, ...)* self)` - Returns the total capacity of the pool.
-#define pool_cap(self)          ((size_t)RK__pool_cap(self))
+#define pool_cap(self)          ((size_t)RKI_POOL_CAP(self))
 
 /// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns the Allocator the (dynamic) pool was
 /// constructed with, or `alloc_ctx` if the pool was never initialized or custom allocators are
 /// disabled.
-#define pool_allocator(self)    RK__allocatorof(self)
+#define pool_allocator(self)    RKI_allocatorof(self)
 
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
-#define pool_used(self)         ((size_t)RK__pool_used(self))
+#define pool_used(self)         ((size_t)RKI_POOL_USED(self))
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
-#define pool_remaining(self)    ((size_t)RK__pool_remaining(self))
+#define pool_remaining(self)    ((size_t)RKI_POOL_REMAINING(self))
 
 /// @brief Returns `true` iff the pool is empty.
 #define pool_is_empty(self)     ((bool)(pool_used(self) == 0))
@@ -7385,27 +7485,27 @@ RK_HEADER_BEGIN
 
 /// @brief `Pool(T)* pool_clear(Pool(T)* self)` - Marks all elements in the pool as reusable.
 /// @return `self`, for chaining
-#define pool_clear(self)        ((typeof(self))RK__pool_clear(self))
+#define pool_clear(self)        ((typeof(self))RKI_POOL_CLEAR(self))
 
 /// @brief `T* pool_new(Pool(T)* self)` - Allocates a new element in the pool.
 /// @return Pointer to the newly allocated element
-#define pool_new(self)          ((RK__poolT(self)*)RK__pool_new(self))
+#define pool_new(self)          ((RKI_POOL_T(self)*)RKI_POOL_NEW(self))
 
 /// @brief `T* pool_try_new(Pool(T)* self)` - Like `pool_new()`, but returns `NULL` if full instead
 /// of running `RK_POOL_FAIL()`.
-#define pool_try_new(self)      ((RK__poolT(self)*)RK__pool_try_new(self))
+#define pool_try_new(self)      ((RKI_POOL_T(self)*)RKI_POOL_TRY_NEW(self))
 
 /// @brief `T* pool_put(Pool(T)* self, T el)` - Allocates a new element and stores a copy of the
 /// value.
 /// @return Pointer to the inserted element
-#define pool_put(self, el)      ((RK__poolT(self)*)RK__pool_put(self, el))
+#define pool_put(self, el)      ((RKI_POOL_T(self)*)RKI_POOL_PUT(self, el))
 
 /// @brief `T* pool_try_put(Pool(T)* self, T el)` - Like `pool_put()`, but returns `NULL` if full
 /// instead of running `RK_POOL_FAIL()`.
-#define pool_try_put(self, el)  ((RK__poolT(self)*)RK__pool_try_put(self, el))
+#define pool_try_put(self, el)  ((RKI_POOL_T(self)*)RKI_POOL_TRY_PUT(self, el))
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.
-#define pool_delete(self, ptr)  ((void)RK__pool_delete(self, ptr))
+#define pool_delete(self, ptr)  ((void)RKI_POOL_DELETE(self, ptr))
 
 /// @brief `pool_foreach(Pool(T)* self, it)` - Iterates over all allocated elements in the pool.
 ///
@@ -7415,26 +7515,32 @@ RK_HEADER_BEGIN
 ///     printf("%d\n", *elem);
 /// }
 /// ```
-#define pool_foreach(self, it)  RK__pool_foreach(self, it)
+#define pool_foreach(self, it)                                                                     \
+  for (typeof(self) RKI__pool = (self); RKI__pool; RKI__pool = rk_null)                            \
+    for (size_t RKI__cap = pool_cap(RKI__pool), RKI__i = (size_t)-1;                               \
+         (RKI__i = bitset_find_next_set(RKI__pool->data, RKI__cap, RKI__i)) != (size_t)-1;)        \
+      for (RKI_POOL_T(RKI__pool)*const it = RKI_POOL_ELS(RKI__pool) + RKI__i, *RKI__once = it;     \
+           RKI__once; RKI__once = 0)
 
+#pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RK__POOL2               StaticPool
-#define RK__POOL_DEFINE2(T, C)                                                                     \
+#define RKI_POOL2 StaticPool
+#define RKI_POOL_DEFINE2(T, C)                                                                     \
   typedef struct StaticPool(T, C) {                                                                \
     bitset(C) data;                                                                                \
     union {                                                                                        \
       T els[C];                                                                                    \
-      T RK__POOL_ELS[C];                 /* only for _Generic, never read */                       \
+      T RKI_POOL_ELS[C];                 /* only for _Generic, never read */                       \
       union { char cap, els[1]; } _pool; /* only for _Generic, never read */                       \
     };                                                                                             \
   } StaticPool(T, C)
 
 /// @brief to allow for type-generic access of dynamic pools todo c++ UB union
-typedef struct RK__pool_dynamic {
+typedef struct RKI_DynPool {
   RK_IFALLOC(Allocator alloc;)
   bitset data;
   union {
@@ -7442,36 +7548,35 @@ typedef struct RK__pool_dynamic {
     char   _[1]; /* to make the two types layout compatible for c++*/
   };
   void* els;
-} RK__pool_dynamic;
+} RKI_DynPool;
 
-#define RK__POOL_DEFINE1(T)                                                                        \
+#define RKI_POOL_DEFINE1(T)                                                                        \
   typedef struct DynPool(T) {                                                                      \
     union {                                                                                        \
+      RKI_DynPool _pool;                                                                           \
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         bitset data;                                                                               \
         union {                                                                                    \
           size_t cap;             /* only for _Generic, never read */                              \
-          char   RK__POOL_ELS[1]; /* only for _Generic, never read */                              \
+          char   RKI_POOL_ELS[1]; /* only for _Generic, never read */                              \
         };                                                                                         \
         T* els;                                                                                    \
       };                                                                                           \
-      RK__pool_dynamic _pool;                                                                      \
     };                                                                                             \
     static_assert(sizeof(T*) == sizeof(void*) && alignof(T*) == alignof(void*));                   \
   } DynPool(T)
 
-#define RK__POOL1       DynPool
+#define RKI_POOL1        DynPool
 
-#define RK__poolT(self) typeof(*(self)->els)
+#define RKI_POOL_T(self) typeof(*(self)->els)
 
-#define RK__pool_dispatch(self, if_stat, if_dyn)                                                   \
+#define RKI_POOL_DISPATCH(self, if_stat, if_dyn)                                                   \
   rk_static_if(sizeof((self)->_pool) == 1, if_stat, if_dyn)
 
-static_fun rk_forceinline void* RK__Dpool_init(size_t elsize, size_t elalign,
-                                               RK__pool_dynamic* self,
-                                               size_t cap        RK_IFALLOC(, Allocator alloc)) {
-  rk_assert_allocator_valid(alloc);
+rklib_fun rk_forceinline void* rki_dpool_init(size_t elsize, size_t elalign, RKI_DynPool* self,
+                                              size_t cap RK_IFALLOC(, Allocator alloc)) {
+  RKI_assert_allocator_valid(alloc);
   self->cap = cap;
   RK_IFALLOC(self->alloc = alloc;)
   self->data
@@ -7479,105 +7584,105 @@ static_fun rk_forceinline void* RK__Dpool_init(size_t elsize, size_t elalign,
   self->els = alloc_allocate(rk_mult(elsize, cap), elalign RK_IFALLOC(, alloc));
   return self;
 }
-#define RK__DPOOL_INIT(T, _cap, _alloc)                                                            \
-  (*((Pool(T)*)RK__Dpool_init(sizeof(T), alignof(T), (RK__pool_dynamic*)((Pool(T)[1]){RK_ZINIT}),  \
+#define RKI_DPOOL_INIT(T, _cap, _alloc)                                                            \
+  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RK_ZINIT}),       \
                               _cap RK_IFALLOC(, _alloc))))
-#define RK__DPOOL_INIT3(T, _cap, _alloc) rk_disable_if(RK__DPOOL_INIT(T, _cap, _alloc))
-#define RK__DPOOL_INIT2(T, _cap)         RK__DPOOL_INIT(T, _cap, alloc_ctx)
+#define RKI_DPOOL_INIT3(T, _cap, _alloc)                                                           \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DPOOL_INIT(T, _cap, _alloc))
+#define RKI_DPOOL_INIT2(T, _cap) RKI_DPOOL_INIT(T, _cap, alloc_ctx)
 
-#define RK__pool_cap(self)                                                                         \
-  RK__pool_dispatch(self, ((void)(self), rk_COUNTOF((self)->RK__POOL_ELS)),                        \
+#define RKI_POOL_CAP(self)                                                                         \
+  RKI_POOL_DISPATCH(self, ((void)(self), rk_COUNTOF((self)->RKI_POOL_ELS)),                        \
                     (size_t)(self)->_pool.cap)
 
-static_fun rk_pure rk_forceinline size_t RK__Dpool_used(const RK__pool_dynamic* self) {
+rklib_fun rk_pure rk_forceinline size_t rki_dpool_used(const RKI_DynPool* self) {
   return bitset_count_ones(self->data, self->cap);
 }
 
-#define RK__pool_used(self)                                                                        \
-  RK__pool_dispatch(self, bitset_count_ones((self)->data, rk_COUNTOF((self)->RK__POOL_ELS)),       \
-                    RK__Dpool_used((RK__pool_dynamic*)&((self)->_pool)))
+#define RKI_POOL_USED(self)                                                                        \
+  RKI_POOL_DISPATCH(self, bitset_count_ones((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),       \
+                    rki_dpool_used((RKI_DynPool*)&((self)->_pool)))
 
-static_fun rk_pure rk_forceinline size_t RK__Dpool_remaining(const RK__pool_dynamic* self) {
+rklib_fun rk_pure rk_forceinline size_t rki_dpool_remaining(const RKI_DynPool* self) {
   return bitset_count_zeros(self->data, self->cap);
 }
-#define RK__pool_remaining(self)                                                                   \
-  RK__pool_dispatch(self, bitset_count_zeros((self)->data, rk_COUNTOF((self)->RK__POOL_ELS)),      \
-                    RK__Dpool_remaining((RK__pool_dynamic*)&((self)->_pool)))
+#define RKI_POOL_REMAINING(self)                                                                   \
+  RKI_POOL_DISPATCH(self, bitset_count_zeros((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),      \
+                    rki_dpool_remaining((RKI_DynPool*)&((self)->_pool)))
 
-static_fun rk_forceinline void* RK__Dpool_clear(RK__pool_dynamic* self) {
+rklib_fun rk_forceinline void* rki_dpool_clear(RKI_DynPool* self) {
   bitset_clear_all(self->data, self->cap);
   return self;
 }
-#define RK__pool_clear(self)                                                                       \
-  RK__pool_dispatch(self, bitset_clear_all((self)->data, rk_COUNTOF((self)->RK__POOL_ELS)),        \
-                    RK__Dpool_clear((RK__pool_dynamic*)&((self)->_pool)))
+#define RKI_POOL_CLEAR(self)                                                                       \
+  RKI_POOL_DISPATCH(self, bitset_clear_all((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),        \
+                    rki_dpool_clear((RKI_DynPool*)&((self)->_pool)))
 
-static_fun rk_forceinline void RK__Spool_delete(size_t elsize, size_t align, size_t cap, void* self,
-                                                void* ptr) {
+rklib_fun rk_forceinline void rki_spool_delete(size_t elsize, size_t align, size_t cap, void* self,
+                                               void* ptr) {
   bitset_clear((bitset)self, cap,
                (size_t)((size_t)((char*)ptr - ((char*)self + rk_align_up(bitset_bytes(cap), align)))
                         / elsize));
 }
-static_fun rk_forceinline void RK__Dpool_delete(size_t elsize, RK__pool_dynamic* self, void* ptr) {
+rklib_fun rk_forceinline void rki_dpool_delete(size_t elsize, RKI_DynPool* self, void* ptr) {
   bitset_clear(self->data, self->cap, (size_t)((size_t)((char*)ptr - (char*)self->els) / elsize));
 }
+#define RKI_POOL_DELETE(self, ptr)                                                                 \
+  RKI_POOL_DISPATCH(self,                                                                          \
+                    rki_spool_delete(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),              \
+                                     rk_COUNTOF((self)->RKI_POOL_ELS), self, ptr),                 \
+                    rki_dpool_delete(sizeof(*(self)->els), (RKI_DynPool*)&((self)->_pool), ptr))
 
-#define RK__pool_delete(self, ptr)                                                                 \
-  RK__pool_dispatch(                                                                               \
-      self,                                                                                        \
-      RK__Spool_delete(sizeof(*(self)->els), alignof(RK__poolT(self)),                             \
-                       rk_COUNTOF((self)->RK__POOL_ELS), self, ptr),                               \
-      RK__Dpool_delete(sizeof(*(self)->els), (RK__pool_dynamic*)&((self)->_pool), ptr))
-
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Spool_try_new(size_t elsize,
-                                                                           size_t align, size_t cap,
-                                                                           void* self) {
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_try_new(size_t elsize,
+                                                                          size_t align, size_t cap,
+                                                                          void* self) {
   size_t free_slot = bitset_first_trailing_zero((bitset)self, cap);
   if (!free_slot) { return rk_null; }
   bitset_set((bitset)self, cap, free_slot - 1);
   return (char*)self + rk_align_up(bitset_bytes(cap), align) + elsize * (free_slot - 1);
 }
 
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Spool_new(size_t elsize, size_t align,
-                                                                       size_t cap, void* self) {
-  void* res = RK__Spool_try_new(elsize, align, cap, self);
-  RK_POOL_FAIL(res, self, rk_null, align, elsize);
-  return res;
-}
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Dpool_try_new(size_t       elsize,
-                                                                           size_t align rk_unused,
-                                                                           RK__pool_dynamic* self) {
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_try_new(size_t       elsize,
+                                                                          size_t align rk_unused,
+                                                                          RKI_DynPool* self) {
   if (!self->cap) { return rk_null; }
   size_t free_slot = bitset_first_trailing_zero(self->data, self->cap);
   if (!free_slot) { return rk_null; }
   bitset_set(self->data, self->cap, free_slot - 1);
   return (char*)self->els + elsize * (free_slot - 1);
 }
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Dpool_new(size_t elsize, size_t align,
-                                                                       RK__pool_dynamic* self) {
-  void* res = RK__Dpool_try_new(elsize, align, self);
+
+#define RKI_POOL_TRY_NEW(self)                                                                     \
+  RKI_POOL_DISPATCH(self,                                                                          \
+                    rki_spool_try_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                                      rk_COUNTOF((self)->RKI_POOL_ELS), self),                     \
+                    rki_dpool_try_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                                      (RKI_DynPool*)&((self)->_pool)))
+
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_new(size_t elsize, size_t align,
+                                                                      size_t cap, void* self) {
+  void* res = rki_spool_try_new(elsize, align, cap, self);
+  RK_POOL_FAIL(res, self, rk_null, align, elsize);
+  return res;
+}
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_new(size_t elsize, size_t align,
+                                                                      RKI_DynPool* self) {
+  void* res = rki_dpool_try_new(elsize, align, self);
   RK_POOL_FAIL(res, self, rk_null, align, elsize);
   return res;
 }
 
-#define RK__pool_try_new(self)                                                                     \
-  RK__pool_dispatch(self,                                                                          \
-                    RK__Spool_try_new(sizeof(*(self)->els), alignof(RK__poolT(self)),              \
-                                      rk_COUNTOF((self)->RK__POOL_ELS), self),                     \
-                    RK__Dpool_try_new(sizeof(*(self)->els), alignof(RK__poolT(self)),              \
-                                      (RK__pool_dynamic*)&((self)->_pool)))
+#define RKI_POOL_NEW(self)                                                                         \
+  RKI_POOL_DISPATCH(self,                                                                          \
+                    rki_spool_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
+                                  rk_COUNTOF((self)->RKI_POOL_ELS), self),                         \
+                    rki_dpool_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
+                                  (RKI_DynPool*)&((self)->_pool)))
 
-#define RK__pool_new(self)                                                                         \
-  RK__pool_dispatch(self,                                                                          \
-                    RK__Spool_new(sizeof(*(self)->els), alignof(RK__poolT(self)),                  \
-                                  rk_COUNTOF((self)->RK__POOL_ELS), self),                         \
-                    RK__Dpool_new(sizeof(*(self)->els), alignof(RK__poolT(self)),                  \
-                                  (RK__pool_dynamic*)&((self)->_pool)))
-
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Spool_try_put(size_t elsize,
-                                                                           size_t align, size_t cap,
-                                                                           void* restrict self,
-                                                                           void* restrict obj) {
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_try_put(size_t elsize,
+                                                                          size_t align, size_t cap,
+                                                                          void* restrict self,
+                                                                          void* restrict obj) {
   bitset data      = (bitset)self;
   size_t free_slot = bitset_first_trailing_zero(data, cap);
   if (!free_slot) { return rk_null; }
@@ -7586,77 +7691,68 @@ static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Spool_try_put(size_
   rk_memcpy(ptr, obj, elsize);
   return ptr;
 }
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Spool_put(size_t elsize, size_t align,
-                                                                       size_t cap,
-                                                                       void* restrict self,
-                                                                       void* restrict obj) {
-  void* res = RK__Spool_try_put(elsize, align, cap, self, obj);
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_put(size_t elsize, size_t align,
+                                                                      size_t cap,
+                                                                      void* restrict self,
+                                                                      void* restrict obj) {
+  void* res = rki_spool_try_put(elsize, align, cap, self, obj);
   RK_POOL_FAIL(res, self, rk_null, align, elsize);
   return res;
 }
-static_fun rk_forceinline rk_alloc_alignsize(2, 1) void* RK__Dpool_try_put(
-    size_t elsize, size_t align rk_unused, RK__pool_dynamic* restrict self, void* restrict obj) {
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_try_put(
+    size_t elsize, size_t align rk_unused, RKI_DynPool* restrict self, void* restrict obj) {
   if (!self->cap) { return rk_null; }
   size_t free_slot = bitset_first_trailing_zero(self->data, self->cap);
   if (!free_slot) { return rk_null; }
   bitset_set(self->data, self->cap, free_slot - 1);
   return rk_memcpy((char*)self->els + elsize * (free_slot - 1), obj, elsize);
 }
-static_fun rk_forceinline rk_alloc_alignsize(2,
-                                             1) void* RK__Dpool_put(size_t elsize, size_t align,
-                                                                    RK__pool_dynamic* restrict self,
-                                                                    void* restrict obj) {
-  void* res = RK__Dpool_try_put(elsize, align, self, obj);
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t elsize, size_t align,
+                                                                      RKI_DynPool* restrict self,
+                                                                      void* restrict obj) {
+  void* res = rki_dpool_try_put(elsize, align, self, obj);
   RK_POOL_FAIL(res, self, rk_null, align, elsize);
   return res;
 }
-#define RK__pool_try_put(self, el)                                                                 \
-  RK__pool_dispatch(                                                                               \
-      self,                                                                                        \
-      RK__Spool_try_put(sizeof(*(self)->els), alignof(RK__poolT(self)),                            \
-                        rk_COUNTOF((self)->RK__POOL_ELS), self, (RK__poolT(self)[1]){el}),         \
-      RK__Dpool_try_put(sizeof(*(self)->els), alignof(RK__poolT(self)),                            \
-                        (RK__pool_dynamic*)&((self)->_pool), (RK__poolT(self)[1]){el}))
+#define RKI_POOL_TRY_PUT(self, el)                                                                 \
+  RKI_POOL_DISPATCH(self,                                                                          \
+                    rki_spool_try_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                                      rk_COUNTOF((self)->RKI_POOL_ELS), self,                      \
+                                      (RKI_POOL_T(self)[1]){el}),                                  \
+                    rki_dpool_try_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                                      (RKI_DynPool*)&((self)->_pool), (RKI_POOL_T(self)[1]){el}))
 
-#define RK__pool_put(self, el)                                                                     \
-  RK__pool_dispatch(self,                                                                          \
-                    RK__Spool_put(sizeof(*(self)->els), alignof(RK__poolT(self)),                  \
-                                  rk_COUNTOF((self)->RK__POOL_ELS), self,                          \
-                                  (RK__poolT(self)[1]){el}),                                       \
-                    RK__Dpool_put(sizeof(*(self)->els), alignof(RK__poolT(self)),                  \
-                                  (RK__pool_dynamic*)&((self)->_pool), (RK__poolT(self)[1]){el}))
+#define RKI_POOL_PUT(self, el)                                                                     \
+  RKI_POOL_DISPATCH(self,                                                                          \
+                    rki_spool_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
+                                  rk_COUNTOF((self)->RKI_POOL_ELS), self,                          \
+                                  (RKI_POOL_T(self)[1]){el}),                                      \
+                    rki_dpool_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
+                                  (RKI_DynPool*)&((self)->_pool), (RKI_POOL_T(self)[1]){el}))
 
-static_fun rk_forceinline void RK__Dpool_release(size_t elsize, size_t align,
-                                                 RK__pool_dynamic* self) {
+rklib_fun rk_forceinline void rki_dpool_release(size_t elsize, size_t align, RKI_DynPool* self) {
   if (!self->cap) { return; }
   alloc_deallocate(self->els, rk_mult(elsize, self->cap), align RK_IFALLOC(, self->alloc));
   alloc_delete(self->data, bitset_words(self->cap) RK_IFALLOC(, self->alloc));
   self->cap = 0, self->data = rk_null, self->els = rk_null;
 }
 
-#define RK__pool_release(self)                                                                     \
-  RK__pool_dispatch(self, (void)bitset_clear_all((self)->data, rk_COUNTOF((self)->RK__POOL_ELS)),  \
-                    RK__Dpool_release(sizeof(*(self)->els), alignof(RK__poolT(self)),              \
-                                      (RK__pool_dynamic*)&((self)->_pool)))
+#define RKI_POOL_RELEASE(self)                                                                     \
+  RKI_POOL_DISPATCH(self, (void)bitset_clear_all((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),  \
+                    rki_dpool_release(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                                      (RKI_DynPool*)&((self)->_pool)))
 
 /// to prevent inactive union member access in c++
-#define RK__pool_els(self) RK__pool_dispatch(self, (self)->els, (RK__poolT(self)*)(self)->_pool.els)
+#define RKI_POOL_ELS(self)                                                                         \
+  RKI_POOL_DISPATCH(self, (self)->els, (RKI_POOL_T(self)*)(self)->_pool.els)
 
-#define RK__pool_foreach(self, it)                                                                 \
-  for (typeof(self) RK___pool = (self); RK___pool; RK___pool = rk_null)                            \
-    for (size_t RK___cap = pool_cap(RK___pool), RK___i = (size_t)-1;                               \
-         (RK___i = bitset_find_next_set(RK___pool->data, RK___cap, RK___i)) != (size_t)-1;)        \
-      for (RK__poolT(RK___pool)*const it = RK__pool_els(RK___pool) + RK___i, *RK___once = it;      \
-           RK___once; RK___once = 0)
-
-#define RK__STATOVERLOAD__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
-#define RK__STATOVERLOAD(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_STATOVERLOAD__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_STATOVERLOAD(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 
 /// @endcond
-
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
-
 #endif // RK_POOL_H
 
 // MIT License
@@ -7772,7 +7868,7 @@ RK_HEADER_END
 /// - `0x00–0x7F`: occupied — value is the 7-bit fingerprint (top 7 bits of the hash). Fingerprints
 ///   let the probe loop skip non-matching slots without a full key comparison.
 ///
-/// @note On insert, if `(count + ndeleted + 1) * RK_DICT_LOAD_DEN > cap * RK_DICT_LOAD_NUM`, the
+/// @note On insert, if `(count + ndeleted + 1) * RKI_DICT_LOAD_DEN > cap * RKI_DICT_LOAD_NUM`, the
 /// table doubles in capacity (when live entries are dense) or rehashes to the same capacity to
 /// flush accumulated tombstones.
 ///
@@ -7796,7 +7892,7 @@ RK_HEADER_BEGIN
 /// @param hash_f Hash function (`hash_t hash_f(key_t key)`)
 /// @param cmp_f  Comparison function (`bool cmp_f(key_t a, key_t b)`)
 /// @attention `cmp_f` must return 0/false if the two elements are equal
-#define DICT_DEFINE(key_t, val_t, hash_f, cmp_f) RK__DICT_DEF(key_t, val_t, hash_f, cmp_f)
+#define DICT_DEFINE(key_t, val_t, hash_f, cmp_f) RKI_DICT_DEF(key_t, val_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific dict struct name.
 #define Dict(K, V)                               Dict_##K##_##V
@@ -7815,10 +7911,10 @@ RK_HEADER_BEGIN
 /// Dict(int, cstr) tab =  dict_init(int, cstr, 10, alloc);
 /// ```
 /// @return An initialised Dict
-#define dict_init(K, V, cap, ...)              rk_overload(RK__DICT_INIT, K, V, cap, ##__VA_ARGS__)
+#define dict_init(K, V, cap, ...)              rk_overload(RKI_DICT_INIT, K, V, cap, ##__VA_ARGS__)
 
 /// @brief `void dict_release(K, V, Dict(K, V)* self)` - Frees the underlying memory of the Dict.
-#define dict_release(K, V, self)               RK__DICT_PUB(K, V, release)(self)
+#define dict_release(K, V, self)               RKI_DICT_PUB(K, V, release)(self)
 
 /// @brief `size_t dict_count(Dict(K, V)* self)` - Returns the number of live key-value pairs stored
 /// in the Dict.
@@ -7831,7 +7927,7 @@ RK_HEADER_BEGIN
 /// @brief `Allocator dict_allocator(Dict(K, V)* self)` - Returns the Allocator the Dict was
 /// constructed with, or `alloc_ctx` if the Dict was never initialized or custom allocators are
 /// disabled.
-#define dict_allocator(self)                   RK__allocatorof(self)
+#define dict_allocator(self)                   RKI_allocatorof(self)
 
 /// @brief `bool dict_is_empty(Dict(K, V)* self)` - Returns `true` iff the dict contains no
 /// elements.
@@ -7839,57 +7935,58 @@ RK_HEADER_BEGIN
 
 /// @brief `float dict_load_factor(Dict(K, V)* self)` - Returns the current load factor (live
 /// entries / capacity). Rehash is triggered when the combined live-and-tombstone load exceeds
-/// `RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN`.
-#define dict_load_factor(self)                 ((float)RK__ds_load_factor(&(self)->hdr))
+/// `RKI_DICT_LOAD_NUM / RKI_DICT_LOAD_DEN`.
+#define dict_load_factor(self)                 ((float)rki_ds_load_factor(&(self)->hdr))
 
 /// @brief `Dict(K, V)* dict_clear(K, V, Dict(K, V)* self)` - Marks all slots in the Dict as free,
 /// allowing reuse of its memory.
 /// @return `self`, for chaining.
-#define dict_clear(K, V, self)                 RK__DICT_PUB(K, V, clear)(self)
+#define dict_clear(K, V, self)                 RKI_DICT_PUB(K, V, clear)(self)
 
 /// @brief `Dict(K, V)* dict_reserve(K, V, Dict(K, V)* self, size_t n)` - Reserves and rehashes the
 /// Dict so that it can hold at least `n` live entries without triggering another automatic rehash.
 /// @return `self`, for chaining.
 /// @note `n` counts live entries, not table slots — the underlying table capacity (see
-/// `dict_cap`) is sized up to account for the load factor (`RK_DICT_LOAD_NUM`/`RK_DICT_LOAD_DEN`).
-#define dict_reserve(K, V, self, n)            RK__DICT_PUB(K, V, reserve)(self, n)
+/// `dict_cap`) is sized up to account for the load factor
+/// (`RKI_DICT_LOAD_NUM`/`RKI_DICT_LOAD_DEN`).
+#define dict_reserve(K, V, self, n)            RKI_DICT_PUB(K, V, reserve)(self, n)
 
 /// @brief `Dict(K, V)* dict_shrink_to_fit(K, V, Dict(K, V)* self)` - Rehashes the Dict down to the
 /// smallest table capacity that still keeps its live entries under the load factor threshold
-/// (`RK_DICT_LOAD_NUM`/`RK_DICT_LOAD_DEN`), also clearing any accumulated tombstones.
+/// (`RKI_DICT_LOAD_NUM`/`RKI_DICT_LOAD_DEN`), also clearing any accumulated tombstones.
 /// @return `self`, for chaining.
 /// @note Frees the table entirely if the Dict is empty. A no-op if already at or below the target
 /// capacity.
-#define dict_shrink_to_fit(K, V, self)         RK__DICT_PUB(K, V, shrink_to_fit)(self)
+#define dict_shrink_to_fit(K, V, self)         RKI_DICT_PUB(K, V, shrink_to_fit)(self)
 
 /// @brief `Dict(K, V)* dict_assign(K, V, Dict(K, V)* self, const K* keys, const V* vals, size_t n)`
 /// - Replaces the Dict's contents with `n` key-value pairs from the parallel `keys`/`vals` arrays,
 /// reusing the existing table (growing it if necessary) rather than allocating a new one.
 /// @return `self`, for chaining.
-#define dict_assign(K, V, self, keys, vals, n) RK__DICT_PUB(K, V, assign)(self, keys, vals, n)
+#define dict_assign(K, V, self, keys, vals, n) RKI_DICT_PUB(K, V, assign)(self, keys, vals, n)
 
 /// @brief Retrieves the value for `key`, or `NULL` if absent. Returns `V*` for a mutable Dict
 /// and `const V*` for a const Dict.
 #define dict_get(K, V, self, key)                                                                  \
   _Generic((self),                                                                                 \
-      const Dict(K, V)*: RK__DICT_PUB(K, V, get_const),                                            \
-      default: RK__DICT_PUB(K, V, get))((self), (key))
+      const Dict(K, V)*: RKI_DICT_PUB(K, V, get_const),                                            \
+      default: RKI_DICT_PUB(K, V, get))((self), (key))
 
 /// @brief `bool dict_contains(K, V, const Dict(K, V)* self, K key)` - Checks whether the given key
 /// is present in the Dict.
 /// @return `true` if `self` contains the key, `false` otherwise
-#define dict_contains(K, V, self, key) RK__DICT_PUB(K, V, contains)(self, key)
+#define dict_contains(K, V, self, key) RKI_DICT_PUB(K, V, contains)(self, key)
 
 /// @brief `bool dict_set(K, V, Dict(K, V)* self, K key, V val)` - Sets the value at `key` in the
 /// Dict to `val`, updating it if it is present or inserting a new one if not; resizes the Dict if
 /// necessary.
 /// @return `true` if inserted, `false` if updated
-#define dict_set(K, V, self, key, val) RK__DICT_PUB(K, V, set)(self, key, val)
+#define dict_set(K, V, self, key, val) RKI_DICT_PUB(K, V, set)(self, key, val)
 
 /// @brief `V* dict_add(K, V, Dict(K, V)* self, K key, V val)` - Inserts a value into the Dict only
 /// if the key is not already present; resizes the Dict if necessary.
 /// @return Pointer to the inserted value, or `NULL` if the key already existed
-#define dict_add(K, V, self, key, val) RK__DICT_PUB(K, V, add)(self, key, val)
+#define dict_add(K, V, self, key, val) RKI_DICT_PUB(K, V, add)(self, key, val)
 
 /// @brief `V* dict_get_or_add(K, V, Dict(K, V)* self, K key, V default_value, bool* inserted_out)`
 /// - Returns a pointer to the value associated with `key`, inserting `default_value` first if the
@@ -7899,18 +7996,18 @@ RK_HEADER_BEGIN
 /// key already existed. May be `NULL` if this information is not needed.
 /// @return Pointer to the value associated with `key`; never `NULL`.
 #define dict_get_or_add(K, V, self, key, default_value, inserted_out)                              \
-  RK__DICT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
+  RKI_DICT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool dict_extract(K, V, Dict(K, V)* self, K key, V* out_ptr)` - Removes a key from the
 /// Dict and stores the value in `out_ptr`.
 /// @param out_ptr Non-null pointer; where the removed value should be written if found.
 /// @return `true` if key was found and removed, `false` otherwise
-#define dict_extract(K, V, self, key, out_ptr) RK__DICT_PUB(K, V, extract)(self, key, out_ptr)
+#define dict_extract(K, V, self, key, out_ptr) RKI_DICT_PUB(K, V, extract)(self, key, out_ptr)
 
 /// @brief `bool dict_remove(K, V, Dict(K, V)* self, K key)` - Removes a key from the Dict if it is
 /// present.
 /// @return `true` if the value was found and removed, `false` otherwise
-#define dict_remove(K, V, self, key)           RK__DICT_PUB(K, V, remove)(self, key)
+#define dict_remove(K, V, self, key)           RKI_DICT_PUB(K, V, remove)(self, key)
 
 /// @brief Iterates over all key-value pairs in the Dict, skipping empty slots.
 /// @param self     Pointer to the Dict to iterate over
@@ -7927,16 +8024,16 @@ RK_HEADER_BEGIN
 /// @warning Adding or removing values via this macro leads to incorrect iteration.
 /// @note Iteration skips empty slots in the underlying storage.
 #define dict_foreach(self, _key, _val)                                                             \
-  for (typeof(self) RK___dict = (self); RK___dict; RK___dict = rk_null)                            \
-    for (size_t RK___c = RK___dict->cap, RK___i = 0; RK___i < RK___c; ++RK___i)                    \
-      for (const typeof(*(RK___dict->keys))*const _key                                             \
-           = !RK__DS_SLOT_EMPTY_OR_DELETED(RK___dict->data[RK___i]) ? &(RK___dict->keys[RK___i])   \
+  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
+    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
+      for (const typeof(*(RKI__dict->keys))*const _key                                             \
+           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->keys[RKI__i])   \
                                                                     : rk_null,                     \
-           *RK__ONCE          = _key;                                                              \
-           RK__ONCE; RK__ONCE = 0)                                                                 \
-        for (typeof(*RK__DICT_VALUE_PTR(RK___dict))*const _val       = &(RK___dict->vals[RK___i]), \
-                                                          *RK__ONCE1 = _val;                       \
-             RK__ONCE1; RK__ONCE1                                    = 0)
+           *RKI_ONCE          = _key;                                                              \
+           RKI_ONCE; RKI_ONCE = 0)                                                                 \
+        for (typeof(*RKI_DICT_VALUE_PTR(RKI__dict))*const _val       = &(RKI__dict->vals[RKI__i]), \
+                                                          *RKI_ONCE1 = _val;                       \
+             RKI_ONCE1; RKI_ONCE1                                    = 0)
 
 /// @brief Iterates over all keys in the Dict, skipping empty and deleted slots.
 /// @param self  Pointer to the Dict to iterate over
@@ -7950,13 +8047,13 @@ RK_HEADER_BEGIN
 /// ```
 /// @warning Adding or removing values during iteration leads to incorrect behaviour.
 #define dict_foreach_key(self, _key)                                                               \
-  for (typeof(self) RK___dict = (self); RK___dict; RK___dict = rk_null)                            \
-    for (size_t RK___c = RK___dict->cap, RK___i = 0; RK___i < RK___c; ++RK___i)                    \
-      for (const typeof(*(RK___dict->keys))*const _key                                             \
-           = !RK__DS_SLOT_EMPTY_OR_DELETED(RK___dict->data[RK___i]) ? &(RK___dict->keys[RK___i])   \
+  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
+    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
+      for (const typeof(*(RKI__dict->keys))*const _key                                             \
+           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->keys[RKI__i])   \
                                                                     : rk_null,                     \
-           *RK__ONCE          = _key;                                                              \
-           RK__ONCE; RK__ONCE = 0)
+           *RKI_ONCE          = _key;                                                              \
+           RKI_ONCE; RKI_ONCE = 0)
 
 /// @brief Iterates over all values in the Dict, skipping empty and deleted slots.
 /// @param self  Pointer to the Dict to iterate over
@@ -7971,13 +8068,13 @@ RK_HEADER_BEGIN
 /// ```
 /// @warning Adding or removing values during iteration leads to incorrect behaviour.
 #define dict_foreach_val(self, _val)                                                               \
-  for (typeof(self) RK___dict = (self); RK___dict; RK___dict = rk_null)                            \
-    for (size_t RK___c = RK___dict->cap, RK___i = 0; RK___i < RK___c; ++RK___i)                    \
-      for (typeof(*RK__DICT_VALUE_PTR(RK___dict))*const _val                                       \
-           = !RK__DS_SLOT_EMPTY_OR_DELETED(RK___dict->data[RK___i]) ? &(RK___dict->vals[RK___i])   \
+  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
+    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
+      for (typeof(*RKI_DICT_VALUE_PTR(RKI__dict))*const _val                                       \
+           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->vals[RKI__i])   \
                                                                     : rk_null,                     \
-           *RK__ONCE          = _val;                                                              \
-           RK__ONCE; RK__ONCE = 0)
+           *RKI_ONCE          = _val;                                                              \
+           RKI_ONCE; RKI_ONCE = 0)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name Set Interface
@@ -7988,7 +8085,7 @@ RK_HEADER_BEGIN
 /// @param hash_f Hash function (`hash_t hash_f(key_t key)`)
 /// @param cmp_f  Comparison function (`bool cmp_f(key_t a, key_t b)`)
 /// @attention `cmp_f` must return 0/false if the two elements are equal
-#define SET_DEFINE(key_t, hash_f, cmp_f) RK__SET_DEF(key_t, hash_f, cmp_f)
+#define SET_DEFINE(key_t, hash_f, cmp_f) RKI_SET_DEF(key_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific set struct name.
 #define Set(K)                           Set_##K
@@ -8005,10 +8102,10 @@ RK_HEADER_BEGIN
 /// Set(int) tab = set_init(int, 10, alloc);
 /// ```
 /// @return An initialised Set
-#define set_init(K, cap, ...)            rk_overload(RK__SET_INIT, K, cap, ##__VA_ARGS__)
+#define set_init(K, cap, ...)            rk_overload(RKI_SET_INIT, K, cap, ##__VA_ARGS__)
 
 /// @brief `void set_release(K, Set(K)* self)` - Frees the underlying memory of the Set.
-#define set_release(K, self)             RK__SET_PUB(K, release)(self)
+#define set_release(K, self)             RKI_SET_PUB(K, release)(self)
 
 /// @brief `size_t set_count(Set(K)* self)` - Returns the number of live keys in the Set.
 #define set_count(self)                  ((size_t)((self)->count))
@@ -8019,51 +8116,51 @@ RK_HEADER_BEGIN
 
 /// @brief `Allocator set_allocator(Set(K)* self)` - Returns the Allocator the Set was constructed
 /// with, or `alloc_ctx` if the Set was never initialized or custom allocators are disabled.
-#define set_allocator(self)              RK__allocatorof(self)
+#define set_allocator(self)              RKI_allocatorof(self)
 
 /// @brief `bool set_is_empty(Set(K)* self)` - Returns `true` iff the set contains no elements.
 #define set_is_empty(self)               ((bool)(set_count(self) == 0))
 
 /// @brief `float set_load_factor(Set(K)* self)` - Returns the current load factor (live entries /
 /// capacity). See `dict_load_factor()`.
-#define set_load_factor(self)            ((float)RK__ds_load_factor(&(self)->hdr))
+#define set_load_factor(self)            ((float)rki_ds_load_factor(&(self)->hdr))
 
 /// @brief `Set(K)* set_clear(K, Set(K)* self)` - Marks all slots in the Set as free, allowing reuse
 /// of its memory.
 /// @return `self`, for chaining.
-#define set_clear(K, self)               RK__SET_PUB(K, clear)(self)
+#define set_clear(K, self)               RKI_SET_PUB(K, clear)(self)
 
 /// @brief `Set(K)* set_reserve(K, Set(K)* self, size_t n)` - Reserves and rehashes the Set so that
 /// it can hold at least `n` live entries without triggering another automatic rehash. See
 /// `dict_reserve()`.
 /// @return `self`, for chaining.
-#define set_reserve(K, self, n)          RK__SET_PUB(K, reserve)(self, n)
+#define set_reserve(K, self, n)          RKI_SET_PUB(K, reserve)(self, n)
 
 /// @brief `Set(K)* set_shrink_to_fit(K, Set(K)* self)` - Rehashes the Set down to the smallest
 /// table capacity that still keeps its live entries under the load factor threshold. See
 /// `dict_shrink_to_fit()`.
 /// @return `self`, for chaining.
-#define set_shrink_to_fit(K, self)       RK__SET_PUB(K, shrink_to_fit)(self)
+#define set_shrink_to_fit(K, self)       RKI_SET_PUB(K, shrink_to_fit)(self)
 
 /// @brief `Set(K)* set_assign(K, Set(K)* self, const K* keys, size_t n)` - Replaces the Set's
 /// contents with `n` keys from `keys`, reusing the existing table (growing it if necessary) rather
 /// than allocating a new one.
 /// @return `self`, for chaining.
-#define set_assign(K, self, keys, n)     RK__SET_PUB(K, assign)(self, keys, n)
+#define set_assign(K, self, keys, n)     RKI_SET_PUB(K, assign)(self, keys, n)
 
 /// @brief `bool set_contains(K, const Set(K)* self, K key)`
 /// - Checks whether the given key is present in the Set.
 /// @return `true` if `self` contains the key, `false` otherwise
-#define set_contains(K, self, key)       RK__SET_PUB(K, contains)(self, key)
+#define set_contains(K, self, key)       RKI_SET_PUB(K, contains)(self, key)
 
 /// @brief `bool set_add(K, Set(K)* self, K key)` - Ensures a key is present in a set; resizes the
 /// Set if necessary.
 /// @return `true` if the key was inserted, `false` if it was already present.
-#define set_add(K, self, key)            RK__SET_PUB(K, add)(self, key)
+#define set_add(K, self, key)            RKI_SET_PUB(K, add)(self, key)
 
 /// @brief `bool set_remove(K, Set(K)* self, K key)` - Removes a key from the Set if it is present.
 /// @return `true` if the value was found and removed, `false` otherwise
-#define set_remove(K, self, key)         RK__SET_PUB(K, remove)(self, key)
+#define set_remove(K, self, key)         RKI_SET_PUB(K, remove)(self, key)
 
 /// @brief Iterates over all keys in the Set, skipping empty slots.
 /// @param self     Pointer to the Set to iterate over
@@ -8084,70 +8181,76 @@ RK_HEADER_BEGIN
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
+#define RKI_DICT_LOAD_NUM                3
+#define RKI_DICT_LOAD_DEN                4
+
 // `vals` remains a mutable pointer when the Dict object is const. Propagate the
 // container's constness to the pointers exposed during iteration.
-#define RK__DICT_VALUE_PTR(self)                                                                   \
+#define RKI_DICT_VALUE_PTR(self)                                                                   \
   _Generic((self),                                                                                 \
       const typeof(*(self))*: (const typeof((self)->vals[0])*)0,                                   \
       default: (typeof((self)->vals))0)
 
-typedef struct RK__ds_header { size_t cap, count, ndeleted; } RK__ds_header;
+typedef struct RKI_ds_header { size_t cap, count, ndeleted; } RKI_ds_header;
 
 // Probe result packed into a single size_t: bits[1:0] = flags, bits[N:2] = slot index. bit 0: found
 // — key exists at the returned slot. bit 1: tombstone — insert slot was a deleted slot (only
 // meaningful when !found).
-typedef size_t RK__hashprobe_t;
-#define RK__PROBE_MAKE(found, tomb, idx)                                                           \
+typedef size_t RKI_hashprobe_t;
+#define RKI_PROBE_MAKE(found, tomb, idx)                                                           \
   (((size_t)(idx) << 2) | ((size_t)(tomb) << 1) | (size_t)(found))
-#define RK__PROBE_FOUND(r)     ((r) & 1u)
-#define RK__PROBE_TOMBSTONE(r) ((r) & 2u)
-#define RK__PROBE_IDX(r)       ((r) >> 2)
+#define RKI_PROBE_FOUND(r)     ((r) & 1u)
+#define RKI_PROBE_TOMBSTONE(r) ((r) & 2u)
+#define RKI_PROBE_IDX(r)       ((r) >> 2)
 
-#define RK__IGNORE(...)
-#define RK__EXPAND(...)                       __VA_ARGS__
+#define RKI_IGNORE(...)
+#define RKI_EXPAND(...)                      __VA_ARGS__
 
 /// @brief Sentinel value returned by internal index lookups when the key is not present.
-#define RK_DS_NOTIN                           ((size_t)-1)
+#define RK_DS_NOTIN                          ((size_t)-1)
 
 // internal helper macros
-#define RK__DS_home(MASK, hash)               ((size_t)(hash) & (MASK))
-#define RK__DS_next(MASK, i)                  (((i) + 1) & (MASK))
+#define RKI_DS_HOME(MASK, hash)              ((size_t)(hash) & (MASK))
+#define RKI_DS_NEXT(MASK, i)                 (((i) + 1) & (MASK))
 // The shift always yields a 7-bit value (0-127), which always fits in u8 --
 // every call site assigns straight into a u8, so the cast belongs here once
 // rather than at each site.
-#define RK__DS_fp(hash)                       ((u8)((hash) >> (bitsof(hash) - 7)))
+#define RKI_DS_FP(hash)                      ((u8)((hash) >> (bitsof(hash) - 7)))
 
-#define RK__DS_SLOT_EMPTY                     ((u8)0x80)
-#define RK__DS_SLOT_DELETED                   ((u8)0xFE)
-#define RK__DS_SLOT_EMPTY_OR_DELETED(x)       ((x) & 0x80)
+#define RKI_DS_SLOT_EMPTY                    ((u8)0x80)
+#define RKI_DS_SLOT_DELETED                  ((u8)0xFE)
+#define RKI_DS_SLOT_EMPTY_OR_DELETED(x)      ((x) & 0x80)
 
-#define RK__DICT_PUB(K, V, FNAME)             dict_##K##_##V##_##FNAME
-#define RK__DICT_PRI(K, V, FNAME)             RK__dict_##K##_##V##_##FNAME
+#define RKI_DICT_PUB(K, V, FNAME)            dict_##K##_##V##_##FNAME
+#define RKI_DICT_PRI(K, V, FNAME)            rki_dict_##K##_##V##_##FNAME
 
-#define RK__DICT_INIT(K, V, init_cap, alloc)  RK__DICT_PUB(K, V, init)(init_cap RK_IFALLOC(, alloc))
-#define RK__DICT_INIT4(K, V, init_cap, alloc) rk_disable_if(RK__DICT_INIT(K, V, init_cap, alloc))
-#define RK__DICT_INIT3(K, V, init_cap)        RK__DICT_INIT(K, V, init_cap, alloc_ctx)
+#define RKI_DICT_INIT(K, V, init_cap, alloc) RKI_DICT_PUB(K, V, init)(init_cap RK_IFALLOC(, alloc))
+#define RKI_DICT_INIT4(K, V, init_cap, alloc)                                                      \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DICT_INIT(K, V, init_cap, alloc))
+#define RKI_DICT_INIT3(K, V, init_cap)   RKI_DICT_INIT(K, V, init_cap, alloc_ctx)
 
-#define RK__SET_INIT(K, init_cap, alloc)      RK__SET_PUB(K, init)(init_cap RK_IFALLOC(, alloc))
-#define RK__SET_INIT3(K, init_cap, alloc)     rk_disable_if(RK__SET_INIT(K, init_cap, alloc))
-#define RK__SET_INIT2(K, init_cap)            RK__SET_INIT(K, init_cap, alloc_ctx)
+#define RKI_SET_INIT(K, init_cap, alloc) RKI_SET_PUB(K, init)(init_cap RK_IFALLOC(, alloc))
+#define RKI_SET_INIT3(K, init_cap, alloc)                                                          \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_SET_INIT(K, init_cap, alloc))
+#define RKI_SET_INIT2(K, init_cap) RKI_SET_INIT(K, init_cap, alloc_ctx)
 
-#define RK__SET_PUB(K, FNAME)                 set_##K##_##FNAME
-#define RK__SET_PRI(K, FNAME)                 RK__set_##K##_##FNAME
+#define RKI_SET_PUB(K, FNAME)      set_##K##_##FNAME
+#define RKI_SET_PRI(K, FNAME)      rki_set_##K##_##FNAME
 
-#define RK__SET_PUB_I(K, V, FNAME)            RK__SET_PUB(K, FNAME)
-#define RK__SET_PRI_I(K, V, FNAME)            RK__SET_PRI(K, FNAME)
-#define RK__SET(K, V)                         Set(K)
+#define RKI_SET_PUB_I(K, V, FNAME) RKI_SET_PUB(K, FNAME)
+#define RKI_SET_PRI_I(K, V, FNAME) RKI_SET_PRI(K, FNAME)
+#define RKI_SET(K, V)              Set(K)
 
-#define RK__DICT_DEF(key_t, val_t, hash_f, cmp_f)                                                  \
-  RK__DS_DEF(key_t, val_t, hash_f, cmp_f, RK__EXPAND, RK__IGNORE, Dict, RK__DICT_PUB, RK__DICT_PRI)
-#define RK__SET_DEF(key_t, hash_f, cmp_f)                                                          \
-  RK__DS_DEF(key_t, , hash_f, cmp_f, RK__IGNORE, RK__EXPAND, RK__SET, RK__SET_PUB_I, RK__SET_PRI_I)
-#define RK__DS_DEF(K, V, hash_f, cmp_f, IF_DICT, IF_SET, DSTYPE, PUBF, PRIF)                         \
+#define RKI_DICT_DEF(key_t, val_t, hash_f, cmp_f)                                                  \
+  RKI_DS_DEF(key_t, val_t, hash_f, cmp_f, RKI_EXPAND, RKI_IGNORE, Dict, RKI_DICT_PUB, RKI_DICT_PRI)
+#define RKI_SET_DEF(key_t, hash_f, cmp_f)                                                          \
+  RKI_DS_DEF(key_t, , hash_f, cmp_f, RKI_IGNORE, RKI_EXPAND, RKI_SET, RKI_SET_PUB_I, RKI_SET_PRI_I)
+
+#define RKI_DS_DEF(K, V, hash_f, cmp_f, IF_DICT, IF_SET, DSTYPE, PUBF, PRIF)                         \
   RK_EXTERNC_BEG                                                                                     \
   typedef struct DSTYPE(K, V) {                                                                      \
     union {                                                                                          \
-      RK__ds_header hdr;                                                                             \
+      RKI_ds_header hdr;                                                                             \
       struct { size_t cap, count, ndeleted; };                                                       \
     };                                                                                               \
     u8* data;                                                                                        \
@@ -8155,26 +8258,26 @@ typedef size_t RK__hashprobe_t;
     IF_DICT(V* vals;)                                                                                \
     RK_IFALLOC(Allocator alloc;)                                                                     \
   } DSTYPE(K, V);                                                                                    \
-  static_fun rk_pure size_t    PUBF(K, V, count)(const DSTYPE(K, V) * self) { return self->count; }  \
-  static_fun rk_pure size_t    PUBF(K, V, cap)(const DSTYPE(K, V) * self) { return self->cap; }      \
-  static_fun rk_pure Allocator PUBF(K, V, allocator)(const DSTYPE(K, V) * self) {                    \
-    return RK__allocatorof(self);                                                                    \
+  rklib_fun rk_pure size_t    PUBF(K, V, count)(const DSTYPE(K, V) * self) { return self->count; }   \
+  rklib_fun rk_pure size_t    PUBF(K, V, cap)(const DSTYPE(K, V) * self) { return self->cap; }       \
+  rklib_fun rk_pure Allocator PUBF(K, V, allocator)(const DSTYPE(K, V) * self) {                     \
+    return RKI_allocatorof(self);                                                                    \
   }                                                                                                  \
-  static_fun rk_pure bool  PUBF(K, V, is_empty)(const DSTYPE(K, V) * self) { return !self->count; }  \
-  static_fun rk_pure float PUBF(K, V, load_factor)(const DSTYPE(K, V) * self) {                      \
-    return RK__ds_load_factor(&self->hdr);                                                           \
+  rklib_fun rk_pure bool  PUBF(K, V, is_empty)(const DSTYPE(K, V) * self) { return !self->count; }   \
+  rklib_fun rk_pure float PUBF(K, V, load_factor)(const DSTYPE(K, V) * self) {                       \
+    return rki_ds_load_factor(&self->hdr);                                                           \
   }                                                                                                  \
-  static_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {               \
-    rk_assert_allocator_valid(alloc);                                                                \
+  rklib_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {                \
+    RKI_assert_allocator_valid(alloc);                                                               \
     cap = stdc_bit_ceil(rk_MAX(16u, cap));                                                           \
     return (DSTYPE(K, V)){.hdr  = {.cap = cap, .count = 0, .ndeleted = 0},                           \
                           .data = (u8*)memset(alloc_allocate(cap, align_max RK_IFALLOC(, alloc)),    \
-                                              RK__DS_SLOT_EMPTY, cap),                               \
+                                              RKI_DS_SLOT_EMPTY, cap),                               \
                           .keys = alloc_new(K, cap RK_IFALLOC(, alloc)),                             \
                           IF_DICT(.vals = alloc_new(V, cap RK_IFALLOC(, alloc)), )                   \
                               RK_IFALLOC(.alloc = alloc)};                                           \
   }                                                                                                  \
-  static_fun void PUBF(K, V, release)(DSTYPE(K, V) * self) {                                         \
+  rklib_fun void PUBF(K, V, release)(DSTYPE(K, V) * self) {                                          \
     if rk_unlikely (!self->cap) { return; }                                                          \
     alloc_deallocate(self->data, self->cap, align_max RK_IFALLOC(, self->alloc));                    \
     self->data = rk_null;                                                                            \
@@ -8183,89 +8286,89 @@ typedef size_t RK__hashprobe_t;
     IF_DICT(alloc_delete(self->vals, self->cap RK_IFALLOC(, self->alloc)), self->vals = rk_null;)    \
     self->cap = self->count = self->ndeleted = 0;                                                    \
   }                                                                                                  \
-  static_fun void PRIF(K, V, grow)(DSTYPE(K, V) * self, size_t new_cap) {                            \
+  rklib_fun void PRIF(K, V, grow)(DSTYPE(K, V) * self, size_t new_cap) {                             \
     const DSTYPE(K, V) old_self = *self;                                                             \
     DSTYPE(K, V)                                                                                     \
     new_self                                                                                         \
         = {.hdr  = {.cap = new_cap, .count = old_self.count, .ndeleted = 0},                         \
            .data = (u8*)memset(alloc_allocate(new_cap, align_max RK_IFALLOC(, old_self.alloc)),      \
-                               RK__DS_SLOT_EMPTY, new_cap),                                          \
+                               RKI_DS_SLOT_EMPTY, new_cap),                                          \
            .keys = alloc_new(K, new_cap RK_IFALLOC(, old_self.alloc)),                               \
            IF_DICT(.vals = alloc_new(V, new_cap RK_IFALLOC(, old_self.alloc)), )                     \
                RK_IFALLOC(.alloc = old_self.alloc)};                                                 \
     const size_t mask = new_self.cap - 1;                                                            \
     for (size_t oldcap = old_self.cap, i = 0; i < oldcap; ++i) {                                     \
-      if (RK__DS_SLOT_EMPTY_OR_DELETED(old_self.data[i])) { continue; }                              \
+      if (RKI_DS_SLOT_EMPTY_OR_DELETED(old_self.data[i])) { continue; }                              \
       K      key  = old_self.keys[i];                                                                \
       u64    hash = (u64)hash_f(key);                                                                \
-      size_t j    = RK__DS_home(mask, hash);                                                         \
-      for (; new_self.data[j] != RK__DS_SLOT_EMPTY; j = RK__DS_next(mask, j));                       \
-      new_self.data[j] = RK__DS_fp(hash);                                                            \
+      size_t j    = RKI_DS_HOME(mask, hash);                                                         \
+      for (; new_self.data[j] != RKI_DS_SLOT_EMPTY; j = RKI_DS_NEXT(mask, j));                       \
+      new_self.data[j] = RKI_DS_FP(hash);                                                            \
       new_self.keys[j] = key;                                                                        \
       IF_DICT(new_self.vals[j] = old_self.vals[i];)                                                  \
     }                                                                                                \
     PUBF(K, V, release)(self);                                                                       \
     *self = new_self;                                                                                \
   }                                                                                                  \
-  static_fun void PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                      \
+  rklib_fun void PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                       \
     if (!self->cap) {                                                                                \
-      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
+      RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
       *self = PUBF(K, V, init)(16u RK_IFALLOC(, self->alloc));                                       \
     };                                                                                               \
-    if (RK__ds_needs_rehash(&self->hdr)) {                                                           \
+    if (rki_ds_needs_rehash(&self->hdr)) {                                                           \
       PRIF(K, V, grow)(self,                                                                         \
                        (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap);   \
     }                                                                                                \
   }                                                                                                  \
-  static_fun rk_pure RK__hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,   \
-                                                         u64 hash) {                                 \
-    u8           fp   = RK__DS_fp(hash);                                                             \
+  rklib_fun rk_pure RKI_hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,    \
+                                                        u64 hash) {                                  \
+    u8           fp   = RKI_DS_FP(hash);                                                             \
     const size_t mask = self->cap - 1;                                                               \
-    size_t       i = RK__DS_home(mask, hash), fd = RK_DS_NOTIN;                                      \
+    size_t       i = RKI_DS_HOME(mask, hash), fd = RK_DS_NOTIN;                                      \
     u8* const restrict data = self->data;                                                            \
     K* const restrict keys  = self->keys;                                                            \
-    for (; data[i] != RK__DS_SLOT_EMPTY; i = RK__DS_next(mask, i)) {                                 \
-      if (data[i] == RK__DS_SLOT_DELETED) {                                                          \
+    for (; data[i] != RKI_DS_SLOT_EMPTY; i = RKI_DS_NEXT(mask, i)) {                                 \
+      if (data[i] == RKI_DS_SLOT_DELETED) {                                                          \
         if (fd == RK_DS_NOTIN) { fd = i; }                                                           \
       } else if (data[i] == fp && !cmp_f(key, keys[i])) {                                            \
-        return RK__PROBE_MAKE(1, 0, i);                                                              \
+        return RKI_PROBE_MAKE(1, 0, i);                                                              \
       }                                                                                              \
     }                                                                                                \
-    return (fd != RK_DS_NOTIN) ? RK__PROBE_MAKE(0, 1, fd) : RK__PROBE_MAKE(0, 0, i);                 \
+    return (fd != RK_DS_NOTIN) ? RKI_PROBE_MAKE(0, 1, fd) : RKI_PROBE_MAKE(0, 0, i);                 \
   }                                                                                                  \
-  static_fun rk_pure bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {           \
+  rklib_fun rk_pure bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {            \
     if rk_unlikely (!self->cap) { return false; }                                                    \
-    return RK__PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                        \
+    return RKI_PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                        \
   }                                                                                                  \
-  static_fun DSTYPE(K, V) * PUBF(K, V, clear)(DSTYPE(K, V)* restrict self) {                         \
-    rk_memset(self->data, RK__DS_SLOT_EMPTY, self->cap);                                             \
+  rklib_fun DSTYPE(K, V) * PUBF(K, V, clear)(DSTYPE(K, V)* restrict self) {                          \
+    rk_memset(self->data, RKI_DS_SLOT_EMPTY, self->cap);                                             \
     self->count = self->ndeleted = 0;                                                                \
     return self;                                                                                     \
   }                                                                                                  \
-  static_fun DSTYPE(K, V) * PUBF(K, V, reserve)(DSTYPE(K, V)* restrict self, size_t n) {             \
+  rklib_fun DSTYPE(K, V) * PUBF(K, V, reserve)(DSTYPE(K, V)* restrict self, size_t n) {              \
     if (!n) { return self; }                                                                         \
     size_t cap = stdc_bit_ceil(                                                                      \
-        rk_MAX(16u, (n * RK_DICT_LOAD_DEN + RK_DICT_LOAD_NUM - 1) / RK_DICT_LOAD_NUM));              \
+        rk_MAX(16u, (n * RKI_DICT_LOAD_DEN + RKI_DICT_LOAD_NUM - 1) / RKI_DICT_LOAD_NUM));           \
     if (!self->cap) {                                                                                \
-      RK_IFALLOC(rk_set_alloc_fallback(self->alloc);)                                                \
+      RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
       *self = PUBF(K, V, init)(cap RK_IFALLOC(, self->alloc));                                       \
     } else if (cap > self->cap) {                                                                    \
       PRIF(K, V, grow)(self, cap);                                                                   \
     }                                                                                                \
     return self;                                                                                     \
   }                                                                                                  \
-  static_fun DSTYPE(K, V) * PUBF(K, V, shrink_to_fit)(DSTYPE(K, V)* restrict self) {                 \
+  rklib_fun DSTYPE(K, V) * PUBF(K, V, shrink_to_fit)(DSTYPE(K, V)* restrict self) {                  \
     if (!self->count) {                                                                              \
       PUBF(K, V, release)(self);                                                                     \
       return self;                                                                                   \
     }                                                                                                \
-    size_t target = stdc_bit_ceil(                                                                   \
-        rk_MAX(16u, (self->count * RK_DICT_LOAD_DEN + RK_DICT_LOAD_NUM - 1) / RK_DICT_LOAD_NUM));    \
+    size_t target = stdc_bit_ceil(rk_MAX(                                                            \
+        16u, (self->count * RKI_DICT_LOAD_DEN + RKI_DICT_LOAD_NUM - 1) / RKI_DICT_LOAD_NUM));        \
     if (target < self->cap) { PRIF(K, V, grow)(self, target); }                                      \
     return self;                                                                                     \
   }                                                                                                  \
   IF_DICT(                                                                                         \
-      static_fun void PRIF(K, V, insert_f)(DSTYPE(K, V)* restrict self, K key, V val, u8 fp,       \
+      rklib_fun void PRIF(K, V, insert_f)(DSTYPE(K, V)* restrict self, K key, V val, u8 fp,        \
                                            bool used_tombstone, size_t i) {                        \
         ++self->count;                                                                             \
         if (used_tombstone) { --self->ndeleted; }                                                  \
@@ -8273,112 +8376,112 @@ typedef size_t RK__hashprobe_t;
         self->keys[i] = key;                                                                       \
         self->vals[i] = val;                                                                       \
       } /*                                                           */                            \
-      static_fun bool PUBF(K, V, set)(DSTYPE(K, V)* restrict self, K key, V val) {                 \
+      rklib_fun bool PUBF(K, V, set)(DSTYPE(K, V)* restrict self, K key, V val) {                  \
         PRIF(K, V, ensure_cap)(self);                                                              \
         u64             hash = (u64)hash_f(key);                                                   \
-        RK__hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RK__PROBE_FOUND(r)) {                                                                 \
-          PRIF(K, V, insert_f)(self, key, val, RK__DS_fp(hash), RK__PROBE_TOMBSTONE(r),            \
-                               RK__PROBE_IDX(r));                                                  \
+        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
+        if (!RKI_PROBE_FOUND(r)) {                                                                 \
+          PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash), RKI_PROBE_TOMBSTONE(r),            \
+                               RKI_PROBE_IDX(r));                                                  \
         } else {                                                                                   \
-          self->vals[RK__PROBE_IDX(r)] = val;                                                      \
+          self->vals[RKI_PROBE_IDX(r)] = val;                                                      \
         }                                                                                          \
-        return !RK__PROBE_FOUND(r);                                                                \
+        return !RKI_PROBE_FOUND(r);                                                                \
       } /*                                                           */                            \
-      static_fun V* PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key, V val) {                   \
+      rklib_fun V* PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key, V val) {                    \
         PRIF(K, V, ensure_cap)(self);                                                              \
         u64             hash = (u64)hash_f(key);                                                   \
-        RK__hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RK__PROBE_FOUND(r)) {                                                                 \
-          PRIF(K, V, insert_f)(self, key, val, RK__DS_fp(hash), RK__PROBE_TOMBSTONE(r),            \
-                               RK__PROBE_IDX(r));                                                  \
-          return &self->vals[RK__PROBE_IDX(r)];                                                    \
+        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
+        if (!RKI_PROBE_FOUND(r)) {                                                                 \
+          PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash), RKI_PROBE_TOMBSTONE(r),            \
+                               RKI_PROBE_IDX(r));                                                  \
+          return &self->vals[RKI_PROBE_IDX(r)];                                                    \
         }                                                                                          \
         return rk_null;                                                                            \
       } /*                                                           */                            \
-      static_fun V* PUBF(K, V, get_or_add)(DSTYPE(K, V)* restrict self, K key, V val,              \
+      rklib_fun V* PUBF(K, V, get_or_add)(DSTYPE(K, V)* restrict self, K key, V val,               \
                                            bool* restrict inserted_out) {                          \
         PRIF(K, V, ensure_cap)(self);                                                              \
         u64             hash = (u64)hash_f(key);                                                   \
-        RK__hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RK__PROBE_FOUND(r)) {                                                                 \
-          PRIF(K, V, insert_f)(self, key, val, RK__DS_fp(hash), RK__PROBE_TOMBSTONE(r),            \
-                               RK__PROBE_IDX(r));                                                  \
+        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
+        if (!RKI_PROBE_FOUND(r)) {                                                                 \
+          PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash), RKI_PROBE_TOMBSTONE(r),            \
+                               RKI_PROBE_IDX(r));                                                  \
           if(inserted_out){ *inserted_out = true; }                                                \
         } else {                                                                                   \
           if(inserted_out){ *inserted_out = false; }                                               \
         }                                                                                          \
-        return &self->vals[RK__PROBE_IDX(r)];                                                      \
+        return &self->vals[RKI_PROBE_IDX(r)];                                                      \
       } /*                                                           */                            \
-      static_fun rk_pure const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {\
+      rklib_fun rk_pure const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) { \
         if rk_unlikely (!self->cap) { return rk_null; }                                            \
-        RK__hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
-        return RK__PROBE_FOUND(r) ? &self->vals[RK__PROBE_IDX(r)] : rk_null;                       \
+        RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
+        return RKI_PROBE_FOUND(r) ? &self->vals[RKI_PROBE_IDX(r)] : rk_null;                       \
       } /*                                                           */                            \
-      static_fun rk_pure V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                  \
+      rklib_fun rk_pure V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                   \
         return (V*)PUBF(K, V, get_const)(self, key);                                               \
       } /*                                                           */                            \
-      static_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V * out_ptr) {       \
+      rklib_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V * out_ptr) {        \
         rk_assert_ptr_nonnull(out_ptr);                                                            \
         if rk_unlikely (!self->cap) { return false; }                                              \
-        RK__hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
-        if (!RK__PROBE_FOUND(r)) { return false; }                                                 \
+        RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
+        if (!RKI_PROBE_FOUND(r)) { return false; }                                                 \
         --self->count;                                                                             \
         ++self->ndeleted;                                                                          \
-        self->data[RK__PROBE_IDX(r)] = RK__DS_SLOT_DELETED;                                        \
-        *out_ptr                     = self->vals[RK__PROBE_IDX(r)];                               \
+        self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                        \
+        *out_ptr                     = self->vals[RKI_PROBE_IDX(r)];                               \
         return true;                                                                               \
       } /*                                                           */                            \
-      static_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                     \
+      rklib_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                      \
         V _;                                                                                       \
         return PUBF(K, V, extract)(self, key, &_);                                                 \
       } /*                                                           */                            \
-      static_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,     \
+      rklib_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,      \
                                                     const V* vals, size_t n) {                     \
         PUBF(K, V, clear)(self);                                                                   \
         for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                \
         return self;                                                                               \
       }) \
   IF_SET(                                                                                          \
-      static_fun bool PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key) {                        \
+      rklib_fun bool PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key) {                         \
         PRIF(K, V, ensure_cap)(self);                                                              \
         u64             hash = (u64)hash_f(key);                                                   \
-        RK__hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RK__PROBE_FOUND(r)) {                                                                 \
+        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
+        if (!RKI_PROBE_FOUND(r)) {                                                                 \
           ++self->count;                                                                           \
-          if (RK__PROBE_TOMBSTONE(r)) { --self->ndeleted; }                                        \
-          self->data[RK__PROBE_IDX(r)] = RK__DS_fp(hash);                                          \
-          self->keys[RK__PROBE_IDX(r)] = key;                                                      \
+          if (RKI_PROBE_TOMBSTONE(r)) { --self->ndeleted; }                                        \
+          self->data[RKI_PROBE_IDX(r)] = RKI_DS_FP(hash);                                          \
+          self->keys[RKI_PROBE_IDX(r)] = key;                                                      \
           return true;                                                                             \
         }                                                                                          \
         return false;                                                                              \
       } /*                                                           */                            \
-      static_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                     \
+      rklib_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                      \
         if rk_unlikely (!self->cap) { return false; }                                              \
-        RK__hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
-        if (!RK__PROBE_FOUND(r)) { return false; }                                                 \
+        RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
+        if (!RKI_PROBE_FOUND(r)) { return false; }                                                 \
         --self->count;                                                                             \
         ++self->ndeleted;                                                                          \
-        self->data[RK__PROBE_IDX(r)] = RK__DS_SLOT_DELETED;                                        \
+        self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                        \
         return true;                                                                               \
       } /*                                                           */                            \
-      static_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,     \
-                                                    size_t n) {                                     \
+      rklib_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,      \
+                                                    size_t n) {                                    \
         PUBF(K, V, clear)(self);                                                                   \
-        for (size_t i = 0; i < n; ++i) { PUBF(K, V, add)(self, keys[i]); }                          \
+        for (size_t i = 0; i < n; ++i) { PUBF(K, V, add)(self, keys[i]); }                         \
         return self;                                                                               \
       }) \
   RK_EXTERNC_END
 
-/// @endcond
-
-static_fun rk_pure float RK__ds_load_factor(const RK__ds_header* hdr) {
+rklib_fun rk_pure float rki_ds_load_factor(const RKI_ds_header* hdr) {
   return hdr->cap ? (float)hdr->count / (float)hdr->cap : 0.0f;
 }
-static_fun rk_pure bool RK__ds_needs_rehash(const RK__ds_header* hdr) {
-  return (hdr->count + hdr->ndeleted + 1) * RK_DICT_LOAD_DEN > hdr->cap * RK_DICT_LOAD_NUM;
-}
+rklib_fun rk_pure bool rki_ds_needs_rehash(const RKI_ds_header* hdr) {
+  return (hdr->count + hdr->ndeleted + 1) * RKI_DICT_LOAD_DEN > hdr->cap * RKI_DICT_LOAD_NUM;
+} // todo fix docs for custom load factor
 
+/// @endcond
+#pragma endregion implementation
 RK_HEADER_END
 /// @}
 #endif // RK_DICT_H
