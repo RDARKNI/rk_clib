@@ -84,9 +84,9 @@
 
 #ifndef __STDC_VERSION_STDBIT_H__
 /* has_include can be true but in C++ it may have an include guard*/
-# define RK_STDBIT_FALLBACK 1
+# define RKI_STDBIT_FALLBACK 1
 #else
-# define RK_STDBIT_FALLBACK 0
+# define RKI_STDBIT_FALLBACK 0
 #endif
 
 #include <assert.h>
@@ -431,19 +431,19 @@ RK_HEADER_BEGIN
 
 #ifndef unreachable
 # if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
-#  define unreachable() std::unreachable()
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), std::unreachable())
 # elif defined(__GNUC__)
-#  define unreachable() __builtin_unreachable()
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), __builtin_unreachable())
 # elif defined(_MSC_VER)
-rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
+rklib_fun __forceinline rk_noreturn void rki_unreachable_impl(void) {
 #  if defined(_DEBUG)
   __debugbreak();
 #  endif
   __assume(0);
 }
-#  define unreachable() RKI_unreachable_impl()
+#  define unreachable() rki_unreachable_impl()
 # else
-#  define unreachable() (assert(!"unreachable code reached"), abort())
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), abort())
 # endif
 #endif
 
@@ -451,11 +451,13 @@ rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
 ///////////////////////////////////   Pseudo  -  Keywords   ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(__cplusplus) || (!defined(_MSC_VER) && __STDC_VERSION__ >= 202000L)
+#if defined(__cplusplus)                                                                           \
+    || (!defined(_MSC_VER) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
 # define rk_null nullptr
 #else
 # define rk_null ((void*)0)
 #endif
+
 /// @brief The maximum fundamental alignment.
 #define align_max     alignof(RKI_max_align_t)
 
@@ -676,28 +678,28 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 #define rk_abs(x)                RKI_ABS(x)
 
 /// @brief Returns the smaller of `x` and `y`.
-#define rk_min(x, y)             RKI_twonum_macro(min_, RKI_NUM_TYPES, x, y)
+#define rk_min(x, y)             RKI_TWONUMS(min_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_min()` but not type-safe and may double-evaluate args.
 #define rk_MIN(a, b)             ((a) < (b) ? (a) : (b))
 
 /// @brief Returns the larger of `x` and `y`.
-#define rk_max(x, y)             RKI_twonum_macro(max_, RKI_NUM_TYPES, x, y)
+#define rk_max(x, y)             RKI_TWONUMS(max_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_max()` but not type-safe and may double-evaluate args.
 #define rk_MAX(a, b)             ((a) > (b) ? (a) : (b))
 
 /// @brief Clamps `num` to the inclusive range [`low`, `high`]. Requires `low <= high`.
-#define rk_clamp(num, low, high) RKI_threenum_macro(clamp_, RKI_NUM_TYPES, num, low, high)
+#define rk_clamp(num, low, high) RKI_THREENUMS(clamp_, RKI_NUM_TYPES, num, low, high)
 /// @brief Like `rk_clamp()` but not type-safe and may double-evaluate args.
 #define rk_CLAMP(num, low, high) ((num) < (low) ? (low) : ((num) > (high) ? (high) : (num)))
 
 /// @brief Saturating addition, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_add(x, y)         RKI_twonum_macro(rk_sat_add_, RKI_SU_TYPES, x, y)
+#define rk_sat_add(x, y)         RKI_TWONUMS(rk_sat_add_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating subtraction, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_sub(x, y)         RKI_twonum_macro(rk_sat_sub_, RKI_SU_TYPES, x, y)
+#define rk_sat_sub(x, y)         RKI_TWONUMS(rk_sat_sub_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating multiplication, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_mul(x, y)         RKI_twonum_macro(rk_sat_mul_, RKI_SU_TYPES, x, y)
+#define rk_sat_mul(x, y)         RKI_TWONUMS(rk_sat_mul_, RKI_SU_TYPES, x, y)
 
 #define rk_SWAP(a, b)                                                                              \
   do {                                                                                             \
@@ -710,7 +712,7 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 
 /// @}
 
-#if RK_STDBIT_FALLBACK
+#if RKI_STDBIT_FALLBACK
 # define stdc_leading_zeros(...)                                                                   \
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
 # define stdc_leading_ones(...)                                                                    \
@@ -739,7 +741,7 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
 # define stdc_has_single_bit(...)                                                                  \
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
-#endif /* RK_STDBIT_FALLBACK */
+#endif /* RKI_STDBIT_FALLBACK */
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -961,21 +963,21 @@ T:                                                                              
   RKI_INT_TYPES(X, ##__VA_ARGS__)                                                                  \
   RKI_F_TYPES(X, ##__VA_ARGS__)
 
-#define RKI_wider_t(x, y)                                                                          \
+#define RKI_WIDER_T(x, y)                                                                          \
   rk_static_if(rk_ensure_numclass_compatible(x, y) + sizeof(typeof(x)) >= sizeof(typeof(y)),       \
                (typeof(x))0, (typeof(y))0)
 
-#define RKI_wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(rk_ensure_numclass_compatible(RKI_wider_t(a1, a2), a3)                              \
-                       + sizeof(RKI_wider_t(a1, a2))                                               \
+#define RKI_WIDER_T3(a1, a2, a3)                                                                   \
+  rk_static_if(rk_ensure_numclass_compatible(RKI_WIDER_T(a1, a2), a3)                              \
+                       + sizeof(RKI_WIDER_T(a1, a2))                                               \
                    >= sizeof(typeof(a3)),                                                          \
-               RKI_wider_t(a1, a2), (typeof(a3))0)
+               RKI_WIDER_T(a1, a2), (typeof(a3))0)
 
-#define RKI_twonum_macro(pref, classes, x, y)                                                      \
-  _Generic(RKI_wider_t(x, y) classes(RKI_GENCASE, pref))(x, y)
+#define RKI_TWONUMS(pref, classes, x, y)                                                           \
+  _Generic(RKI_WIDER_T(x, y) classes(RKI_GENCASE, pref))(x, y)
 
-#define RKI_threenum_macro(pref, classes, x, y, z)                                                 \
-  _Generic(RKI_wider_t3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
+#define RKI_THREENUMS(pref, classes, x, y, z)                                                      \
+  _Generic(RKI_WIDER_T3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
 
 RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   return x < 0 ? -x : x; // UB if v == I128_MIN
@@ -1015,7 +1017,7 @@ RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
 
 #define RKI_CHELPER         rklib_fun rk_const rk_forceinline
 #define RKI_UNSEQUENCED_NOW rk_unsequenced
-#define RK_DEFINE_STUFF(T, N)                                                                      \
+#define RKI_DEFINE_STUFF(T, N)                                                                     \
   RKI_CHELPER T min_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
   RKI_CHELPER T max_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
   RKI_CHELPER T clamp_##N(T arg, T low, T high) RKI_UNSEQUENCED_NOW {                              \
@@ -1023,13 +1025,13 @@ RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   }
 
 // RKI_INT_TYPES
-RKI_INT_TYPES(RK_DEFINE_STUFF)
+RKI_INT_TYPES(RKI_DEFINE_STUFF)
 #undef RKI_UNSEQUENCED_NOW
 #define RKI_UNSEQUENCED_NOW
 #undef RKI_CHELPER
 #define RKI_CHELPER rklib_fun rk_forceinline
-RKI_F_TYPES(RK_DEFINE_STUFF)
-#undef RK_DEFINE_STUFF
+RKI_F_TYPES(RKI_DEFINE_STUFF)
+#undef RKI_DEFINE_STUFF
 #undef RKI_CHELPER
 #define RKI_CHELPER rklib_fun rk_const rk_forceinline
 
@@ -1116,7 +1118,7 @@ RKI_S_TYPES(RKI_DEF_SAT_S)
 #undef RKI_DEF_SM_S_
 #undef RKI_DEF_SAT_S
 
-#if RK_STDBIT_FALLBACK
+#if RKI_STDBIT_FALLBACK
 # ifdef __GNUC__
 #  if rk_has_builtin(__builtin_clzg)
 #   define RKI_DEF_LZ__(V) __builtin_clzg(V)
@@ -1264,7 +1266,7 @@ RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
 # undef RKI_DEF_CO_
 # undef RKI_DEF_STDCBIT_FUNS
 
-#endif /* RK_STDBIT_FALLBACK */
+#endif /* RKI_STDBIT_FALLBACK */
 
 #define rk_assert_ptr_nonnull(ptr) rk_assert(((ptr) != rk_null) && #ptr " must not be rk_null.")
 

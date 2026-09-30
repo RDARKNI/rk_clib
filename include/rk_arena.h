@@ -316,10 +316,10 @@ rklib_fun rk_alloc_size(3) void* rki_arena_extend(void* ptr, size_t old_size, si
   {.beg = (arr) + rk_ensure_valid_storage_type(arr), .cur = (arr), .end = (arr) + sizeof(arr)}
 
 #define RKI_ARENA_ALIGNED_NEW(T, count, align, arena)                                              \
-  ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
+  ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
                 arena_allocate(sizeof_n(T, count), align, arena)))
 #define RKI_ARENA_NEW(T, count, arena)                                                             \
-  ((typeof(T)*)(alloc_log_new, arena_allocate(sizeof_n(T, count), alignof(T), arena)))
+  ((typeof(T)*)(alloc_log_new(), arena_allocate(sizeof_n(T, count), alignof(T), arena)))
 RKI_IGNWARN_CLANG_END()
 
 /// @endcond

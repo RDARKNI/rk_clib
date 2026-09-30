@@ -558,7 +558,7 @@ rklib_fun rk_forceinline void rki_vec_insert_at_unordered(size_t elsize, void* r
    rki_vec_insert_at_unordered(sizeof(*(V)), V, rki_vec_assert_insertbounds(V, I),                 \
                                ((typeof (*(V))[1]){(O)})))
 
-rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
+rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
   if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
@@ -566,7 +566,7 @@ rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t 
                   elsize)); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 #define RKI_VEC_ERASE_AT_N(V, I, N)                                                                \
-  RKI_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
+  rki_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
 #define RKI_VEC_ERASE_AT(V, I) RKI_VEC_ERASE_AT_N(V, I, 1)
 
 #define RKI_VEC_ASSIGN(V, O, N)                                                                    \

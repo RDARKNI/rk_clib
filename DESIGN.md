@@ -48,9 +48,22 @@ This is another compatibility-layer decision: higher-level headers do not each r
 ## Naming and namespace trade-offs
 The public API intentionally does not prefix every operation with `rk_`. Container-specific names such as `vec_push`, `dict_get`, `heap_pop`, and `str_cat` are shorter and read more naturally in ordinary C code than `rk_vec_push`, `rk_dict_get`, and so on.
 
-This sacrifices some global-namespace isolation. C has no namespaces, so a foundational library must choose between collision resistance and call-site ergonomics. `rklib` chooses ergonomics for ordinary public operations while reserving the `RK__` / `rk_` families heavily for infrastructure, configuration, utility functions, and internal implementation machinery.
+This sacrifices some global-namespace isolation. C has no namespaces, so a foundational library must choose between collision resistance and call-site ergonomics. `rklib` chooses ergonomics for ordinary public operations while reserving prefixed families for infrastructure, configuration, utility functions, and internal implementation machinery.
 
 The intended use case is a small-to-medium C project that deliberately adopts the library as part of its foundation, not a drop-in dependency that must coexist invisibly with an arbitrary number of unrelated C frameworks.
+
+### Prefix and capitalization convention
+Prefix depth indicates who an identifier is for, independent of which header it lives in:
+
+- **No prefix** — ordinary, ergonomic domain operations meant to be called constantly: `vec_push`, `dict_get`, `arena_allocate`, `str_cat`.
+- **`rk_foo` / `RK_FOO`** — public infrastructure: utility functions and macros (`rk_align_up`, `rk_memcpy`, `rk_arrdup`, `rk_assert`) and configuration macros (`RK_CUSTOM_ALLOCATORS`, `RK_HEADER_BEGIN`, `RK_MULTI_TU`). Meant to be used directly, just not as often as the unprefixed operations.
+- **`rki_foo` / `RKI_FOO`** — internal implementation machinery, not part of the public API: container-generation building blocks (`RKI_DICT_PUB`, `RKI_VEC_CAP`), internal types (`RKI_VecHdr`, `RKI_DynPool`), and internal helper functions (`rki_malloc_allocate`). The `i` marks "internal" the same way the outer `rk_`/`RK_` marks "this library."
+
+Within each tier, capitalization tracks a different thing than the tier itself does: not what the identifier is (macro or function), but whether it's *allowed* to read like one. The driving motivation is the same ergonomic instinct behind the no-prefix domain operations: something used constantly should look plain and lowercase, not shout in uppercase. But a macro only earns that lowercase, ordinary-expression look if it's actually safe to use like one — every argument evaluated exactly once, so an expression with side effects (`rk_min(x++, y)`) behaves the way it would with a real function call. Real functions get this for free, trivially, from C's calling convention. Macros have to earn it deliberately, typically by forwarding to a real function or only ever touching an argument inside `sizeof`/`typeof` (which inspect a type, not a value, and so don't evaluate it) — which is how `rk_min`/`rk_max`/`rk_assert`/`rk_arrdup` get to sit lowercase right next to real functions like `rk_align_up`/`rk_memcpy`. A macro that can't make that guarantee stays uppercase, both as an honest signal to readers and because internal, library-controlled call sites (where every argument is already known to be side-effect-free) don't need to bother earning the lowercase look at all — which is why `RKI_`-prefixed macros vastly outnumber the handful of `rki_`-prefixed internal functions.
+
+The unprefixed domain operations (`vec_push`, `dict_get`, ...) don't have this fallback: they're lowercase unconditionally, for the same ergonomic reason, even where a macro genuinely can't guarantee single evaluation. Those instead document the restriction explicitly (`@attention **Arguments with side effects are not safe in vec_ macros**`) rather than through case, since the ergonomic goal at that tier outweighs reserving uppercase as a warning sign.
+
+This is orthogonal to the `static_fun`/`extern_fun`/`rklib_fun` linkage macros described above — those control *how* a declaration is compiled (inline vs. external, per `RK_MULTI_TU`/`RK_IMPL`/C-vs-C++), not what its name looks like.
 
 ## Generic programming strategy
 There is deliberately no single “generic container mechanism.” Different abstractions need different amounts of type-specific information, so the library uses the least intrusive mechanism that preserves type safety and avoids runtime dispatch.

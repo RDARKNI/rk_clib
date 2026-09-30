@@ -6,8 +6,8 @@
 ///
 /// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
 /// context pointer. Two predefined allocators are provided: `alloc_malloc_allocator` and
-/// `alloc_page_allocator`. Custom allocators can be created by filling
-/// an `AllocatorVTable` and constructing an `Allocator`.
+/// `alloc_page_allocator`. Custom allocators can be created by filling an `AllocatorVTable` and
+/// constructing an `Allocator`.
 ///
 /// Allocation failures are handled inside the allocator, not at call sites. The provided allocators
 /// invoke the overridable failure macros from `rk_config.h` (`RK_MALLOC_FAIL`, `RK_MMAP_FAIL`,
@@ -50,9 +50,9 @@ RK_HEADER_BEGIN
 /// @brief Allocation logging macros. Emit a tagged source location to `stderr` when `RKLIB_DEBUG
 /// defined`; expand to nothing otherwise. Can be used by custom allocators to get the same logging
 /// behaviour as the built-in ones.
-#define alloc_log_new    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_renew  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_delete rk_log("[delete] %s:%d ", __FILE__, __LINE__)
+#define alloc_log_new()    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_renew()  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_delete() rk_log("[delete] %s:%d ", __FILE__, __LINE__)
 
 /// @struct Allocator
 /// @brief General-purpose allocator handle: a vtable pointer plus an optional context pointer. Pass
@@ -611,28 +611,28 @@ rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_
 
 // dynamically chose whether malloc or aligned_alloc
 #define RKI_MALLOC_ALLOCATE(bytes, align)                                                          \
-  (alloc_log_new, rki_malloc_allocate(bytes, align, rk_null))
+  (alloc_log_new(), rki_malloc_allocate(bytes, align, rk_null))
 #define RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align)                                          \
-  (alloc_log_renew, rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
+  (alloc_log_renew(), rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
 #define RKI_MALLOC_DEALLOCATE(ptr, align)                                                          \
-  (alloc_log_delete, rki_malloc_deallocate(ptr, 0, align, rk_null))
+  (alloc_log_delete(), rki_malloc_deallocate(ptr, 0, align, rk_null))
 
 // always call malloc, compiler error if over-aligned
 #define RKI_MALLOC_NEW(T, count)                                                                   \
-  (alloc_log_new, rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
+  (alloc_log_new(), rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
 #define RKI_MALLOC_RENEW(ptr, count)                                                               \
-  (alloc_log_renew, rk_ensure_malloc_align(typeof(*(ptr))),                                        \
+  (alloc_log_renew(), rk_ensure_malloc_align(typeof(*(ptr))),                                      \
    rki_realloc_f(ptr, sizeof_n(*(ptr), count)))
 #define RKI_MALLOC_DELETE(ptr)                                                                     \
-  (alloc_log_delete, rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
+  (alloc_log_delete(), rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
 
 // always call aligned_alloc, check if alignment is enough for type
 #define RKI_MALLOC_ALIGNED_NEW(T, count, align)                                                    \
-  (alloc_log_new, rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
+  (alloc_log_new(), rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
 #define RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align)                                 \
-  (alloc_log_renew, rk_assert_valid_align(typeof(*(ptr)), align),                                  \
+  (alloc_log_renew(), rk_assert_valid_align(typeof(*(ptr)), align),                                \
    rki_aligned_realloc_f(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count), align))
-#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete, rki_aligned_free_f(ptr))
+#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete(), rki_aligned_free_f(ptr))
 
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
 
@@ -675,11 +675,11 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc.vtab->dealloc_f(ptr, obytes, align, alloc.ctx);
 }
-# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align, all))
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new(), rki_call_alloc(bytes, align, all))
 # define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align, all))
+   (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align, all))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align, all))
+   (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align, all))
 
 #else
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes,
@@ -715,11 +715,11 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc_ctx.vtab->dealloc_f(ptr, obytes, align, alloc_ctx.ctx);
 }
-# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align))
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new(), rki_call_alloc(bytes, align))
 # define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align))
+   (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align))
+   (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align))
 
 #endif
 

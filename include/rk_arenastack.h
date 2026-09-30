@@ -126,11 +126,11 @@ static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
 /// @cond INTERNAL
 
 #define RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)                                   \
-  ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
+  ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
                 arenastack_allocate(sizeof_n(T, count), align, arena_stack)))
 
 #define RKI_ARENASTACK_NEW(T, count, arena_stack)                                                  \
-  ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
+  ((typeof(T)*)(alloc_log_new(), arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
 rklib_fun void arenastack_release(ArenaStack* self) {
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
