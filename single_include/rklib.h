@@ -347,9 +347,9 @@
 
 #ifndef __STDC_VERSION_STDBIT_H__
 /* has_include can be true but in C++ it may have an include guard*/
-# define RK_STDBIT_FALLBACK 1
+# define RKI_STDBIT_FALLBACK 1
 #else
-# define RK_STDBIT_FALLBACK 0
+# define RKI_STDBIT_FALLBACK 0
 #endif
 
 #include <assert.h>
@@ -694,19 +694,19 @@ RK_HEADER_BEGIN
 
 #ifndef unreachable
 # if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
-#  define unreachable() std::unreachable()
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), std::unreachable())
 # elif defined(__GNUC__)
-#  define unreachable() __builtin_unreachable()
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), __builtin_unreachable())
 # elif defined(_MSC_VER)
-rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
+rklib_fun __forceinline rk_noreturn void rki_unreachable_impl(void) {
 #  if defined(_DEBUG)
   __debugbreak();
 #  endif
   __assume(0);
 }
-#  define unreachable() RKI_unreachable_impl()
+#  define unreachable() rki_unreachable_impl()
 # else
-#  define unreachable() (assert(!"unreachable code reached"), abort())
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), abort())
 # endif
 #endif
 
@@ -714,11 +714,13 @@ rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
 ///////////////////////////////////   Pseudo  -  Keywords   ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(__cplusplus) || (!defined(_MSC_VER) && __STDC_VERSION__ >= 202000L)
+#if defined(__cplusplus)                                                                           \
+    || (!defined(_MSC_VER) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
 # define rk_null nullptr
 #else
 # define rk_null ((void*)0)
 #endif
+
 /// @brief The maximum fundamental alignment.
 #define align_max     alignof(RKI_max_align_t)
 
@@ -939,28 +941,28 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 #define rk_abs(x)                RKI_ABS(x)
 
 /// @brief Returns the smaller of `x` and `y`.
-#define rk_min(x, y)             RKI_twonum_macro(min_, RKI_NUM_TYPES, x, y)
+#define rk_min(x, y)             RKI_TWONUMS(min_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_min()` but not type-safe and may double-evaluate args.
 #define rk_MIN(a, b)             ((a) < (b) ? (a) : (b))
 
 /// @brief Returns the larger of `x` and `y`.
-#define rk_max(x, y)             RKI_twonum_macro(max_, RKI_NUM_TYPES, x, y)
+#define rk_max(x, y)             RKI_TWONUMS(max_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_max()` but not type-safe and may double-evaluate args.
 #define rk_MAX(a, b)             ((a) > (b) ? (a) : (b))
 
 /// @brief Clamps `num` to the inclusive range [`low`, `high`]. Requires `low <= high`.
-#define rk_clamp(num, low, high) RKI_threenum_macro(clamp_, RKI_NUM_TYPES, num, low, high)
+#define rk_clamp(num, low, high) RKI_THREENUMS(clamp_, RKI_NUM_TYPES, num, low, high)
 /// @brief Like `rk_clamp()` but not type-safe and may double-evaluate args.
 #define rk_CLAMP(num, low, high) ((num) < (low) ? (low) : ((num) > (high) ? (high) : (num)))
 
 /// @brief Saturating addition, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_add(x, y)         RKI_twonum_macro(rk_sat_add_, RKI_SU_TYPES, x, y)
+#define rk_sat_add(x, y)         RKI_TWONUMS(rk_sat_add_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating subtraction, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_sub(x, y)         RKI_twonum_macro(rk_sat_sub_, RKI_SU_TYPES, x, y)
+#define rk_sat_sub(x, y)         RKI_TWONUMS(rk_sat_sub_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating multiplication, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_mul(x, y)         RKI_twonum_macro(rk_sat_mul_, RKI_SU_TYPES, x, y)
+#define rk_sat_mul(x, y)         RKI_TWONUMS(rk_sat_mul_, RKI_SU_TYPES, x, y)
 
 #define rk_SWAP(a, b)                                                                              \
   do {                                                                                             \
@@ -973,7 +975,7 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 
 /// @}
 
-#if RK_STDBIT_FALLBACK
+#if RKI_STDBIT_FALLBACK
 # define stdc_leading_zeros(...)                                                                   \
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
 # define stdc_leading_ones(...)                                                                    \
@@ -1002,7 +1004,7 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
 # define stdc_has_single_bit(...)                                                                  \
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
-#endif /* RK_STDBIT_FALLBACK */
+#endif /* RKI_STDBIT_FALLBACK */
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1224,21 +1226,21 @@ T:                                                                              
   RKI_INT_TYPES(X, ##__VA_ARGS__)                                                                  \
   RKI_F_TYPES(X, ##__VA_ARGS__)
 
-#define RKI_wider_t(x, y)                                                                          \
+#define RKI_WIDER_T(x, y)                                                                          \
   rk_static_if(rk_ensure_numclass_compatible(x, y) + sizeof(typeof(x)) >= sizeof(typeof(y)),       \
                (typeof(x))0, (typeof(y))0)
 
-#define RKI_wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(rk_ensure_numclass_compatible(RKI_wider_t(a1, a2), a3)                              \
-                       + sizeof(RKI_wider_t(a1, a2))                                               \
+#define RKI_WIDER_T3(a1, a2, a3)                                                                   \
+  rk_static_if(rk_ensure_numclass_compatible(RKI_WIDER_T(a1, a2), a3)                              \
+                       + sizeof(RKI_WIDER_T(a1, a2))                                               \
                    >= sizeof(typeof(a3)),                                                          \
-               RKI_wider_t(a1, a2), (typeof(a3))0)
+               RKI_WIDER_T(a1, a2), (typeof(a3))0)
 
-#define RKI_twonum_macro(pref, classes, x, y)                                                      \
-  _Generic(RKI_wider_t(x, y) classes(RKI_GENCASE, pref))(x, y)
+#define RKI_TWONUMS(pref, classes, x, y)                                                           \
+  _Generic(RKI_WIDER_T(x, y) classes(RKI_GENCASE, pref))(x, y)
 
-#define RKI_threenum_macro(pref, classes, x, y, z)                                                 \
-  _Generic(RKI_wider_t3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
+#define RKI_THREENUMS(pref, classes, x, y, z)                                                      \
+  _Generic(RKI_WIDER_T3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
 
 RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   return x < 0 ? -x : x; // UB if v == I128_MIN
@@ -1278,7 +1280,7 @@ RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
 
 #define RKI_CHELPER         rklib_fun rk_const rk_forceinline
 #define RKI_UNSEQUENCED_NOW rk_unsequenced
-#define RK_DEFINE_STUFF(T, N)                                                                      \
+#define RKI_DEFINE_STUFF(T, N)                                                                     \
   RKI_CHELPER T min_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
   RKI_CHELPER T max_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
   RKI_CHELPER T clamp_##N(T arg, T low, T high) RKI_UNSEQUENCED_NOW {                              \
@@ -1286,13 +1288,13 @@ RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   }
 
 // RKI_INT_TYPES
-RKI_INT_TYPES(RK_DEFINE_STUFF)
+RKI_INT_TYPES(RKI_DEFINE_STUFF)
 #undef RKI_UNSEQUENCED_NOW
 #define RKI_UNSEQUENCED_NOW
 #undef RKI_CHELPER
 #define RKI_CHELPER rklib_fun rk_forceinline
-RKI_F_TYPES(RK_DEFINE_STUFF)
-#undef RK_DEFINE_STUFF
+RKI_F_TYPES(RKI_DEFINE_STUFF)
+#undef RKI_DEFINE_STUFF
 #undef RKI_CHELPER
 #define RKI_CHELPER rklib_fun rk_const rk_forceinline
 
@@ -1379,7 +1381,7 @@ RKI_S_TYPES(RKI_DEF_SAT_S)
 #undef RKI_DEF_SM_S_
 #undef RKI_DEF_SAT_S
 
-#if RK_STDBIT_FALLBACK
+#if RKI_STDBIT_FALLBACK
 # ifdef __GNUC__
 #  if rk_has_builtin(__builtin_clzg)
 #   define RKI_DEF_LZ__(V) __builtin_clzg(V)
@@ -1527,7 +1529,7 @@ RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
 # undef RKI_DEF_CO_
 # undef RKI_DEF_STDCBIT_FUNS
 
-#endif /* RK_STDBIT_FALLBACK */
+#endif /* RKI_STDBIT_FALLBACK */
 
 #define rk_assert_ptr_nonnull(ptr) rk_assert(((ptr) != rk_null) && #ptr " must not be rk_null.")
 
@@ -1669,8 +1671,8 @@ constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
 ///
 /// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
 /// context pointer. Two predefined allocators are provided: `alloc_malloc_allocator` and
-/// `alloc_page_allocator`. Custom allocators can be created by filling
-/// an `AllocatorVTable` and constructing an `Allocator`.
+/// `alloc_page_allocator`. Custom allocators can be created by filling an `AllocatorVTable` and
+/// constructing an `Allocator`.
 ///
 /// Allocation failures are handled inside the allocator, not at call sites. The provided allocators
 /// invoke the overridable failure macros from `rk_config.h` (`RK_MALLOC_FAIL`, `RK_MMAP_FAIL`,
@@ -1714,9 +1716,9 @@ RK_HEADER_BEGIN
 /// @brief Allocation logging macros. Emit a tagged source location to `stderr` when `RKLIB_DEBUG
 /// defined`; expand to nothing otherwise. Can be used by custom allocators to get the same logging
 /// behaviour as the built-in ones.
-#define alloc_log_new    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_renew  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_delete rk_log("[delete] %s:%d ", __FILE__, __LINE__)
+#define alloc_log_new()    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_renew()  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_delete() rk_log("[delete] %s:%d ", __FILE__, __LINE__)
 
 /// @struct Allocator
 /// @brief General-purpose allocator handle: a vtable pointer plus an optional context pointer. Pass
@@ -2275,28 +2277,28 @@ rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_
 
 // dynamically chose whether malloc or aligned_alloc
 #define RKI_MALLOC_ALLOCATE(bytes, align)                                                          \
-  (alloc_log_new, rki_malloc_allocate(bytes, align, rk_null))
+  (alloc_log_new(), rki_malloc_allocate(bytes, align, rk_null))
 #define RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align)                                          \
-  (alloc_log_renew, rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
+  (alloc_log_renew(), rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
 #define RKI_MALLOC_DEALLOCATE(ptr, align)                                                          \
-  (alloc_log_delete, rki_malloc_deallocate(ptr, 0, align, rk_null))
+  (alloc_log_delete(), rki_malloc_deallocate(ptr, 0, align, rk_null))
 
 // always call malloc, compiler error if over-aligned
 #define RKI_MALLOC_NEW(T, count)                                                                   \
-  (alloc_log_new, rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
+  (alloc_log_new(), rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
 #define RKI_MALLOC_RENEW(ptr, count)                                                               \
-  (alloc_log_renew, rk_ensure_malloc_align(typeof(*(ptr))),                                        \
+  (alloc_log_renew(), rk_ensure_malloc_align(typeof(*(ptr))),                                      \
    rki_realloc_f(ptr, sizeof_n(*(ptr), count)))
 #define RKI_MALLOC_DELETE(ptr)                                                                     \
-  (alloc_log_delete, rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
+  (alloc_log_delete(), rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
 
 // always call aligned_alloc, check if alignment is enough for type
 #define RKI_MALLOC_ALIGNED_NEW(T, count, align)                                                    \
-  (alloc_log_new, rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
+  (alloc_log_new(), rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
 #define RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align)                                 \
-  (alloc_log_renew, rk_assert_valid_align(typeof(*(ptr)), align),                                  \
+  (alloc_log_renew(), rk_assert_valid_align(typeof(*(ptr)), align),                                \
    rki_aligned_realloc_f(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count), align))
-#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete, rki_aligned_free_f(ptr))
+#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete(), rki_aligned_free_f(ptr))
 
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
 
@@ -2339,11 +2341,11 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc.vtab->dealloc_f(ptr, obytes, align, alloc.ctx);
 }
-# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align, all))
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new(), rki_call_alloc(bytes, align, all))
 # define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align, all))
+   (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align, all))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align, all))
+   (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align, all))
 
 #else
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes,
@@ -2379,11 +2381,11 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc_ctx.vtab->dealloc_f(ptr, obytes, align, alloc_ctx.ctx);
 }
-# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align))
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new(), rki_call_alloc(bytes, align))
 # define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align))
+   (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align))
+   (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align))
 
 #endif
 
@@ -4609,10 +4611,10 @@ rklib_fun rk_alloc_size(3) void* rki_arena_extend(void* ptr, size_t old_size, si
   {.beg = (arr) + rk_ensure_valid_storage_type(arr), .cur = (arr), .end = (arr) + sizeof(arr)}
 
 #define RKI_ARENA_ALIGNED_NEW(T, count, align, arena)                                              \
-  ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
+  ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
                 arena_allocate(sizeof_n(T, count), align, arena)))
 #define RKI_ARENA_NEW(T, count, arena)                                                             \
-  ((typeof(T)*)(alloc_log_new, arena_allocate(sizeof_n(T, count), alignof(T), arena)))
+  ((typeof(T)*)(alloc_log_new(), arena_allocate(sizeof_n(T, count), alignof(T), arena)))
 RKI_IGNWARN_CLANG_END()
 
 /// @endcond
@@ -5209,7 +5211,7 @@ rklib_fun rk_forceinline void rki_vec_insert_at_unordered(size_t elsize, void* r
    rki_vec_insert_at_unordered(sizeof(*(V)), V, rki_vec_assert_insertbounds(V, I),                 \
                                ((typeof (*(V))[1]){(O)})))
 
-rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
+rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
   if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
@@ -5217,7 +5219,7 @@ rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t 
                   elsize)); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 #define RKI_VEC_ERASE_AT_N(V, I, N)                                                                \
-  RKI_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
+  rki_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
 #define RKI_VEC_ERASE_AT(V, I) RKI_VEC_ERASE_AT_N(V, I, 1)
 
 #define RKI_VEC_ASSIGN(V, O, N)                                                                    \
@@ -6218,11 +6220,11 @@ static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
 /// @cond INTERNAL
 
 #define RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)                                   \
-  ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
+  ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
                 arenastack_allocate(sizeof_n(T, count), align, arena_stack)))
 
 #define RKI_ARENASTACK_NEW(T, count, arena_stack)                                                  \
-  ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
+  ((typeof(T)*)(alloc_log_new(), arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
 rklib_fun void arenastack_release(ArenaStack* self) {
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
