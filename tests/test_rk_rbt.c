@@ -169,6 +169,160 @@ triax_test(rbt, foreach_inorder) {
   rbt_release(int, char, &r);
 }
 
+triax_test(rbt, foreach_reversed_empty) {
+  Rbt(int, char) r = rbt_init(int, char);
+  tree_node* stack[4];
+  int        visited = 0;
+  rbt_foreach_reversed(&r, stack, 4, e) {
+    (void)e;
+    ++visited;
+  }
+  triax_expect_eq(visited, 0);
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, foreach_reversed_visits_descending) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 3, 'c');
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 4, 'd');
+  rbt_set(int, char, &r, 2, 'b');
+
+  tree_node* stack[4];
+  int        keys[4] = {0};
+  int        i       = 0;
+  rbt_foreach_reversed(&r, stack, 4, e) { keys[i++] = e->key; }
+  triax_expect_eq(i, 4);
+
+  static const int expect_keys[4] = {4, 3, 2, 1};
+  triax_expect_arreq(keys, expect_keys);
+
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, foreach_break_stops_iteration) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 2, 'b');
+  rbt_set(int, char, &r, 3, 'c');
+  rbt_set(int, char, &r, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  rbt_foreach(&r, stack, 4, e) {
+    if (e->key == 2) { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 1); // just key 1
+
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, foreach_continue_skips_entry) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 2, 'b');
+  rbt_set(int, char, &r, 3, 'c');
+  rbt_set(int, char, &r, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  rbt_foreach(&r, stack, 4, e) {
+    if (e->key == 2) { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 3); // all but key 2
+
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, foreach_reversed_break_stops_iteration) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 2, 'b');
+  rbt_set(int, char, &r, 3, 'c');
+  rbt_set(int, char, &r, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  rbt_foreach_reversed(&r, stack, 4, e) {
+    if (e->key == 3) { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 1); // just key 4
+
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, foreach_reversed_continue_skips_entry) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 2, 'b');
+  rbt_set(int, char, &r, 3, 'c');
+  rbt_set(int, char, &r, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  rbt_foreach_reversed(&r, stack, 4, e) {
+    if (e->key == 3) { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 3); // all but key 3
+
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, erase_if_removes_matching_entries) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 2, 'b');
+  rbt_set(int, char, &r, 3, 'c');
+  rbt_set(int, char, &r, 4, 'd');
+
+  tree_node* stack[4];
+  rbt_erase_if(int, char, &r, stack, 4, e, e->key % 2 == 0);
+
+  triax_expect_eq(rbt_count(&r), 2u);
+  triax_expect_false(rbt_contains(int, char, &r, 2));
+  triax_expect_false(rbt_contains(int, char, &r, 4));
+  triax_expect_true(rbt_contains(int, char, &r, 1));
+  triax_expect_true(rbt_contains(int, char, &r, 3));
+
+  int keys[2] = {0};
+  int i       = 0;
+  rbt_foreach(&r, stack, 4, e) { keys[i++] = e->key; }
+  triax_expect_eq(i, 2);
+  static const int expect_keys[2] = {1, 3};
+  triax_expect_arreq(keys, expect_keys);
+
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, erase_if_empty_is_noop) {
+  Rbt(int, char) r          = rbt_init(int, char);
+  tree_node*     stack[4];
+  int            pred_calls = 0;
+  rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(rbt_count(&r), 0u);
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, erase_if_evaluates_predicate_once_per_entry) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 2, 'b');
+  rbt_set(int, char, &r, 3, 'c');
+
+  tree_node* stack[4];
+  int        pred_calls = 0;
+  rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, false));
+  triax_expect_eq(pred_calls, 3);
+  triax_expect_eq(rbt_count(&r), 3u);
+
+  rbt_release(int, char, &r);
+}
+
 triax_test(rbt, extract) {
   Rbt(int, char) r = rbt_init(int, char);
   rbt_set(int, char, &r, 1, 'a');

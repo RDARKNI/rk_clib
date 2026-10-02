@@ -268,6 +268,285 @@ triax_test(dict, foreach_key_val_empty_are_noop) {
   dict_release(int, cstr, &d);
 }
 
+triax_test(dict, foreach_empty_is_noop) {
+  Dict(int, cstr) d     = dict_init(int, cstr, 8);
+  int             count = 0;
+  dict_foreach(&d, k, v) {
+    (void)k;
+    (void)v;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  dict_release(int, cstr, &d);
+}
+
+// A zero-initialized Dict has cap == 0 and data == NULL, a distinct edge case from an initialized
+// but empty Dict (nonzero cap, all slots marked empty) -- exercises rki_ds_next_live's documented
+// cap == 0 / data == NULL safety.
+triax_test(dict, foreach_on_zero_initialized_dict_is_noop) {
+  Dict(int, cstr) d     = {RK_ZINIT};
+  int             count = 0;
+  dict_foreach(&d, k, v) {
+    (void)k;
+    (void)v;
+    ++count;
+  }
+  dict_foreach_key(&d, k) {
+    (void)k;
+    ++count;
+  }
+  dict_foreach_val(&d, v) {
+    (void)v;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+}
+
+triax_test(dict, foreach_visits_all_pairs) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int count = 0;
+  dict_foreach(&d, k, v) {
+    ++count;
+    triax_expect_streq(*v, *dict_get(int, cstr, &d, *k));
+  }
+  triax_expect_eq(count, 3);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_break_stops_iteration) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int visits = 0;
+  dict_foreach(&d, k, v) {
+    (void)k;
+    (void)v;
+    ++visits;
+    break;
+  }
+  triax_expect_eq(visits, 1);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_continue_skips_entry) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int visits = 0, skipped = 0;
+  dict_foreach(&d, k, v) {
+    (void)k;
+    (void)v;
+    if (!skipped) {
+      skipped = 1;
+      continue;
+    }
+    ++visits;
+  }
+  triax_expect_eq(skipped, 1);
+  triax_expect_eq(visits, 2);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_key_break_stops_iteration) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int visits = 0;
+  dict_foreach_key(&d, k) {
+    (void)k;
+    ++visits;
+    break;
+  }
+  triax_expect_eq(visits, 1);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_key_continue_skips_entry) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int visits = 0, skipped = 0;
+  dict_foreach_key(&d, k) {
+    (void)k;
+    if (!skipped) {
+      skipped = 1;
+      continue;
+    }
+    ++visits;
+  }
+  triax_expect_eq(skipped, 1);
+  triax_expect_eq(visits, 2);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_val_break_stops_iteration) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int visits = 0;
+  dict_foreach_val(&d, v) {
+    (void)v;
+    ++visits;
+    break;
+  }
+  triax_expect_eq(visits, 1);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_val_continue_skips_entry) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int visits = 0, skipped = 0;
+  dict_foreach_val(&d, v) {
+    (void)v;
+    if (!skipped) {
+      skipped = 1;
+      continue;
+    }
+    ++visits;
+  }
+  triax_expect_eq(skipped, 1);
+  triax_expect_eq(visits, 2);
+
+  dict_release(int, cstr, &d);
+}
+
+static Dict(int, cstr)* rki_mark_eval_dict(Dict(int, cstr)* d, int* count) {
+  ++*count;
+  return d;
+}
+
+triax_test(dict, foreach_evaluates_dict_argument_once) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+
+  int evals = 0, visits = 0;
+  dict_foreach(rki_mark_eval_dict(&d, &evals), k, v) {
+    (void)k;
+    (void)v;
+    ++visits;
+  }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(visits, 2);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_key_evaluates_dict_argument_once) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+
+  int evals = 0, visits = 0;
+  dict_foreach_key(rki_mark_eval_dict(&d, &evals), k) {
+    (void)k;
+    ++visits;
+  }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(visits, 2);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, foreach_val_evaluates_dict_argument_once) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+
+  int evals = 0, visits = 0;
+  dict_foreach_val(rki_mark_eval_dict(&d, &evals), v) {
+    (void)v;
+    ++visits;
+  }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(visits, 2);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, erase_if_removes_matching_entries) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  dict_erase_if(&d, k, v, ((void)v, *k == 2));
+
+  triax_expect_eq(dict_count(&d), 2u);
+  triax_expect_false(dict_contains(int, cstr, &d, 2));
+  triax_expect_true(dict_contains(int, cstr, &d, 1));
+  triax_expect_true(dict_contains(int, cstr, &d, 3));
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, erase_if_empty_is_noop) {
+  Dict(int, cstr) d     = dict_init(int, cstr, 8);
+  int             calls = 0;
+  dict_erase_if(&d, k, v, (++calls, (void)k, (void)v, true));
+  triax_expect_eq(calls, 0);
+  triax_expect_eq(dict_count(&d), 0u);
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, erase_if_on_zero_initialized_dict_is_noop) {
+  Dict(int, cstr) d     = {RK_ZINIT};
+  int             calls = 0;
+  dict_erase_if(&d, k, v, (++calls, (void)k, (void)v, true));
+  triax_expect_eq(calls, 0);
+}
+
+triax_test(dict, erase_if_evaluates_dict_argument_once) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+
+  int evals = 0;
+  dict_erase_if(rki_mark_eval_dict(&d, &evals), k, v, ((void)v, *k == 1));
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(dict_count(&d), 1u);
+
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, erase_if_evaluates_predicate_once_per_entry) {
+  Dict(int, cstr) d = dict_init(int, cstr, 8);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  dict_set(int, cstr, &d, 3, "three");
+
+  int pred_calls = 0;
+  dict_erase_if(&d, k, v, (++pred_calls, (void)k, (void)v, false));
+  triax_expect_eq(pred_calls, 3);
+  triax_expect_eq(dict_count(&d), 3u);
+
+  dict_release(int, cstr, &d);
+}
+
 triax_test(dict, ops_on_empty_dict) {
   Dict(int, cstr) d = dict_init(int, cstr, 4);
   triax_expect_null(dict_get(int, cstr, &d, 42));
@@ -505,6 +784,166 @@ triax_test(set, single_key_roundtrip, .params = triax_as_params(set_roundtrip_ca
 
   triax_expect_true(set_remove(int, &s, c->key));
   triax_expect_true(set_is_empty(&s));
+
+  set_release(int, &s);
+}
+
+triax_test(set, foreach_visits_all_members) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+  set_add(int, &s, 3);
+
+  int seen_1 = 0, seen_2 = 0, seen_3 = 0, count = 0;
+  set_foreach(&s, k) {
+    ++count;
+    if (*k == 1) { ++seen_1; }
+    if (*k == 2) { ++seen_2; }
+    if (*k == 3) { ++seen_3; }
+  }
+  triax_expect_eq(count, 3);
+  triax_expect_eq(seen_1, 1);
+  triax_expect_eq(seen_2, 1);
+  triax_expect_eq(seen_3, 1);
+
+  set_release(int, &s);
+}
+
+triax_test(set, foreach_empty_is_noop) {
+  Set(int) s     = set_init(int, 8);
+  int      count = 0;
+  set_foreach(&s, k) {
+    (void)k;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  set_release(int, &s);
+}
+
+triax_test(set, foreach_on_zero_initialized_set_is_noop) {
+  Set(int) s     = {RK_ZINIT};
+  int      count = 0;
+  set_foreach(&s, k) {
+    (void)k;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+}
+
+triax_test(set, foreach_break_stops_iteration) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+  set_add(int, &s, 3);
+
+  int visits = 0;
+  set_foreach(&s, k) {
+    (void)k;
+    ++visits;
+    break;
+  }
+  triax_expect_eq(visits, 1);
+
+  set_release(int, &s);
+}
+
+triax_test(set, foreach_continue_skips_member) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+  set_add(int, &s, 3);
+
+  int visits = 0, skipped = 0;
+  set_foreach(&s, k) {
+    (void)k;
+    if (!skipped) {
+      skipped = 1;
+      continue;
+    }
+    ++visits;
+  }
+  triax_expect_eq(skipped, 1);
+  triax_expect_eq(visits, 2);
+
+  set_release(int, &s);
+}
+
+static Set(int)* rki_mark_eval_set(Set(int)* s, int* count) {
+  ++*count;
+  return s;
+}
+
+triax_test(set, foreach_evaluates_set_argument_once) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+
+  int evals = 0, visits = 0;
+  set_foreach(rki_mark_eval_set(&s, &evals), k) {
+    (void)k;
+    ++visits;
+  }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(visits, 2);
+
+  set_release(int, &s);
+}
+
+triax_test(set, erase_if_removes_matching_members) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+  set_add(int, &s, 3);
+
+  set_erase_if(&s, k, *k == 2);
+
+  triax_expect_eq(set_count(&s), 2u);
+  triax_expect_false(set_contains(int, &s, 2));
+  triax_expect_true(set_contains(int, &s, 1));
+  triax_expect_true(set_contains(int, &s, 3));
+
+  set_release(int, &s);
+}
+
+triax_test(set, erase_if_empty_is_noop) {
+  Set(int) s     = set_init(int, 8);
+  int      calls = 0;
+  set_erase_if(&s, k, (++calls, (void)k, true));
+  triax_expect_eq(calls, 0);
+  triax_expect_eq(set_count(&s), 0u);
+  set_release(int, &s);
+}
+
+triax_test(set, erase_if_on_zero_initialized_set_is_noop) {
+  Set(int) s     = {RK_ZINIT};
+  int      calls = 0;
+  set_erase_if(&s, k, (++calls, (void)k, true));
+  triax_expect_eq(calls, 0);
+}
+
+triax_test(set, erase_if_evaluates_set_argument_once) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+
+  int evals = 0;
+  set_erase_if(rki_mark_eval_set(&s, &evals), k, *k == 1);
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(set_count(&s), 1u);
+
+  set_release(int, &s);
+}
+
+triax_test(set, erase_if_evaluates_predicate_once_per_member) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  set_add(int, &s, 2);
+  set_add(int, &s, 3);
+
+  int pred_calls = 0;
+  set_erase_if(&s, k, (++pred_calls, (void)k, false));
+  triax_expect_eq(pred_calls, 3);
+  triax_expect_eq(set_count(&s), 3u);
 
   set_release(int, &s);
 }

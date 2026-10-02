@@ -85,6 +85,15 @@ typedef struct Str {
 /// @brief `bool str_is_empty(strlike)` - Returns if stringlike is empty.
 #define str_is_empty(strlike)   ((bool)(str_len(strlike) == 0))
 
+#define str_begin(strlike)      str_dat(strlike)
+
+#define str_end(strlike)        RKI_STR_QCHARPTR(strlike, rki_str_end(strv_from(strlike)))
+
+// todo docs
+#define str_peek_front(strlike) (*RKI_STR_QCHARPTR(strlike, rki_str_peek_front(strv_from(strlike))))
+
+#define str_peek_back(strlike)  (*RKI_STR_QCHARPTR(strlike, rki_str_peek_back(strv_from(strlike))))
+
 /// @brief Returns an lvalue reference to the first character of a Stringlike.
 /// @param strlike the Stringlike, by value
 /// @return Lvalue reference to the first character in strlike
@@ -302,10 +311,25 @@ rklib_fun Str* str_erase_at(Str* restrict self, size_t idx);
 /// @attention Supplying an out-of-range index or count is undefined
 rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 
-/// @brief Convenience Macro to erase all elements in `self` that satisfy a predicate.
-/// @param self        Str* The Str to loop over
-/// @param it          The name of the iterator (access via *it)
-/// @param pred        The predicate (an expression)
+/// @brief Visits every character in index order.
+/// @param self Pointer to the Str. Evaluated once.
+/// @param it   Iterator name (a pointer to a character; access via `*it`).
+/// @note break stops traversal; continue advances to the next character.
+///
+/// Usage:
+/// ```c
+/// str_foreach(&str, c) { putchar(*c); }
+/// ```
+#define str_foreach(self, it) RKI_STR_FOREACH(self, it)
+
+/// @brief Like `str_foreach()`, but iterates in reverse index order. Same parameters and contract.
+#define str_foreach_reversed(self, it) RKI_STR_FOREACH_REVERSED(self, it)
+
+/// @brief Erases every character satisfying `pred`.
+/// @param self Pointer to a mutable Str. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original character.
+/// @note The predicate must not structurally modify the Str.
 ///
 /// Usage:
 /// ```c
@@ -313,20 +337,7 @@ rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 /// str_erase_if(&str, c, (*c == 'o'));
 /// printf("%s\n", str.str); // prints "hell"
 /// ```
-#define str_erase_if(self, it, pred)                                                               \
-  do {                                                                                             \
-    Str* RKI_STR = self;                                                                           \
-    if (!RKI_STR->str) { break; }                                                                  \
-    char*             RKI_WRITE = RKI_STR->str;                                                    \
-    const char* const RKI_READ  = RKI_STR->str;                                                    \
-    for (const char *RKI_IT = RKI_READ, *const RKI_END = RKI_READ + RKI_STR->len;                  \
-         RKI_IT < RKI_END; ++RKI_IT) {                                                             \
-      const char* const it = RKI_IT;                                                               \
-      if (!(pred)) { *RKI_WRITE++ = *RKI_IT; }                                                     \
-    }                                                                                              \
-    RKI_STR->len               = (size_t)(RKI_WRITE - RKI_STR->str);                               \
-    RKI_STR->str[RKI_STR->len] = '\0';                                                             \
-  } while (0)
+#define str_erase_if(self, it, pred) RKI_STR_ERASE_IF(self, it, pred)
 
 /// @brief Replaces all instances of `oldc` in `self` with `newc`.
 rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc);
@@ -497,6 +508,43 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 // conditionally cast away const (const is default)
 #define RKI_STR_QCHARPTR(_S, expr)                                                                 \
   _Generic(_S, Str: (char*)(expr), Strv: expr, char*: (char*)(expr), const char*: expr)
+
+#define RKI_STR_ITER_PTR(self)                                                                     \
+  _Generic((self),                                                                                 \
+      Str*: (char*)0,                                                                              \
+      const Str*: (const char*)0,                                                                  \
+      Strv*: (const char*)0,                                                                       \
+      const Strv*: (const char*)0)
+
+#define RKI_STR_FOREACH(self, it)                                                                  \
+  for (typeof(*(self))* rki_var_str = (self); rki_var_str; rki_var_str = rk_null)                  \
+    for (typeof(*RKI_STR_ITER_PTR(rki_var_str))*it = str_begin(*rki_var_str), *const rki_var_end   \
+                                                                              = str_end(           \
+                                                                                  *rki_var_str);   \
+         it != rki_var_end; ++it)
+
+#define RKI_STR_FOREACH_REVERSED(self, it)                                                         \
+  for (typeof(*(self))* rki_var_str = (self); rki_var_str; rki_var_str = rk_null)                  \
+    for (typeof(*RKI_STR_ITER_PTR(rki_var_str))*it = str_end(*rki_var_str), *const rki_var_begin   \
+                                                                            = str_begin(           \
+                                                                                *rki_var_str);     \
+         it != rki_var_begin && (--it, 1);)
+
+#define RKI_STR_ERASE_IF(self, it, pred)                                                          \
+  do {                                                                                             \
+    Str* const rki_var_str = (self);                                                               \
+    if (!rki_var_str->str) { break; }                                                              \
+    const char* const rki_var_read  = rki_var_str->str;                                            \
+    char*             rki_var_write = rki_var_str->str;                                            \
+    for (const char *rki_var_it = rki_var_read, *const rki_var_end                                 \
+                                                = rki_var_read + rki_var_str->len;                 \
+         rki_var_it < rki_var_end; ++rki_var_it) {                                                 \
+      const char* const it = rki_var_it;                                                           \
+      if (!(pred)) { *rki_var_write++ = *rki_var_it; }                                             \
+    }                                                                                              \
+    rki_var_str->len = (size_t)(rki_var_write - rki_var_read);                                     \
+    *rki_var_write   = '\0';                                                                       \
+  } while (0)
 
 #define RKI_STRV_FROM(_S)                                                                          \
   _Generic(_S,                                                                                     \
@@ -676,6 +724,12 @@ rklib_fun void rki_str_change_cap(Str* restrict self, size_t new_cap) {
 }
 rklib_fun void rki_str_ensure_cap(Str* restrict self, size_t new_cap) {
   if (new_cap > self->cap) { rki_str_change_cap(self, stdc_bit_ceil(new_cap)); }
+}
+rklib_fun rk_const const char* rki_str_end(Strv sv) { return sv.str ? sv.str + sv.len : rk_null; }
+
+rklib_fun rk_const const char* rki_str_peek_front(Strv sv) { return sv.len ? sv.str : rk_null; }
+rklib_fun rk_const const char* rki_str_peek_back(Strv sv) {
+  return sv.len ? sv.str + sv.len - 1 : rk_null;
 }
 
 rklib_fun rk_const const char* rki_str_front_ptr(Strv sv) {

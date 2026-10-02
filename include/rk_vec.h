@@ -194,6 +194,13 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @note Reassigns `self`, if necessary.
 #define vec_assign(self, arr, count)  ((void)RKI_VEC_ASSIGN(self, arr, count))
 
+// todo docs
+#define vec_begin(self)               ((typeof(self))(self))
+
+/// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
+/// `self` or `NULL` if `self` is `NULL`.
+#define vec_end(self)                 ((self) ? ((self) + RKI_VEC_COUNT(self)) : (self))
+
 /// @brief `T& vec_front(Vec(T) self)` - Returns an Lvalue reference to the first element of the
 /// Vec.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
@@ -289,58 +296,6 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @note Behavior is undefined if `idx` + count > vec_count()
 #define vec_erase_at_n(self, idx, count) ((void)(RKI_VEC_ERASE_AT_N(self, idx, count)))
 
-/// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
-/// `self` or `NULL` if `self` is `NULL`.
-#define vec_end(self)                    ((self) ? ((self) + RKI_VEC_COUNT(self)) : (self))
-
-/// @brief Convenience Macro to loop over the elements of a vec.
-/// @param vec The Vec to loop over
-/// @param it  The name of the iterator (pointer to each element)
-/// @note Do not erase or add elements while looping in this fashion. Use `vec_iterate()` in that
-/// case.
-///
-/// Usage:
-/// ```c
-/// Vec(int) vec = vec_init(int, 10);
-/// vec_push(vec, 1), vec_push(vec, 2);
-/// vec_foreach(vec, it) { printf("%d\n", *it); }
-/// ```
-#define vec_foreach(vec, it)                                                                       \
-  for (typeof(*(vec))*RKI__VEC = (vec), *const RKI__END = vec_end(RKI__VEC); RKI__VEC != RKI__END; \
-       ++RKI__VEC)                                                                                 \
-    for (typeof(*RKI__VEC)*const it = RKI__VEC, *RKI__ONCE = RKI__VEC; RKI__ONCE; RKI__ONCE = 0)
-
-/// @brief Like vec_foreach(), iterating in reverse order.
-#define vec_foreach_reversed(vec, it)                                                              \
-  for (typeof(*(vec))*const RKI__VEC = (vec), *RKI__END = vec_end(RKI__VEC);                       \
-       RKI__VEC != RKI__END;)                                                                      \
-    for (typeof(*RKI__VEC)*const it = --RKI__END, *RKI__ONCE = it; RKI__ONCE; RKI__ONCE = 0)
-
-/// @brief Convenience Macro to erase all elements in a Vec that satisfy a predicate.
-/// @param vec         The Vec to loop over
-/// @param it          The name of the iterator (access via *it)
-/// @param pred        The predicate (an expression working on *it)
-///
-/// Usage:
-/// ```c
-/// Vec(int) vec = vec_init(int, 10);
-/// vec_push(vec, 1), vec_push(vec, 2);
-/// vec_erase_if(vec, it, *it % 2); // remove odd numbers
-/// ```
-#define vec_erase_if(vec, it, pred)                                                                \
-  do {                                                                                             \
-    RKI_IGNWARN_MSC_BEG(4114)                                                                      \
-    typeof(vec) RKI__VEC = (vec);                                                                  \
-    if (!vec_count(RKI__VEC)) { break; }                                                           \
-    typeof(*RKI__VEC)*RKI__BEG = RKI__VEC, *const RKI__END = RKI__BEG + RKI_VEC_COUNT(RKI__BEG);   \
-    for (typeof(*RKI__VEC)* RKI__IT = RKI__VEC; RKI__IT != RKI__END; ++RKI__IT) {                  \
-      typeof(*RKI__VEC)* const it = RKI__IT;                                                       \
-      if (!(pred)) { *RKI__BEG++ = *RKI__IT; }                                                     \
-    }                                                                                              \
-    RKI_VEC_COUNT(RKI__VEC) = (size_t)(RKI__BEG - RKI__VEC);                                       \
-    RKI_IGNWARN_MSC_END()                                                                          \
-  } while (0)
-
 /// @brief Reverse the elements of a Vec in place.
 #define vec_reverse(vec)                                                                           \
   do {                                                                                             \
@@ -349,6 +304,34 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
     typeof(RKI__BEG) RKI__END = RKI__BEG + RKI_VEC_COUNT(RKI__BEG) - 1;                            \
     for (; RKI__BEG < RKI__END; ++RKI__BEG, --RKI__END) { rk_SWAP(*RKI__BEG, *RKI__END); }         \
   } while (0)
+
+/// @brief Visits every element in index order.
+/// @param vec The Vec to iterate. Evaluated once.
+/// @param it  Iterator name (a pointer into the Vec; access via `*it`).
+/// @note break stops traversal; continue advances to the next element.
+///
+/// Usage:
+/// ```c
+/// vec_foreach(vec, it) { printf("%d\n", *it); }
+/// ```
+#define vec_foreach(vec, it) RKI_VEC_FOREACH(vec, it)
+
+/// @brief Like `vec_foreach()`, but iterates in reverse index order. Same parameters and contract.
+#define vec_foreach_reversed(vec, it) RKI_VEC_FOREACH_REVERSED(vec, it)
+
+/// @brief Erases every element satisfying `pred`.
+/// @param vec  The Vec to erase from. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original element.
+/// @note The predicate must not structurally modify the Vec.
+///
+/// Usage:
+/// ```c
+/// Vec(int) vec = vec_init(int, 10);
+/// vec_push(vec, 1), vec_push(vec, 2);
+/// vec_erase_if(vec, it, *it % 2); // remove odd numbers
+/// ```
+#define vec_erase_if(vec, it, pred) RKI_VEC_ERASE_IF(vec, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -568,6 +551,30 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
 #define RKI_VEC_ERASE_AT_N(V, I, N)                                                                \
   rki_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
 #define RKI_VEC_ERASE_AT(V, I) RKI_VEC_ERASE_AT_N(V, I, 1)
+
+#define RKI_VEC_FOREACH(vec, it)                                                                   \
+  for (typeof(*(vec))*it = (vec), *const rki_var_end = vec_end(it); it != rki_var_end; ++it)
+
+#define RKI_VEC_FOREACH_REVERSED(vec, it)                                                          \
+  for (typeof(*(vec))*const rki_var_begin = (vec), *it = vec_end(rki_var_begin);                   \
+       it != rki_var_begin && (--it, 1);)
+
+#define RKI_VEC_ERASE_IF(vec, it, pred)                                                           \
+  do {                                                                                             \
+    RKI_IGNWARN_MSC_BEG(4114)                                                                      \
+    typeof(vec) rki_var_vec = (vec);                                                               \
+    if (!vec_count(rki_var_vec)) { break; }                                                        \
+    typeof(*rki_var_vec)*rki_var_write = rki_var_vec, *const rki_var_end                           \
+                                                      = rki_var_write                              \
+                                                      + RKI_VEC_COUNT(rki_var_write);              \
+    for (typeof(*rki_var_vec)* rki_var_it = rki_var_vec; rki_var_it != rki_var_end;                \
+         ++rki_var_it) {                                                                           \
+      typeof(*rki_var_vec)* const it = rki_var_it;                                                 \
+      if (!(pred)) { *rki_var_write++ = *rki_var_it; }                                             \
+    }                                                                                              \
+    RKI_VEC_COUNT(rki_var_vec) = (size_t)(rki_var_write - rki_var_vec);                            \
+    RKI_IGNWARN_MSC_END()                                                                          \
+  } while (0)
 
 #define RKI_VEC_ASSIGN(V, O, N)                                                                    \
   (RKI_VEC_RESERVE(V, N), (V) && (RKI_VEC_COUNT(V) = (N), rk_copy(V, O, N)))

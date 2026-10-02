@@ -170,6 +170,166 @@ triax_test(bst, foreach_inorder) {
   bst_release(int, char, &b);
 }
 
+triax_test(bst, foreach_reversed_empty) {
+  Bst(int, char) b = bst_init(int, char);
+  tree_node* stack[4];
+  int        visited = 0;
+  bst_foreach_reversed(&b, stack, 4, e) {
+    (void)e;
+    ++visited;
+  }
+  triax_expect_eq(visited, 0);
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, foreach_reversed_visits_descending) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 3, 'c');
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 4, 'd');
+  bst_set(int, char, &b, 2, 'b');
+
+  tree_node* stack[4];
+  int        keys[4] = {0};
+  int        i       = 0;
+  bst_foreach_reversed(&b, stack, 4, e) { keys[i++] = e->key; }
+  triax_expect_eq(i, 4);
+
+  static const int expect_keys[4] = {4, 3, 2, 1};
+  triax_expect_arreq(keys, expect_keys);
+
+  bst_release(int, char, &b);
+}
+
+// Regression test: bst_foreach's loop variable used to be exposed through an innermost "do-once"
+// loop nested inside the real traversal loop. That inner loop always ran to completion regardless
+// of the body, so a user's `break` only ever exited it and fell through to the real loop's own
+// re-check (which unconditionally advances to the next node) -- making `break` silently behave
+// like `continue` instead of stopping traversal.
+triax_test(bst, foreach_break_stops_iteration) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 2, 'b');
+  bst_set(int, char, &b, 3, 'c');
+  bst_set(int, char, &b, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  bst_foreach(&b, stack, 4, e) {
+    if (e->key == 2) { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 1); // just key 1
+
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, foreach_continue_skips_entry) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 2, 'b');
+  bst_set(int, char, &b, 3, 'c');
+  bst_set(int, char, &b, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  bst_foreach(&b, stack, 4, e) {
+    if (e->key == 2) { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 3); // all but key 2
+
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, foreach_reversed_break_stops_iteration) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 2, 'b');
+  bst_set(int, char, &b, 3, 'c');
+  bst_set(int, char, &b, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  bst_foreach_reversed(&b, stack, 4, e) {
+    if (e->key == 3) { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 1); // just key 4
+
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, foreach_reversed_continue_skips_entry) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 2, 'b');
+  bst_set(int, char, &b, 3, 'c');
+  bst_set(int, char, &b, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  bst_foreach_reversed(&b, stack, 4, e) {
+    if (e->key == 3) { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 3); // all but key 3
+
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, erase_if_removes_matching_entries) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 2, 'b');
+  bst_set(int, char, &b, 3, 'c');
+  bst_set(int, char, &b, 4, 'd');
+
+  tree_node* stack[4];
+  bst_erase_if(int, char, &b, stack, 4, e, e->key % 2 == 0);
+
+  triax_expect_eq(bst_count(&b), 2u);
+  triax_expect_false(bst_contains(int, char, &b, 2));
+  triax_expect_false(bst_contains(int, char, &b, 4));
+  triax_expect_true(bst_contains(int, char, &b, 1));
+  triax_expect_true(bst_contains(int, char, &b, 3));
+
+  // remaining entries must still traverse in sorted order
+  int keys[2] = {0};
+  int i       = 0;
+  bst_foreach(&b, stack, 4, e) { keys[i++] = e->key; }
+  triax_expect_eq(i, 2);
+  static const int expect_keys[2] = {1, 3};
+  triax_expect_arreq(keys, expect_keys);
+
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, erase_if_empty_is_noop) {
+  Bst(int, char) b          = bst_init(int, char);
+  tree_node*     stack[4];
+  int            pred_calls = 0;
+  bst_erase_if(int, char, &b, stack, 4, e, (++pred_calls, (void)e, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(bst_count(&b), 0u);
+  bst_release(int, char, &b);
+}
+
+triax_test(bst, erase_if_evaluates_predicate_once_per_entry) {
+  Bst(int, char) b = bst_init(int, char);
+  bst_set(int, char, &b, 1, 'a');
+  bst_set(int, char, &b, 2, 'b');
+  bst_set(int, char, &b, 3, 'c');
+
+  tree_node* stack[4];
+  int        pred_calls = 0;
+  bst_erase_if(int, char, &b, stack, 4, e, (++pred_calls, (void)e, false));
+  triax_expect_eq(pred_calls, 3);
+  triax_expect_eq(bst_count(&b), 3u);
+
+  bst_release(int, char, &b);
+}
+
 triax_test(bst, extract) {
   Bst(int, char) b = bst_init(int, char);
   bst_set(int, char, &b, 1, 'a');

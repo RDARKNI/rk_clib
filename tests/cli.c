@@ -4,6 +4,7 @@
 #include "conf.h"
 
 int main(int argc, char* argv[]) {
+
   int64_t         t0       = triaxi_now_ms();
   Triax_RunConfig defaults = {TRIAXI_ZINIT};
   Triax_RunConfig conf     = triax_parse_argv(argc, argv, defaults);

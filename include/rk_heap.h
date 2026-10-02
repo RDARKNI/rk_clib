@@ -182,6 +182,39 @@ RK_HEADER_BEGIN
 /// documented on `heap_assign()`.
 #define heap_extend(T, self, arr, n)     RKI_HEAP_PUB(T, extend)(self, arr, n)
 
+/// @brief Visits every element in backing-array order.
+///
+/// A Heap's only real contract is the heap invariant (min/max at the root, O(log n)
+/// push/pop/replace_top) -- the backing array's exact layout beyond that is an implementation
+/// detail of how elements landed there via sift-up/sift-down, not a property the caller can rely
+/// on. There is deliberately no `heap_foreach_reversed`: reversing an order that was never part of
+/// the contract (same reasoning as `pool_foreach` having no `_reversed`, and Dict/Set's
+/// "unspecified slot order" never getting one either) wouldn't add anything over calling this.
+/// @param self Pointer to the Heap. Evaluated once.
+/// @param it   Iterator name. Pointer to a const element.
+/// @note break stops traversal; continue advances to the next element.
+/// @note Do not modify the Heap during traversal.
+///
+/// Usage:
+/// ```c
+/// heap_foreach(&h, it) { printf("%d\n", *it); }
+/// ```
+#define heap_foreach(self, it) vec_foreach((const typeof(*(self)->data)*)(self)->data, it)
+
+/// @brief Erases every element satisfying `pred`, then restores the heap invariant.
+/// @param T    Element type.
+/// @param self Pointer to the mutable Heap. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original element.
+/// @note The predicate must not structurally modify the Heap.
+/// @note Takes O(n) time and does not allocate.
+///
+/// Usage:
+/// ```c
+/// heap_erase_if(int, &h, it, *it % 2 == 0); // drop even values
+/// ```
+#define heap_erase_if(T, self, it, pred) RKI_HEAP_ERASE_IF(T, self, it, pred)
+
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
@@ -285,6 +318,14 @@ RK_HEADER_BEGIN
 #define RKI_HEAP_FROM4(T, arr, n, alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_HEAP_FROM(T, arr, n, alloc))
 #define RKI_HEAP_FROM3(T, arr, n) RKI_HEAP_FROM(T, arr, n, alloc_ctx)
+
+#define RKI_HEAP_ERASE_IF(T, self, it, pred)                                                       \
+  do {                                                                                             \
+    Heap(T)* const rki_var_heap = (self);                                                          \
+    if (!rki_var_heap) { break; }                                                                  \
+    vec_erase_if(rki_var_heap->data, it, pred);                                                    \
+    RKI_HEAP_PRI(T, heapify)(rki_var_heap);                                                        \
+  } while (0)
 
 /// @endcond
 #pragma endregion implementation

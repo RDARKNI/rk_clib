@@ -6,8 +6,8 @@
 /// `Avl`, and a left-leaning red-black `Rbt`. All three share the same node-walking, release, and
 /// iteration primitives (the `tree_*` names below) and expose the same shaped API (`_init`,
 /// `_set`, `_add`, `_get`, `_get_or_add` for Bst, `_contains`, `_extract`, `_remove`, `_min`,
-/// `_max`, `_release`, `_foreach`), differing only in their rebalancing strategy and therefore
-/// their worst-case complexity.
+/// `_max`, `_release`, `_foreach`, `_foreach_reversed`, `_erase_if`), differing only in their
+/// rebalancing strategy and therefore their worst-case complexity.
 ///
 /// - `Bst`: no rebalancing. O(log n) average, O(n) worst case (e.g. sorted insertion order).
 /// - `Avl`: rotates to keep left/right subtree heights within 1 of each other. O(log n) worst case,
@@ -242,7 +242,8 @@ typedef struct tree_iter {
 /// release build is undefined behaviour, not a caught error.
 /// @param entry         Name for the loop variable (a `const BstEntry(K, V)*`)
 ///
-/// @warning Do not insert or remove elements during iteration.
+/// @note break stops traversal; continue advances to the next entry.
+/// @note Do not insert or remove elements during iteration.
 /// @warning If `stack_cap` is less than the tree height, an assertion fires.
 ///
 /// Example:
@@ -254,6 +255,31 @@ typedef struct tree_iter {
 /// ```
 #define bst_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
+
+/// @brief Like `bst_foreach()`, but iterates in descending key order. Same parameters and contract.
+#define bst_foreach_reversed(self, stack_buf, stack_cap, entry)                                   \
+  tree_foreach_reversed(self, stack_buf, stack_cap, entry)
+
+/// @brief Erases every entry satisfying `pred`.
+///
+/// Performs an in-order traversal using the given stack buffer (same contract as `bst_foreach()`)
+/// to find every entry satisfying `pred`, then removes each one by key.
+/// @param K,V             Key/value types, as passed to `BST_DEFINE()`
+/// @param self            Pointer to a mutable `Bst(K, V)`
+/// @param stack_buf       Array of `tree_node*` used as the traversal stack (see `bst_foreach()`)
+/// @param stack_cap       Number of elements in `stack_buf`
+/// @param entry           Name for the loop variable (a `const BstEntry(K, V)*`)
+/// @param pred            Predicate expression, evaluated once per entry present at the start of
+/// the call
+/// @note The predicate must not insert or remove entries.
+///
+/// Usage:
+/// ```c
+/// tree_node* stack[64];
+/// bst_erase_if(int, cstr, &tree, stack, 64, e, e->val[0] == 'x');
+/// ```
+#define bst_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                               \
+  RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_BST_PUB(K, V, remove))
 
 /////////////////////////////////////// Avl: AVL-balanced BST /////////////////////////////////////
 
@@ -338,6 +364,14 @@ typedef struct tree_iter {
 #define avl_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
 
+/// @brief Like `avl_foreach()`, but iterates in descending key order. Same parameters and contract.
+#define avl_foreach_reversed(self, stack_buf, stack_cap, entry)                                   \
+  tree_foreach_reversed(self, stack_buf, stack_cap, entry)
+
+/// @brief Erases every entry satisfying `pred`, rebalancing as needed. See `bst_erase_if()`.
+#define avl_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                               \
+  RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_AVL_PUB(K, V, remove))
+
 ////////////////////////////////// Rbt: left-leaning red-black tree ///////////////////////////////
 
 /// @brief `RBT_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific left-leaning red-black
@@ -417,6 +451,14 @@ typedef struct tree_iter {
 #define rbt_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
 
+/// @brief Like `rbt_foreach()`, but iterates in descending key order. Same parameters and contract.
+#define rbt_foreach_reversed(self, stack_buf, stack_cap, entry)                                   \
+  tree_foreach_reversed(self, stack_buf, stack_cap, entry)
+
+/// @brief Erases every entry satisfying `pred`, rebalancing as needed. See `bst_erase_if()`.
+#define rbt_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
+  RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_RBT_PUB(K, V, remove))
+
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
@@ -470,33 +512,94 @@ rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
   return (char*)node + entry_off;
 }
 
-rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) {
+rklib_fun tree_node* rki_tree_iter_next(tree_iter* restrict it) {
   while (it->curr) {
     rk_assert(it->top < it->cap && "Tree iterator stack overflow");
     it->stack[it->top++] = it->curr;
     it->curr             = it->curr->l;
   }
-  if (!it->top) { return false; }
+  if (!it->top) { return rk_null; }
   tree_node* node = it->stack[--it->top];
-  *node_out       = node;
   it->curr        = node->r;
-  return true;
+  return node;
 }
 
-/// @brief Shared in-order-traversal loop backing `bst_foreach`/`avl_foreach`/`rbt_foreach`. Not
-/// normally used directly -- prefer the tree-specific macro, which documents its own parameters;
-/// the shape is identical across all three.
-#define tree_foreach(self, stack_buf, stack_cap, entry_)                                           \
-  for (typeof(*(self))*const RKI_rs = (self), *RKI_once = RKI_rs; RKI_once;)                       \
-    for (tree_node * RKI_node; RKI_once; RKI_once = 0)                                             \
-      for (tree_iter RKI_it = {.stack = (stack_buf),                                               \
-                               .curr  = (tree_node*)RKI_rs->root,                                  \
-                               .cap   = (stack_cap),                                               \
-                               .top   = 0};                                                        \
-           rki_tree_iter_next(&RKI_it, &RKI_node);)                                                \
-        for (typeof(RKI_rs->root->entry)*const entry_ = &((typeof(RKI_rs->root))RKI_node)->entry,  \
-                                               *RKI_once1 = entry_;                                \
-             RKI_once1; RKI_once1                         = 0)
+/// @brief Like `rki_tree_iter_next()`, but walks the tree right-to-left (descending order).
+rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
+  while (it->curr) {
+    rk_assert(it->top < it->cap && "Tree iterator stack overflow");
+    it->stack[it->top++] = it->curr;
+    it->curr             = it->curr->r;
+  }
+  if (!it->top) { return rk_null; }
+  tree_node* node = it->stack[--it->top];
+  it->curr        = node->l;
+  return node;
+}
+
+/// @brief Shared in-order-traversal loop backing `bst_foreach`/`avl_foreach`/`rbt_foreach` and their
+/// `_reversed` counterparts. Not normally used directly -- prefer the tree-specific macro, which
+/// documents its own parameters; the shape is identical across all three.
+///
+/// `entry_` is the loop variable itself (computed directly in the condition from whichever node
+/// `rki_tree_iter_next[_reversed]` just returned), so this is a single real loop: `break` exits
+/// traversal immediately and `continue` re-evaluates the condition to advance to the next node,
+/// exactly like a plain array loop. (An earlier version exposed `entry_` through an innermost
+/// "do-once" loop nested inside the real traversal loop; that inner loop always ran to completion
+/// regardless of the body, so a user's `break` only ever exited it and fell through to the real
+/// loop's own re-check -- which unconditionally advances -- making `break` silently behave like
+/// `continue`.)
+#define RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_, reversed)                            \
+  for (struct {                                                                                   \
+         typeof(*(self))* tree;                                                                   \
+         tree_iter         it;                                                                    \
+         tree_node*        node;                                                                  \
+       } RKI_state                                                                                \
+       = {(self), {0}, rk_null};                                                                  \
+       RKI_state.tree                                                                             \
+       && (RKI_state.it = (tree_iter){.stack = (stack_buf),                                       \
+                                       .curr  = (tree_node*)RKI_state.tree->root,                 \
+                                       .cap   = (stack_cap),                                      \
+                                       .top   = 0},                                               \
+          1);                                                                                      \
+       RKI_state.tree = rk_null)                                                                  \
+    for (typeof(RKI_state.tree->root->entry)* entry_ = rk_null;                                   \
+         (RKI_state.node = (reversed) ? rki_tree_iter_next_reversed(&RKI_state.it)                \
+                                       : rki_tree_iter_next(&RKI_state.it))                        \
+         && (entry_ = &((typeof(RKI_state.tree->root))RKI_state.node)->entry, 1);)
+
+#define tree_foreach(self, stack_buf, stack_cap, entry_)                                          \
+  RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_, 0)
+
+/// @brief Like `tree_foreach()`, but iterates in descending key order.
+#define tree_foreach_reversed(self, stack_buf, stack_cap, entry_)                                 \
+  RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_, 1)
+
+/// @brief Shared erase_if implementation backing `bst_erase_if`/`avl_erase_if`/`rbt_erase_if`. Not
+/// normally used directly.
+///
+/// Deleting a tree node can trigger rotations that would invalidate an in-progress traversal stack,
+/// so this makes two passes instead of deleting while walking: first it traverses the tree once
+/// (via `tree_foreach`, which does not mutate it) collecting the key of every entry satisfying
+/// `pred` into a scratch buffer, then it removes each collected key through `remove_fn` -- the
+/// variant's own, already-correct `remove` function, which rebalances exactly as it would for a
+/// standalone `_remove()` call.
+#define RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry_, pred, remove_fn)                    \
+  do {                                                                                             \
+    typeof(*(self))* const RKI_eif_self = (self);                                                 \
+    if (!RKI_eif_self->count) { break; }                                                          \
+    typeof(RKI_eif_self->root->entry_mod.key)* const RKI_eif_keys                                 \
+        = alloc_new(typeof(RKI_eif_self->root->entry_mod.key),                                    \
+                    RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));                       \
+    size_t RKI_eif_n = 0;                                                                         \
+    tree_foreach(RKI_eif_self, stack_buf, stack_cap, entry_) {                                    \
+      if (pred) { RKI_eif_keys[RKI_eif_n++] = entry_->key; }                                      \
+    }                                                                                              \
+    for (size_t RKI_eif_i = 0; RKI_eif_i < RKI_eif_n; ++RKI_eif_i) {                               \
+      remove_fn(RKI_eif_self, RKI_eif_keys[RKI_eif_i]);                                           \
+    }                                                                                               \
+    alloc_delete(RKI_eif_keys, RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));            \
+  } while (0)
 
 //////////////////////////////////////////// Bst internals /////////////////////////////////////////
 

@@ -352,6 +352,63 @@ triax_test(heap, adopt) {
   }
 }
 
+triax_test(heap, foreach_visits_all_elements) {
+  Heap(int) h = heap_init(int, 0);
+  heap_push(int, &h, 3);
+  heap_push(int, &h, 1);
+  heap_push(int, &h, 4);
+  heap_push(int, &h, 2);
+
+  int sum = 0, count = 0;
+  heap_foreach(&h, it) {
+    sum += *it;
+    ++count;
+  }
+  triax_expect_eq(count, 4);
+  triax_expect_eq(sum, 10);
+
+  heap_release(&h);
+}
+
+triax_test(heap, foreach_empty_is_noop) {
+  Heap(int) h     = heap_init(int, 0);
+  int       count = 0;
+  heap_foreach(&h, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  heap_release(&h);
+}
+
+triax_test(heap, erase_if_removes_matching_and_preserves_heap_order) {
+  Heap(int) h = heap_init(int, 0);
+  for (int i = 1; i <= 8; ++i) { heap_push(int, &h, i); }
+
+  heap_erase_if(int, &h, it, *it % 2 == 0); // drop evens: 1,3,5,7 remain
+  triax_expect_eq(heap_count(&h), 4u);
+
+  int prev = 0;
+  for (int i = 0; i < 4; ++i) {
+    int got = heap_pop(int, &h);
+    triax_expect_gt(got, prev);
+    triax_expect_eq(got % 2, 1);
+    prev = got;
+  }
+  triax_expect_true(heap_is_empty(&h));
+
+  heap_release(&h);
+}
+
+triax_test(heap, erase_if_empty_is_noop) {
+  Heap(int) h          = heap_init(int, 0);
+  int       pred_calls = 0;
+  heap_erase_if(int, &h, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(heap_count(&h), 0u);
+  heap_release(&h);
+}
+
 triax_test(heap, large_worst_case_order) {
   Heap(int) h = heap_init(int, 0);
 

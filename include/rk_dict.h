@@ -7,8 +7,8 @@
 ///
 /// This header provides two data structures built on the same open-addressing hash table engine:
 ///
-/// - **Dict(K, V)** — a key-to-value map (hash table).
-/// - **Set(K)** — a key-only collection (hash set); the `vals` array is omitted entirely.
+/// - **Dict(K, V)** â€” a key-to-value map (hash table).
+/// - **Set(K)** â€” a key-only collection (hash set); the `vals` array is omitted entirely.
 ///
 /// Both are type-generic and instantiated with a single macro call (`DICT_DEFINE` / `SET_DEFINE`).
 /// Collisions are resolved via linear probing. A separate byte array stores a 7-bit fingerprint
@@ -78,10 +78,11 @@
 ///    ```
 ///
 /// @par Slot Encoding (`data[]` array, one byte per slot)
-/// - `0x80`: empty — slot has never been used; probe chains stop here.
-/// - `0xFE`: deleted (tombstone) — slot was occupied then removed; probe chains continue through
+/// - `0x80`: empty â€” slot has never been used; probe chains stop here.
+/// - `0xFE`: deleted (tombstone) â€” slot was occupied then removed; probe chains continue through
 ///   it.
-/// - `0x00–0x7F`: occupied — value is the 7-bit fingerprint (top 7 bits of the hash). Fingerprints
+/// - `0x00â€“0x7F`: occupied â€” value is the 7-bit fingerprint (top 7 bits of the hash).
+/// Fingerprints
 ///   let the probe loop skip non-matching slots without a full key comparison.
 ///
 /// @note On insert, if `(count + ndeleted + 1) * RKI_DICT_LOAD_DEN > cap * RKI_DICT_LOAD_NUM`, the
@@ -161,7 +162,7 @@ RK_HEADER_BEGIN
 /// @brief `Dict(K, V)* dict_reserve(K, V, Dict(K, V)* self, size_t n)` - Reserves and rehashes the
 /// Dict so that it can hold at least `n` live entries without triggering another automatic rehash.
 /// @return `self`, for chaining.
-/// @note `n` counts live entries, not table slots — the underlying table capacity (see
+/// @note `n` counts live entries, not table slots â€” the underlying table capacity (see
 /// `dict_cap`) is sized up to account for the load factor
 /// (`RKI_DICT_LOAD_NUM`/`RKI_DICT_LOAD_DEN`).
 #define dict_reserve(K, V, self, n)            RKI_DICT_PUB(K, V, reserve)(self, n)
@@ -224,11 +225,13 @@ RK_HEADER_BEGIN
 /// @return `true` if the value was found and removed, `false` otherwise
 #define dict_remove(K, V, self, key)           RKI_DICT_PUB(K, V, remove)(self, key)
 
-/// @brief Iterates over all key-value pairs in the Dict, skipping empty slots.
-/// @param self     Pointer to the Dict to iterate over
-/// @param _key     Chosen name for each key pointer (`const K*`)
-/// @param _val     Chosen name for each value pointer (`V*` for a mutable Dict, `const V*` for a
-///                 const Dict)
+/// @brief Visits every live key-value pair in unspecified slot order.
+/// @param self Pointer to the Dict. Evaluated once.
+/// @param _key Name of the key pointer (const K*).
+/// @param _val Name of the value pointer (V*, or const V* for a const Dict).
+/// @note break stops traversal; continue advances to the next live entry.
+/// @note Reassigning iterator pointers does not change traversal.
+/// @note Do not structurally modify the Dict during traversal.
 ///
 /// Usage:
 /// ```c
@@ -236,60 +239,47 @@ RK_HEADER_BEGIN
 ///     printf("key: %d, value: %s\n", *k, *v);
 /// }
 /// ```
-/// @warning Adding or removing values via this macro leads to incorrect iteration.
-/// @note Iteration skips empty slots in the underlying storage.
-#define dict_foreach(self, _key, _val)                                                             \
-  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
-    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
-      for (const typeof(*(RKI__dict->keys))*const _key                                             \
-           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->keys[RKI__i])   \
-                                                                    : rk_null,                     \
-           *RKI_ONCE          = _key;                                                              \
-           RKI_ONCE; RKI_ONCE = 0)                                                                 \
-        for (typeof(*RKI_DICT_VALUE_PTR(RKI__dict))*const _val       = &(RKI__dict->vals[RKI__i]), \
-                                                          *RKI_ONCE1 = _val;                       \
-             RKI_ONCE1; RKI_ONCE1                                    = 0)
+#define dict_foreach(self, _key, _val) RKI_DICT_FOREACH(self, _key, _val)
 
-/// @brief Iterates over all keys in the Dict, skipping empty and deleted slots.
-/// @param self  Pointer to the Dict to iterate over
-/// @param _key  Chosen name of the key pointer (`const K*`) for each iteration
+/// @brief Visits every live key in unspecified slot order.
+/// @param self Pointer to the Dict or Set. Evaluated once.
+/// @param _key Name of the key pointer (const K*).
+/// @note break stops traversal; continue advances to the next live entry.
+/// @note Reassigning the iterator pointer does not change traversal.
+/// @note Do not structurally modify the table during traversal.
 ///
 /// Usage:
 /// ```c
-/// dict_foreach_key(&mydict, k) {
-///     printf("key: %d\n", *k);
-/// }
+/// dict_foreach_key(&mydict, k) { printf("key: %d\n", *k); }
 /// ```
-/// @warning Adding or removing values during iteration leads to incorrect behaviour.
-#define dict_foreach_key(self, _key)                                                               \
-  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
-    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
-      for (const typeof(*(RKI__dict->keys))*const _key                                             \
-           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->keys[RKI__i])   \
-                                                                    : rk_null,                     \
-           *RKI_ONCE          = _key;                                                              \
-           RKI_ONCE; RKI_ONCE = 0)
+#define dict_foreach_key(self, _key) RKI_DICT_FOREACH_KEY(self, _key)
 
-/// @brief Iterates over all values in the Dict, skipping empty and deleted slots.
-/// @param self  Pointer to the Dict to iterate over
-/// @param _val  Chosen name of the value pointer (`V*` for a mutable Dict, `const V*` for a const
-///              Dict) for each iteration
+/// @brief Visits every live value in unspecified slot order.
+/// @param self Pointer to the Dict. Evaluated once.
+/// @param _val Name of the value pointer (V*, or const V* for a const Dict).
+/// @note break stops traversal; continue advances to the next live entry.
+/// @note Reassigning the iterator pointer does not change traversal.
+/// @note Do not structurally modify the Dict during traversal.
 ///
 /// Usage:
 /// ```c
-/// dict_foreach_val(&mydict, v) {
-///     printf("value: %s\n", *v);
-/// }
+/// dict_foreach_val(&mydict, v) { printf("value: %s\n", *v); }
 /// ```
-/// @warning Adding or removing values during iteration leads to incorrect behaviour.
-#define dict_foreach_val(self, _val)                                                               \
-  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
-    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
-      for (typeof(*RKI_DICT_VALUE_PTR(RKI__dict))*const _val                                       \
-           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->vals[RKI__i])   \
-                                                                    : rk_null,                     \
-           *RKI_ONCE          = _val;                                                              \
-           RKI_ONCE; RKI_ONCE = 0)
+#define dict_foreach_val(self, _val) RKI_DICT_FOREACH_VAL(self, _val)
+
+/// @brief Erases live entries satisfying pred, without rehashing or changing capacity.
+/// @param self Pointer to a mutable Dict. Evaluated once.
+/// @param _key Name of the read-only key pointer.
+/// @param _val Name of the read-only value pointer.
+/// @param pred Predicate expression, evaluated once per original live entry.
+/// @note The predicate must not structurally modify the Dict.
+/// @note Removed slots become tombstones; retained entries keep their addresses.
+///
+/// Usage:
+/// ```c
+/// dict_erase_if(&mydict, k, v, *v == 0);
+/// ```
+#define dict_erase_if(self, _key, _val, pred) RKI_DICT_ERASE_IF(self, _key, _val, pred)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name Set Interface
@@ -377,27 +367,38 @@ RK_HEADER_BEGIN
 /// @return `true` if the value was found and removed, `false` otherwise
 #define set_remove(K, self, key)         RKI_SET_PUB(K, remove)(self, key)
 
-/// @brief Iterates over all keys in the Set, skipping empty slots.
-/// @param self     Pointer to the Set to iterate over
-/// @param key      Chosen name of the key pointer that will point to each key
+/// @brief Visits every live key in unspecified slot order.
+/// @param self Pointer to the Set. Evaluated once.
+/// @param key Name of the read-only key pointer.
+/// @note break stops traversal; continue advances to the next live key.
+/// @note Do not structurally modify the Set during traversal.
 ///
 /// Usage:
 /// ```c
-/// set_foreach(&myset, k) {
-///     printf("key: %d\n", *k);
-/// }
+/// set_foreach(&myset, k) { printf("key: %d\n", *k); }
 /// ```
-/// @warning Adding or removing keys via this macro leads to incorrect iteration.
-/// @note Iteration skips empty slots in the underlying storage.
 #define set_foreach(self, key)           dict_foreach_key(self, key)
+
+/// @brief Erases live keys satisfying pred, without rehashing or changing capacity.
+/// @param self Pointer to a mutable Set. Evaluated once.
+/// @param key Name of the read-only key pointer.
+/// @param pred Predicate expression, evaluated once per original live key.
+/// @note The predicate must not structurally modify the Set.
+/// @note Removed slots become tombstones; retained keys keep their addresses.
+///
+/// Usage:
+/// ```c
+/// set_erase_if(&myset, k, *k % 2 != 0);
+/// ```
+#define set_erase_if(self, key, pred) RKI_SET_ERASE_IF(self, key, pred)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RKI_DICT_LOAD_NUM                3
-#define RKI_DICT_LOAD_DEN                4
+#define RKI_DICT_LOAD_NUM 3
+#define RKI_DICT_LOAD_DEN 4
 
 // `vals` remains a mutable pointer when the Dict object is const. Propagate the
 // container's constness to the pointers exposed during iteration.
@@ -409,7 +410,7 @@ RK_HEADER_BEGIN
 typedef struct RKI_ds_header { size_t cap, count, ndeleted; } RKI_ds_header;
 
 // Probe result packed into a single size_t: bits[1:0] = flags, bits[N:2] = slot index. bit 0: found
-// — key exists at the returned slot. bit 1: tombstone — insert slot was a deleted slot (only
+// â€” key exists at the returned slot. bit 1: tombstone â€” insert slot was a deleted slot (only
 // meaningful when !found).
 typedef size_t RKI_hashprobe_t;
 #define RKI_PROBE_MAKE(found, tomb, idx)                                                           \
@@ -419,22 +420,109 @@ typedef size_t RKI_hashprobe_t;
 #define RKI_PROBE_IDX(r)       ((r) >> 2)
 
 #define RKI_IGNORE(...)
-#define RKI_EXPAND(...)                      __VA_ARGS__
+#define RKI_EXPAND(...)                 __VA_ARGS__
 
 /// @brief Sentinel value returned by internal index lookups when the key is not present.
-#define RK_DS_NOTIN                          ((size_t)-1)
+#define RK_DS_NOTIN                     ((size_t)-1)
 
 // internal helper macros
-#define RKI_DS_HOME(MASK, hash)              ((size_t)(hash) & (MASK))
-#define RKI_DS_NEXT(MASK, i)                 (((i) + 1) & (MASK))
+#define RKI_DS_HOME(MASK, hash)         ((size_t)(hash) & (MASK))
+#define RKI_DS_NEXT(MASK, i)            (((i) + 1) & (MASK))
 // The shift always yields a 7-bit value (0-127), which always fits in u8 --
 // every call site assigns straight into a u8, so the cast belongs here once
 // rather than at each site.
-#define RKI_DS_FP(hash)                      ((u8)((hash) >> (bitsof(hash) - 7)))
+#define RKI_DS_FP(hash)                 ((u8)((hash) >> (bitsof(hash) - 7)))
 
-#define RKI_DS_SLOT_EMPTY                    ((u8)0x80)
-#define RKI_DS_SLOT_DELETED                  ((u8)0xFE)
-#define RKI_DS_SLOT_EMPTY_OR_DELETED(x)      ((x) & 0x80)
+#define RKI_DS_SLOT_EMPTY               ((u8)0x80)
+#define RKI_DS_SLOT_DELETED             ((u8)0xFE)
+#define RKI_DS_SLOT_EMPTY_OR_DELETED(x) ((x) & 0x80)
+
+// Capture the table once and snapshot capacity for traversal.
+#define RKI_DS_FOREACH_STATE(self)                                                                 \
+  for (struct {                                                                                    \
+         typeof(*(self))* table;                                                                   \
+         size_t           idx, cap;                                                                \
+         int              completed;                                                               \
+       } rki_var_state = {(self), 0, 0, 0};                                                        \
+       rki_var_state.table && (rki_var_state.cap = rki_var_state.table->cap, 1);                   \
+       rki_var_state.table = rk_null)
+
+// Inclusive search: cap is the sentinel and is safe for cap == 0, data == NULL.
+rklib_fun rk_pure size_t rki_ds_next_live(const u8* data, size_t cap, size_t idx) {
+  while (idx < cap && RKI_DS_SLOT_EMPTY_OR_DELETED(data[idx])) { ++idx; }
+  return idx;
+}
+
+#define RKI_DICT_FOREACH(self, _key, _val)                                                         \
+  RKI_DS_FOREACH_STATE(self)                                                                       \
+  for (const typeof(*rki_var_state.table->keys)* _key = rk_null;                                   \
+       (rki_var_state.idx                                                                          \
+        = rki_ds_next_live(rki_var_state.table->data, rki_var_state.cap, rki_var_state.idx))       \
+           < rki_var_state.cap                                                                     \
+       && (_key                   = &rki_var_state.table->keys[rki_var_state.idx], (void)_key,     \
+          rki_var_state.completed = 0, 1);                                                         \
+       rki_var_state.idx = rki_var_state.completed ? rki_var_state.idx + 1 : rki_var_state.cap)    \
+    for (typeof(*RKI_DICT_VALUE_PTR(rki_var_state.table))* _val                                    \
+         = &rki_var_state.table->vals[rki_var_state.idx];                                          \
+         ((void)_val, !rki_var_state.completed); rki_var_state.completed = 1)
+
+#define RKI_DICT_FOREACH_KEY(self, _key)                                                           \
+  RKI_DS_FOREACH_STATE(self)                                                                       \
+  for (const typeof(*rki_var_state.table->keys)* _key = rk_null;                                   \
+       (rki_var_state.idx                                                                          \
+        = rki_ds_next_live(rki_var_state.table->data, rki_var_state.cap, rki_var_state.idx))       \
+           < rki_var_state.cap                                                                     \
+       && (_key = &rki_var_state.table->keys[rki_var_state.idx], (void)_key, 1);                   \
+       ++rki_var_state.idx)
+
+#define RKI_DICT_FOREACH_VAL(self, _val)                                                           \
+  RKI_DS_FOREACH_STATE(self)                                                                       \
+  for (typeof(*RKI_DICT_VALUE_PTR(rki_var_state.table))* _val = rk_null;                           \
+       (rki_var_state.idx                                                                          \
+        = rki_ds_next_live(rki_var_state.table->data, rki_var_state.cap, rki_var_state.idx))       \
+           < rki_var_state.cap                                                                     \
+       && (_val = &rki_var_state.table->vals[rki_var_state.idx], (void)_val, 1);                   \
+       ++rki_var_state.idx)
+
+#define RKI_DICT_ERASE_IF(self, _key, _val, pred)                                                 \
+  do {                                                                                             \
+    typeof(*(self))* const rki_var_dict = (self);                                                  \
+    if (!rki_var_dict) { break; }                                                                  \
+    const size_t rki_var_cap = rki_var_dict->cap;                                                  \
+    for (size_t rki_var_idx = 0;                                                                   \
+         (rki_var_idx = rki_ds_next_live(rki_var_dict->data, rki_var_cap, rki_var_idx))            \
+         < rki_var_cap;                                                                            \
+         ++rki_var_idx) {                                                                          \
+      const typeof(*rki_var_dict->keys)* const _key = &rki_var_dict->keys[rki_var_idx];            \
+      const typeof(*rki_var_dict->vals)* const _val = &rki_var_dict->vals[rki_var_idx];            \
+      (void)_key;                                                                                  \
+      (void)_val;                                                                                  \
+      if (pred) {                                                                                  \
+        rki_var_dict->data[rki_var_idx] = RKI_DS_SLOT_DELETED;                                     \
+        --rki_var_dict->count;                                                                     \
+        ++rki_var_dict->ndeleted;                                                                  \
+      }                                                                                            \
+    }                                                                                              \
+  } while (0)
+
+#define RKI_SET_ERASE_IF(self, key, pred)                                                         \
+  do {                                                                                             \
+    typeof(*(self))* const rki_var_set = (self);                                                   \
+    if (!rki_var_set) { break; }                                                                   \
+    const size_t rki_var_cap = rki_var_set->cap;                                                   \
+    for (size_t rki_var_idx = 0;                                                                   \
+         (rki_var_idx = rki_ds_next_live(rki_var_set->data, rki_var_cap, rki_var_idx))             \
+         < rki_var_cap;                                                                            \
+         ++rki_var_idx) {                                                                          \
+      const typeof(*rki_var_set->keys)* const key = &rki_var_set->keys[rki_var_idx];               \
+      (void)key;                                                                                   \
+      if (pred) {                                                                                  \
+        rki_var_set->data[rki_var_idx] = RKI_DS_SLOT_DELETED;                                      \
+        --rki_var_set->count;                                                                      \
+        ++rki_var_set->ndeleted;                                                                   \
+      }                                                                                            \
+    }                                                                                              \
+  } while (0)
 
 #define RKI_DICT_PUB(K, V, FNAME)            dict_##K##_##V##_##FNAME
 #define RKI_DICT_PRI(K, V, FNAME)            rki_dict_##K##_##V##_##FNAME

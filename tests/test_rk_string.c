@@ -215,6 +215,168 @@ triax_test(string, str_erase_if) {
   str_release(&s);
 }
 
+static Str* rki_mark_eval_str(Str* s, int* count) {
+  ++*count;
+  return s;
+}
+
+triax_test(string, foreach_visits_all_chars) {
+  Str  s   = str_from_literal("abcde");
+  char buf[6] = {0};
+  int  i      = 0;
+  str_foreach(&s, it) { buf[i++] = *it; }
+  triax_expect_eq(i, 5);
+  triax_expect_streq(buf, "abcde");
+  str_release(&s);
+}
+
+triax_test(string, foreach_reversed_visits_all_chars) {
+  Str  s   = str_from_literal("abcde");
+  char buf[6] = {0};
+  int  i      = 0;
+  str_foreach_reversed(&s, it) { buf[i++] = *it; }
+  triax_expect_eq(i, 5);
+  triax_expect_streq(buf, "edcba");
+  str_release(&s);
+}
+
+triax_test(string, foreach_break_stops_iteration) {
+  Str s = str_from_literal("abcde");
+  int visits = 0;
+  str_foreach(&s, it) {
+    if (*it == 'c') { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 2); // 'a', 'b'
+  str_release(&s);
+}
+
+triax_test(string, foreach_continue_skips_char) {
+  Str s = str_from_literal("abcde");
+  int visits = 0;
+  str_foreach(&s, it) {
+    if (*it == 'c') { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 4); // all but 'c'
+  str_release(&s);
+}
+
+triax_test(string, foreach_reversed_break_stops_iteration) {
+  Str s = str_from_literal("abcde");
+  int visits = 0;
+  str_foreach_reversed(&s, it) {
+    if (*it == 'c') { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 2); // 'e', 'd'
+  str_release(&s);
+}
+
+triax_test(string, foreach_reversed_continue_skips_char) {
+  Str s = str_from_literal("abcde");
+  int visits = 0;
+  str_foreach_reversed(&s, it) {
+    if (*it == 'c') { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 4); // all but 'c'
+  str_release(&s);
+}
+
+triax_test(string, foreach_evaluates_str_argument_once) {
+  Str s     = str_from_literal("abc");
+  int evals = 0, visits = 0;
+  str_foreach(rki_mark_eval_str(&s, &evals), it) {
+    (void)it;
+    ++visits;
+  }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(visits, 3);
+  str_release(&s);
+}
+
+triax_test(string, foreach_reversed_evaluates_str_argument_once) {
+  Str s     = str_from_literal("abc");
+  int evals = 0, visits = 0;
+  str_foreach_reversed(rki_mark_eval_str(&s, &evals), it) {
+    (void)it;
+    ++visits;
+  }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(visits, 3);
+  str_release(&s);
+}
+
+triax_test(string, erase_if_evaluates_str_argument_once) {
+  Str s     = str_from_literal("abcdefgh");
+  int evals = 0;
+  str_erase_if(rki_mark_eval_str(&s, &evals), it, *it == 'a');
+  triax_expect_eq(evals, 1);
+  triax_expect_streq(s.str, "bcdefgh");
+  str_release(&s);
+}
+
+triax_test(string, erase_if_evaluates_predicate_once_per_char) {
+  Str s          = str_from_literal("abcdefgh");
+  int pred_calls = 0;
+  str_erase_if(&s, it, (++pred_calls, *it == 'a'));
+  triax_expect_eq(pred_calls, 8);
+  triax_expect_streq(s.str, "bcdefgh");
+  str_release(&s);
+}
+
+triax_test(string, foreach_empty_is_noop) {
+  Str s     = str_init(0);
+  int count = 0;
+  str_foreach(&s, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  str_release(&s);
+}
+
+triax_test(string, foreach_reversed_empty_is_noop) {
+  Str s     = str_init(0);
+  int count = 0;
+  str_foreach_reversed(&s, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  str_release(&s);
+}
+
+triax_test(string, foreach_on_zero_initialized_str_is_noop) {
+  Str s     = {RK_ZINIT};
+  int count = 0;
+  str_foreach(&s, it) {
+    (void)it;
+    ++count;
+  }
+  str_foreach_reversed(&s, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+}
+
+triax_test(string, erase_if_empty_is_noop) {
+  Str s          = str_init(0);
+  int pred_calls = 0;
+  str_erase_if(&s, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+  str_release(&s);
+}
+
+triax_test(string, erase_if_on_zero_initialized_str_is_noop) {
+  Str s          = {RK_ZINIT};
+  int pred_calls = 0;
+  str_erase_if(&s, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+}
+
 triax_test(string, str_find_and_compare) {
   Str         s = str_from_literal("hello world");
   const char* p = str_find(s, "world");

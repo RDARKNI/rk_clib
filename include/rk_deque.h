@@ -239,33 +239,35 @@ RK_HEADER_BEGIN
 /// @return `true` if an element was removed, `false` if the Deque was empty
 #define deque_try_pop_back(T, self, out)        RKI_DEQUE_PUB(T, try_pop_back)(self, out)
 
-/// @brief Visits every element of a Deque in front-to-back order.
-/// @param self The Deque to loop over (a pointer). Evaluated once.
-/// @param it   The name of the iterator (pointer to each element, const if `self` points to a
-///             const Deque)
-/// @note Do not push, pop, reserve, or shrink the Deque while looping in this fashion.
+/// @brief Visits every element in front-to-back order.
+/// @param self Pointer to the Deque. Evaluated once.
+/// @param it   Iterator name. Element constness follows self.
+/// @note break stops traversal; continue advances to the next element.
+/// @note Do not structurally modify the Deque during traversal.
 ///
 /// Usage:
 /// ```c
 /// deque_foreach(&q, it) { printf("%d\n", *it); }
 /// ```
-#define deque_foreach(self, it)                                                                    \
-  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
-    for (size_t RKI__i = 0; RKI__i < RKI__DEQUE->count; ++RKI__i)                                  \
-      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
-           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
-           RKI__once            = it;                                                              \
-           RKI__once; RKI__once = rk_null)
+#define deque_foreach(self, it) RKI_DEQUE_FOREACH(self, it)
 
-/// @brief Like `deque_foreach()`, visiting elements in back-to-front order. Iterator element
-/// constness follows the constness of the Deque pointed to by `self`.
-#define deque_foreach_reversed(self, it)                                                           \
-  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
-    for (size_t RKI__i = RKI__DEQUE->count; RKI__i-- > 0;)                                         \
-      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
-           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
-           RKI__once            = it;                                                              \
-           RKI__once; RKI__once = rk_null)
+/// @brief Like `deque_foreach()`, but iterates in back-to-front order. Same parameters and
+/// contract.
+#define deque_foreach_reversed(self, it) RKI_DEQUE_FOREACH_REVERSED(self, it)
+
+/// @brief Erases every element satisfying `pred`, preserving the retained elements' relative
+/// order.
+/// @param self Pointer to a mutable Deque. Evaluated once.
+/// @param it   Iterator name. Access the current element through `*it`.
+/// @param pred Predicate expression, evaluated once per original element.
+/// @note The predicate must not structurally modify the Deque.
+/// @note Does not allocate or change capacity.
+///
+/// Usage:
+/// ```c
+/// deque_erase_if(&q, it, *it % 2 == 0); // remove even numbers
+/// ```
+#define deque_erase_if(self, it, pred) RKI_DEQUE_ERASE_IF(self, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -453,6 +455,56 @@ RK_HEADER_BEGIN
 #define RKI_DEQUE_FROM4(T, arr, n, alloc)                                                          \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_FROM(T, arr, n, alloc))
 #define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
+
+#define RKI_DEQUE_FOREACH(self, it)                                                                \
+  for (struct {                                                                                    \
+         typeof(*(self))* deque;                                                                   \
+         size_t           idx, count;                                                              \
+       } rki_var_state = {(self), 0, 0};                                                           \
+       rki_var_state.deque && (rki_var_state.count = rki_var_state.deque->count, 1);               \
+       rki_var_state.deque = rk_null)                                                              \
+    for (typeof(*RKI_DEQUE_ITER_PTR(rki_var_state.deque))* it = rk_null;                           \
+         rki_var_state.idx < rki_var_state.count                                                   \
+         && (it = &rki_var_state.deque->data[(rki_var_state.deque->head + (rki_var_state.idx))     \
+                                             & (rki_var_state.deque->cap - 1)],                    \
+            1);                                                                                    \
+         ++rki_var_state.idx)
+
+#define RKI_DEQUE_FOREACH_REVERSED(self, it)                                                       \
+  for (struct {                                                                                    \
+         typeof(*(self))* deque;                                                                   \
+         size_t           idx, count;                                                              \
+       } rki_var_state = {(self), 0, 0};                                                           \
+       rki_var_state.deque && (rki_var_state.count = rki_var_state.deque->count, 1);               \
+       rki_var_state.deque = rk_null)                                                              \
+    for (typeof(*RKI_DEQUE_ITER_PTR(rki_var_state.deque))* it = rk_null;                           \
+         rki_var_state.idx < rki_var_state.count                                                   \
+         && (it = &rki_var_state.deque->data[(rki_var_state.deque->head                            \
+                                              + (rki_var_state.count - 1 - rki_var_state.idx))     \
+                                             & (rki_var_state.deque->cap - 1)],                    \
+            1);                                                                                    \
+         ++rki_var_state.idx)
+
+#define RKI_DEQUE_ERASE_IF(self, it, pred)                                                         \
+  do {                                                                                             \
+    typeof(self) const rki_var_deque = (self);                                                     \
+    if (!rki_var_deque || !rki_var_deque->count) { break; }                                        \
+    const size_t rki_var_count = rki_var_deque->count;                                             \
+    const size_t rki_var_mask  = rki_var_deque->cap - 1;                                           \
+    size_t       rki_var_write = 0;                                                                \
+    for (size_t rki_var_idx = 0; rki_var_idx < rki_var_count; ++rki_var_idx) {                     \
+      typeof(*rki_var_deque->data)* const it                                                       \
+          = &rki_var_deque->data[(rki_var_deque->head + rki_var_idx) & rki_var_mask];              \
+      if (!(pred)) {                                                                               \
+        if (rki_var_write != rki_var_idx) {                                                        \
+          rki_var_deque->data[(rki_var_deque->head + rki_var_write) & rki_var_mask] = *it;         \
+        }                                                                                          \
+        ++rki_var_write;                                                                           \
+      }                                                                                            \
+    }                                                                                              \
+    rki_var_deque->count = rki_var_write;                                                          \
+    if (!rki_var_write) { rki_var_deque->head = 0; }                                               \
+  } while (0)
 
 /// @endcond
 #pragma endregion implementation

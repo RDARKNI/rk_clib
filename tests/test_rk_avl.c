@@ -169,6 +169,160 @@ triax_test(avl, foreach_inorder) {
   avl_release(int, char, &a);
 }
 
+triax_test(avl, foreach_reversed_empty) {
+  Avl(int, char) a = avl_init(int, char);
+  tree_node* stack[4];
+  int        visited = 0;
+  avl_foreach_reversed(&a, stack, 4, e) {
+    (void)e;
+    ++visited;
+  }
+  triax_expect_eq(visited, 0);
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, foreach_reversed_visits_descending) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 3, 'c');
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 4, 'd');
+  avl_set(int, char, &a, 2, 'b');
+
+  tree_node* stack[4];
+  int        keys[4] = {0};
+  int        i       = 0;
+  avl_foreach_reversed(&a, stack, 4, e) { keys[i++] = e->key; }
+  triax_expect_eq(i, 4);
+
+  static const int expect_keys[4] = {4, 3, 2, 1};
+  triax_expect_arreq(keys, expect_keys);
+
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, foreach_break_stops_iteration) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 2, 'b');
+  avl_set(int, char, &a, 3, 'c');
+  avl_set(int, char, &a, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  avl_foreach(&a, stack, 4, e) {
+    if (e->key == 2) { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 1); // just key 1
+
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, foreach_continue_skips_entry) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 2, 'b');
+  avl_set(int, char, &a, 3, 'c');
+  avl_set(int, char, &a, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  avl_foreach(&a, stack, 4, e) {
+    if (e->key == 2) { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 3); // all but key 2
+
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, foreach_reversed_break_stops_iteration) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 2, 'b');
+  avl_set(int, char, &a, 3, 'c');
+  avl_set(int, char, &a, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  avl_foreach_reversed(&a, stack, 4, e) {
+    if (e->key == 3) { break; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 1); // just key 4
+
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, foreach_reversed_continue_skips_entry) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 2, 'b');
+  avl_set(int, char, &a, 3, 'c');
+  avl_set(int, char, &a, 4, 'd');
+
+  tree_node* stack[4];
+  int        visits = 0;
+  avl_foreach_reversed(&a, stack, 4, e) {
+    if (e->key == 3) { continue; }
+    ++visits;
+  }
+  triax_expect_eq(visits, 3); // all but key 3
+
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, erase_if_removes_matching_entries) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 2, 'b');
+  avl_set(int, char, &a, 3, 'c');
+  avl_set(int, char, &a, 4, 'd');
+
+  tree_node* stack[4];
+  avl_erase_if(int, char, &a, stack, 4, e, e->key % 2 == 0);
+
+  triax_expect_eq(avl_count(&a), 2u);
+  triax_expect_false(avl_contains(int, char, &a, 2));
+  triax_expect_false(avl_contains(int, char, &a, 4));
+  triax_expect_true(avl_contains(int, char, &a, 1));
+  triax_expect_true(avl_contains(int, char, &a, 3));
+
+  int keys[2] = {0};
+  int i       = 0;
+  avl_foreach(&a, stack, 4, e) { keys[i++] = e->key; }
+  triax_expect_eq(i, 2);
+  static const int expect_keys[2] = {1, 3};
+  triax_expect_arreq(keys, expect_keys);
+
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, erase_if_empty_is_noop) {
+  Avl(int, char) a          = avl_init(int, char);
+  tree_node*     stack[4];
+  int            pred_calls = 0;
+  avl_erase_if(int, char, &a, stack, 4, e, (++pred_calls, (void)e, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(avl_count(&a), 0u);
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, erase_if_evaluates_predicate_once_per_entry) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 2, 'b');
+  avl_set(int, char, &a, 3, 'c');
+
+  tree_node* stack[4];
+  int        pred_calls = 0;
+  avl_erase_if(int, char, &a, stack, 4, e, (++pred_calls, (void)e, false));
+  triax_expect_eq(pred_calls, 3);
+  triax_expect_eq(avl_count(&a), 3u);
+
+  avl_release(int, char, &a);
+}
+
 triax_test(avl, extract) {
   Avl(int, char) a = avl_init(int, char);
   avl_set(int, char, &a, 1, 'a');

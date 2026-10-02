@@ -398,6 +398,140 @@ triax_test(vec, vec_foreach_reversed_empty) {
   vec_release(v);
 }
 
+triax_test(vec, foreach_empty_is_noop) {
+  Vec(int) v     = vec_init(int, 4);
+  int      count = 0;
+  vec_foreach(v, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  vec_release(v);
+}
+
+triax_test(vec, foreach_null_vec_is_noop) {
+  Vec(int) v     = rk_null;
+  int      count = 0;
+  vec_foreach(v, it) {
+    (void)it;
+    ++count;
+  }
+  vec_foreach_reversed(v, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+}
+
+static Vec(int) rki_mark_eval_vec(Vec(int) v, int* count) {
+  ++*count;
+  return v;
+}
+
+triax_test(vec, foreach_break_stops_iteration) {
+  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  int      sum = 0, visits = 0;
+  vec_foreach(v, it) {
+    if (*it == 3) { break; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 3); // 0+1+2, stops before 3
+  triax_expect_eq(visits, 3);
+  vec_release(v);
+}
+
+triax_test(vec, foreach_continue_skips_element) {
+  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  int      sum = 0, visits = 0;
+  vec_foreach(v, it) {
+    if (*it == 2) { continue; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 8); // 0+1+3+4
+  triax_expect_eq(visits, 4);
+  vec_release(v);
+}
+
+triax_test(vec, foreach_reversed_break_stops_iteration) {
+  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  int      sum = 0, visits = 0;
+  vec_foreach_reversed(v, it) {
+    if (*it == 1) { break; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 9); // 4+3+2, stops before 1
+  triax_expect_eq(visits, 3);
+  vec_release(v);
+}
+
+triax_test(vec, foreach_reversed_continue_skips_element) {
+  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  int      sum = 0, visits = 0;
+  vec_foreach_reversed(v, it) {
+    if (*it == 2) { continue; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 8); // 4+3+1+0
+  triax_expect_eq(visits, 4);
+  vec_release(v);
+}
+
+triax_test(vec, foreach_evaluates_vec_argument_once) {
+  Vec(int) v     = vec_init_list(int, 1, 2, 3);
+  int      evals = 0, sum = 0;
+  vec_foreach(rki_mark_eval_vec(v, &evals), it) { sum += *it; }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(sum, 6);
+  vec_release(v);
+}
+
+triax_test(vec, foreach_reversed_evaluates_vec_argument_once) {
+  Vec(int) v     = vec_init_list(int, 1, 2, 3);
+  int      evals = 0, sum = 0;
+  vec_foreach_reversed(rki_mark_eval_vec(v, &evals), it) { sum += *it; }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(sum, 6);
+  vec_release(v);
+}
+
+triax_test(vec, erase_if_evaluates_vec_argument_once) {
+  Vec(int) v     = vec_init_list(int, 1, 2, 3, 4, 5);
+  int      evals = 0;
+  vec_erase_if(rki_mark_eval_vec(v, &evals), it, *it % 2 == 0);
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(vec_count(v), 3u); // 1, 3, 5 remain
+  vec_release(v);
+}
+
+triax_test(vec, erase_if_evaluates_predicate_once_per_element) {
+  Vec(int) v          = vec_init_list(int, 1, 2, 3, 4, 5);
+  int      pred_calls = 0;
+  vec_erase_if(v, it, (++pred_calls, *it % 2 == 0));
+  triax_expect_eq(pred_calls, 5);
+  triax_expect_eq(vec_count(v), 3u);
+  vec_release(v);
+}
+
+triax_test(vec, erase_if_empty_is_noop) {
+  Vec(int) v          = vec_init(int, 4);
+  int      pred_calls = 0;
+  vec_erase_if(v, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(vec_count(v), 0u);
+  vec_release(v);
+}
+
+triax_test(vec, erase_if_null_vec_is_noop) {
+  Vec(int) v          = rk_null;
+  int      pred_calls = 0;
+  vec_erase_if(v, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+}
+
 triax_test(vec, vec_push_unchecked) {
   Vec(int) v = vec_init(int, 4);
   vec_push(v, 1);

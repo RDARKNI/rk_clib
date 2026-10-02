@@ -680,11 +680,77 @@ rklib_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len
   return bitset_clear_padding(dst, len);
 }
 
+/// @brief Visits every set bit's index in increasing order.
+/// @param self  Bitset storage, mutable or const. Evaluated once.
+/// @param nbits Logical bit count. Evaluated once.
+/// @param idx   Name of the size_t index variable.
+/// @note break stops traversal; continue advances to the next set bit.
+/// @note Clearing the current bit is supported.
+///
+/// Usage:
+/// ```c
+/// bitset_foreach(bs, 128, i) { printf("set bit: %zu\n", i); }
+/// ```
+#define bitset_foreach(self, nbits, idx) RKI_BITSET_FOREACH(self, nbits, idx)
+
+/// @brief Like `bitset_foreach()`, but iterates in decreasing order. Same parameters and contract.
+#define bitset_foreach_reversed(self, nbits, idx) RKI_BITSET_FOREACH_REVERSED(self, nbits, idx)
+
+/// @brief Clears every set bit whose index satisfies `pred`.
+/// @param self  Mutable bitset storage. Evaluated once.
+/// @param nbits Logical bit count. Evaluated once.
+/// @param idx   Name of the const size_t index variable.
+/// @param pred  Predicate expression, evaluated once per original set bit.
+/// @note The predicate must not modify the bitset.
+///
+/// Usage:
+/// ```c
+/// bitset_clear_if(bs, 128, i, i % 2 == 0); // clear even-indexed bits
+/// ```
+#define bitset_clear_if(self, nbits, idx, pred) RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)
+
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+
+#define RKI_BITSET_FOREACH(self, nbits, idx)                                                       \
+  for (struct {                                                                                    \
+         cbitset bits;                                                                             \
+         size_t  count, cursor;                                                                    \
+       } rki_var_state                        = {(self), (nbits), BITSET_NPOS};                    \
+       rki_var_state.bits; rki_var_state.bits = rk_null)                                           \
+    for (size_t idx = 0; (rki_var_state.cursor = bitset_find_next_set(                             \
+                              rki_var_state.bits, rki_var_state.count, rki_var_state.cursor))      \
+                             < rki_var_state.count                                                 \
+                         && (idx = rki_var_state.cursor, (void)idx, 1);)
+
+#define RKI_BITSET_FOREACH_REVERSED(self, nbits, idx)                                              \
+  for (struct {                                                                                    \
+         cbitset bits;                                                                             \
+         size_t  count, cursor;                                                                    \
+       } rki_var_state = {(self), (nbits), 0};                                                     \
+       rki_var_state.bits && (rki_var_state.cursor = rki_var_state.count, 1);                      \
+       rki_var_state.bits = rk_null)                                                               \
+    for (size_t idx = 0; (rki_var_state.cursor = bitset_find_prev_set(                             \
+                              rki_var_state.bits, rki_var_state.count, rki_var_state.cursor))      \
+                             != BITSET_NPOS                                                        \
+                         && (idx = rki_var_state.cursor, (void)idx, 1);)
+
+#define RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)                                                \
+  do {                                                                                             \
+    bitset const rki_var_bits  = (self);                                                           \
+    const size_t rki_var_count = (nbits);                                                          \
+    if (!rki_var_bits) { break; }                                                                  \
+    for (size_t rki_var_cursor = BITSET_NPOS;                                                      \
+         (rki_var_cursor = bitset_find_next_set(rki_var_bits, rki_var_count, rki_var_cursor))      \
+         < rki_var_count;) {                                                                       \
+      const size_t idx = rki_var_cursor;                                                           \
+      (void)idx;                                                                                   \
+      if (pred) { bitset_clear(rki_var_bits, rki_var_count, rki_var_cursor); }                     \
+    }                                                                                              \
+  } while (0)
 
 /// @brief Internal helper implementing range operations.
 /// @param bs Bitset to modify

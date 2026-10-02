@@ -299,6 +299,148 @@ triax_test(deque, foreach_and_reversed) {
   deque_release(int, &q);
 }
 
+static Deque(int)* rki_mark_eval_deque(Deque(int)* q, int* count) {
+  ++*count;
+  return q;
+}
+
+triax_test(deque, foreach_break_stops_iteration) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 0; i < 5; ++i) { deque_push_back(int, &q, i); }
+  int sum = 0, visits = 0;
+  deque_foreach(&q, it) {
+    if (*it == 3) { break; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 3); // 0+1+2, stops before 3
+  triax_expect_eq(visits, 3);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_continue_skips_element) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 0; i < 5; ++i) { deque_push_back(int, &q, i); }
+  int sum = 0, visits = 0;
+  deque_foreach(&q, it) {
+    if (*it == 2) { continue; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 8); // 0+1+3+4
+  triax_expect_eq(visits, 4);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_reversed_break_stops_iteration) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 0; i < 5; ++i) { deque_push_back(int, &q, i); }
+  int sum = 0, visits = 0;
+  deque_foreach_reversed(&q, it) {
+    if (*it == 1) { break; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 9); // 4+3+2, stops before 1
+  triax_expect_eq(visits, 3);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_reversed_continue_skips_element) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 0; i < 5; ++i) { deque_push_back(int, &q, i); }
+  int sum = 0, visits = 0;
+  deque_foreach_reversed(&q, it) {
+    if (*it == 2) { continue; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 8); // 4+3+1+0
+  triax_expect_eq(visits, 4);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_evaluates_deque_argument_once) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 1; i <= 3; ++i) { deque_push_back(int, &q, i); }
+  int evals = 0, sum = 0;
+  deque_foreach(rki_mark_eval_deque(&q, &evals), it) { sum += *it; }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(sum, 6);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_reversed_evaluates_deque_argument_once) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 1; i <= 3; ++i) { deque_push_back(int, &q, i); }
+  int evals = 0, sum = 0;
+  deque_foreach_reversed(rki_mark_eval_deque(&q, &evals), it) { sum += *it; }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(sum, 6);
+  deque_release(int, &q);
+}
+
+triax_test(deque, erase_if_evaluates_deque_argument_once) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 1; i <= 5; ++i) { deque_push_back(int, &q, i); }
+  int evals = 0;
+  deque_erase_if(rki_mark_eval_deque(&q, &evals), it, *it % 2 == 0);
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(deque_count(&q), 3u); // 1, 3, 5 remain
+  deque_release(int, &q);
+}
+
+triax_test(deque, erase_if_evaluates_predicate_once_per_element) {
+  Deque(int) q = deque_init(int, 0);
+  for (int i = 1; i <= 5; ++i) { deque_push_back(int, &q, i); }
+  int pred_calls = 0;
+  deque_erase_if(&q, it, (++pred_calls, *it % 2 == 0));
+  triax_expect_eq(pred_calls, 5);
+  triax_expect_eq(deque_count(&q), 3u);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_reversed_empty_is_noop) {
+  Deque(int) q     = deque_init(int, 0);
+  int        count = 0;
+  deque_foreach_reversed(&q, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+  deque_release(int, &q);
+}
+
+triax_test(deque, foreach_on_null_deque_is_noop) {
+  Deque(int)* q     = rk_null;
+  int         count = 0;
+  deque_foreach(q, it) {
+    (void)it;
+    ++count;
+  }
+  deque_foreach_reversed(q, it) {
+    (void)it;
+    ++count;
+  }
+  triax_expect_eq(count, 0);
+}
+
+triax_test(deque, erase_if_empty_is_noop) {
+  Deque(int) q          = deque_init(int, 0);
+  int        pred_calls = 0;
+  deque_erase_if(&q, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(deque_count(&q), 0u);
+  deque_release(int, &q);
+}
+
+triax_test(deque, erase_if_on_null_deque_is_noop) {
+  Deque(int)* q          = rk_null;
+  int         pred_calls = 0;
+  deque_erase_if(q, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+}
+
 triax_test(deque, clear_is_an_expression) {
   Deque(int) q = deque_init(int, 0);
   deque_push_back(int, &q, 1);

@@ -347,6 +347,123 @@ triax_test(pool, foreach_empty_pool_is_noop_dynamic) {
   pool_release(&p);
 }
 
+// A generic single-evaluation marker, not a typed helper function: POOL_DEFINE(int) in this file's
+// convention is called locally inside each test body rather than at file scope, so a typed helper
+// declared once at file scope has no Pool_int type to refer to yet.
+#define RKI_MARK_EVAL(expr, counter) (++(counter), (expr))
+
+triax_test(pool, foreach_break_stops_iteration_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 8);
+  pool_put(&p, 10);
+  pool_put(&p, 20);
+  pool_put(&p, 30);
+  pool_put(&p, 40);
+  int sum = 0, visits = 0;
+  pool_foreach(&p, it) {
+    if (*it == 20) { break; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 10);
+  triax_expect_eq(visits, 1);
+  pool_release(&p);
+}
+
+triax_test(pool, foreach_continue_skips_element_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 8);
+  pool_put(&p, 10);
+  pool_put(&p, 20);
+  pool_put(&p, 30);
+  pool_put(&p, 40);
+  int sum = 0, visits = 0;
+  pool_foreach(&p, it) {
+    if (*it == 20) { continue; }
+    sum += *it;
+    ++visits;
+  }
+  triax_expect_eq(sum, 80);
+  triax_expect_eq(visits, 3);
+  pool_release(&p);
+}
+
+triax_test(pool, foreach_evaluates_pool_argument_once_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 8);
+  pool_put(&p, 1);
+  pool_put(&p, 2);
+  pool_put(&p, 3);
+  int evals = 0, sum = 0;
+  pool_foreach(RKI_MARK_EVAL(&p, evals), it) { sum += *it; }
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(sum, 6);
+  pool_release(&p);
+}
+
+triax_test(pool, erase_if_evaluates_pool_argument_once_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 8);
+  pool_put(&p, 1);
+  pool_put(&p, 2);
+  pool_put(&p, 3);
+  pool_put(&p, 4);
+  int evals = 0;
+  pool_erase_if(RKI_MARK_EVAL(&p, evals), it, *it % 2 == 0);
+  triax_expect_eq(evals, 1);
+  triax_expect_eq(pool_used(&p), 2u); // 1, 3 remain
+  pool_release(&p);
+}
+
+triax_test(pool, erase_if_evaluates_predicate_once_per_live_element_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 8);
+  pool_put(&p, 1);
+  pool_put(&p, 2);
+  pool_put(&p, 3);
+  pool_put(&p, 4);
+  int pred_calls = 0;
+  pool_erase_if(&p, it, (++pred_calls, *it % 2 == 0));
+  triax_expect_eq(pred_calls, 4);
+  triax_expect_eq(pool_used(&p), 2u);
+  pool_release(&p);
+}
+
+triax_test(pool, foreach_empty_pool_is_noop_static) {
+  POOL_DEFINE(int, 4);
+  Pool(int, 4) p = staticpool_init;
+  int count      = 0;
+  pool_foreach(&p, it) { (void)it, ++count; }
+  triax_expect_eq(0, count);
+}
+
+triax_test(pool, foreach_on_zero_initialized_pool_is_noop_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = (Pool(int)){RK_ZINIT};
+  int count   = 0;
+  pool_foreach(&p, it) { (void)it, ++count; }
+  triax_expect_eq(0, count);
+}
+
+triax_test(pool, erase_if_empty_pool_is_noop_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p          = pool_init(int, 4);
+  int       pred_calls = 0;
+  pool_erase_if(&p, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(pool_used(&p), 0u);
+  pool_release(&p);
+}
+
+triax_test(pool, erase_if_empty_pool_is_noop_static) {
+  POOL_DEFINE(int, 4);
+  Pool(int, 4) p          = staticpool_init;
+  int          pred_calls = 0;
+  pool_erase_if(&p, it, (++pred_calls, (void)it, true));
+  triax_expect_eq(pred_calls, 0);
+  triax_expect_eq(pool_used(&p), 0u);
+}
+
 triax_test(pool, addresses_of_distinct_live_elements_are_distinct_dynamic) {
   POOL_DEFINE(int);
   Pool(int) p = pool_init(int, 4);
