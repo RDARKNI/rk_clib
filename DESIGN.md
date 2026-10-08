@@ -86,10 +86,17 @@ This gives several benefits:
 
 The cost is that a `Vec(T)` has no distinct struct identity: to `_Generic`, it is simply a `T *`.
 
-### 2. Generated representation, shared implementation: `Pool`
+### 2. Generated representation, shared implementation: `Pool` and `Deque`
 Pools need a real type definition because their representation depends on the element type and, for static pools, on capacity. `POOL_DEFINE` therefore generates the struct type.
 
 However, most pool operations do not need a user-supplied operation on `T`. Allocation and deletion depend only on layout information, the allocation bitset, element size, and alignment. The implementation therefore avoids generating a full independent function suite for every pool type.
+
+`Deque` follows the same model. Ring-buffer operations only copy elements and compute wrapped indices, so `DEQUE_DEFINE` generates just the type: a shared, element-type-independent state struct (`base`) overlaid with an unevaluated element-type marker. The macros recover `T` from that marker through `typeof`/`sizeof`/`alignof` and pass the element layout to one shared implementation, so only the constructors (`deque_init`, `deque_from`), which have to name the type, take `T`:
+```c
+deque_push_back(&queue, value);
+
+int first = deque_pop_front(&queue);
+```
 
 Instead, the generated representation contains enough compile-time information for macros to recover the element type and distinguish static from dynamic pools. Shared helpers perform the actual work.
 
@@ -110,7 +117,7 @@ The static and dynamic forms intentionally share one conceptual API:
 
 Compile-time dispatch chooses the appropriate representation path.
 
-### 3. Generated typed behavior: `Deque`, `Dict`, `Set`, `Heap`, and trees
+### 3. Generated typed behavior: `Dict`, `Set`, `Heap`, and trees
 Other containers require genuinely type-specific functions.
 
 A heap needs a comparator. A dictionary needs a hash and equality/comparison function. Search trees need an ordering function. These operations cannot be reconstructed from `sizeof(T)` or `alignof(T)`, and calling them through stored function pointers would add runtime state and indirect calls.
@@ -199,7 +206,7 @@ This interface shape is deliberate.
 
 - **Alignment is part of the contract.** Containers do not assume that every allocation only needs fundamental alignment. The same interface can therefore serve ordinary values and over-aligned types.
 - **The old allocation size is supplied to resize and release operations.** `malloc` may ignore it, but arenas, page-based allocators, debug allocators, slab allocators, and other custom strategies can use it without maintaining a separate size lookup table.
-- **Reallocation is a first-class operation.** Growable structures such as `Vec`, `Str`, and `Deque` can ask the allocator to resize directly instead of imposing an allocate-copy-free sequence at every call site. An allocator that cannot resize in place is still free to implement reallocation internally by allocating a new block, copying the minimum of the old and new sizes, and releasing the old block.
+- **Reallocation is a first-class operation.** Growable structures such as `Vec` and `Str` can ask the allocator to resize directly instead of imposing an allocate-copy-free sequence at every call site. (`Deque` is the exception: growth unwraps the ring into a fresh buffer, so it always allocates and copies.) An allocator that cannot resize in place is still free to implement reallocation internally by allocating a new block, copying the minimum of the old and new sizes, and releasing the old block.
 - **Allocator state is explicit through `ctx`.** The vtable describes the strategy; the context identifies a particular instance of that strategy. Multiple arenas can therefore share one allocator vtable while carrying different arena state, and containers can retain the allocator instance they were created with.
 
 The result is intentionally closer to a small capability object than to a set of global replacement functions. An `Allocator` value says both *how* allocation is performed and *which allocator instance* a particular object belongs to.
@@ -366,8 +373,8 @@ Storage management delegates to `Vec`, while heap-specific code handles ordering
 
 This is a deliberate example of layering rather than reimplementation.
 
-### `rk_deque.h` — generated circular buffer
-`Deque(T)` is a generated typed struct containing a circular buffer, head index, count, capacity, and optional allocator.
+### `rk_deque.h` — type-generic circular buffer
+`Deque(T)` is a generated struct wrapping a shared, element-type-independent state (circular buffer, head index, count, capacity, and optional allocator) together with an element-type marker; all operations are shared across element types and work from the element size and alignment.
 
 Capacities are powers of two, allowing wraparound with masks instead of modulo in hot paths. Reallocation linearizes the logical sequence into a fresh buffer.
 
@@ -518,8 +525,8 @@ The central design rule is:
 That leads naturally to different implementations for different headers:
 
 - derive type information directly when the C expression already carries everything required (`Vec`);
-- generate only representation when behavior can remain shared (`Pool`);
-- generate concrete typed functions when behavior depends on user-supplied type operations (`Heap`, `Deque`, `Dict`, `Set`, and trees);
+- generate only representation when behavior can remain shared (`Pool`, `Deque`);
+- generate concrete typed functions when behavior depends on user-supplied type operations (`Heap`, `Dict`, `Set`, and trees);
 - use local `_Generic` overloading for small closed families (`Stringlike`, numeric helpers);
 - use runtime vtables only for the abstraction that genuinely represents runtime strategy selection (`Allocator`), and allow even that feature to compile out.
 
