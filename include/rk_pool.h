@@ -356,10 +356,10 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
 // pools, size_t for dynamic ones): matching on `const typeof(*(self))*` would spell
 // `const const Pool` for a const Pool (MSVC C4114), as for the Dict/Deque/tree helpers.
 #define RKI_POOL_ITER_PTR(self)                                                                    \
-  _Generic(&(self)->_pool.cap,                                                                     \
-      const unsigned char*: (const RKI_POOL_T(self)*)0,                                            \
-      const size_t*: (const RKI_POOL_T(self)*)0,                                                   \
-      default: (RKI_POOL_T(self)*)0)
+  RKI_IGNWARN_MSC(4114, _Generic(&(self)->_pool.cap,                                               \
+                      const unsigned char*: (const RKI_POOL_T(self)*)0,                            \
+                      const size_t*: (const RKI_POOL_T(self)*)0,                                   \
+                      default: (RKI_POOL_T(self)*)0))
 /// to prevent inactive union member access in c++
 #define RKI_POOL_ELS(self)                                                                         \
   RKI_POOL_DISPATCH(self, (self)->els, (typeof(RKI_POOL_ITER_PTR(self)))(self)->_pool.els)
