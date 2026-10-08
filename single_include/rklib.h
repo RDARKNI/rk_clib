@@ -236,7 +236,6 @@
 #endif
 
 /// @}
-
 #endif // RK_CONFIG_H
 
 // MIT License
@@ -299,7 +298,7 @@
 #endif
 
 #if defined(__has_c_attribute) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-# define rk_has_c_attribute(x) (__has_c_attribute(x))
+# define rk_has_c_attribute(x) __has_c_attribute(x)
 #else
 # define rk_has_c_attribute(x) 0
 #endif
@@ -313,9 +312,9 @@
 #define rk_has_c_cpp_attribute(x) (rk_has_c_attribute(x) || rk_has_cpp_attribute(x))
 
 #if defined(__has_attribute)
-# define rk_attribute(attr) __attribute__((attr))
+# define rk_attribute(...) __attribute__((__VA_ARGS__))
 #else
-# define rk_attribute(attr)
+# define rk_attribute(...)
 #endif
 
 #ifdef _MSC_VER
@@ -347,9 +346,9 @@
 
 #ifndef __STDC_VERSION_STDBIT_H__
 /* has_include can be true but in C++ it may have an include guard*/
-# define RK_STDBIT_FALLBACK 1
+# define RKI_STDBIT_FALLBACK 1
 #else
-# define RK_STDBIT_FALLBACK 0
+# define RKI_STDBIT_FALLBACK 0
 #endif
 
 #include <assert.h>
@@ -432,9 +431,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #if !defined(_WIN32) && defined(RK_MULTI_TU)
-# define RK_HIDDEN __attribute__((visibility("hidden")))
+# define RKI_HIDDEN __attribute__((visibility("hidden")))
 #else
-# define RK_HIDDEN
+# define RKI_HIDDEN
 #endif
 
 #define static_fun static inline
@@ -492,7 +491,7 @@
 #   define extern_def(...)
 #  endif
 # endif
-# define rklib_fun RK_HIDDEN extern_fun
+# define rklib_fun RKI_HIDDEN extern_fun
 #endif
 
 #define RKI_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
@@ -516,18 +515,24 @@ RKI_HEADER_BEGIN
 ///
 /// @{
 
-#if rk_has_gnu_attribute(malloc)
-# define rk_malloc_fun __attribute__((malloc))
-#elif defined(_MSC_VER)
-# define rk_malloc_fun __declspec(restrict)
+#if defined(__GNUC__) || defined(__clang__)
+# define rk_malloc_fun            rk_attribute(__malloc__)
+# define rk_attr_printf(beg, end) rk_attribute(__format__(__printf__, beg, end))
+# define rk_pure                  rk_attribute(__pure__)
+# define rk_const                 rk_attribute(__const__)
+# define rk_forceinline           rk_attribute(__always_inline__)
 #else
-# define rk_malloc_fun
-#endif
+# define rk_attr_printf(beg, end)
+# define rk_pure
+# define rk_const rk_unsequenced
 
-#ifdef __GNUC__
-# define rk_attr_printf(_beg, _end) __attribute__((format(printf, _beg, _end)))
-#else
-# define rk_attr_printf(...)
+# ifdef _MSC_VER
+#  define rk_malloc_fun  __declspec(restrict)
+#  define rk_forceinline __forceinline
+# else
+#  define rk_malloc_fun
+#  define rk_forceinline
+# endif
 #endif
 
 #if rk_has_gnu_attribute(alloc_size)
@@ -542,11 +547,7 @@ RKI_HEADER_BEGIN
 # define rk_alloc_align(align)
 #endif
 
-#if rk_has_gnu_attribute(alloc_align) && rk_has_gnu_attribute(alloc_size)
-# define rk_alloc_alignsize(align, ...) __attribute__((alloc_align(align), alloc_size(__VA_ARGS__)))
-#else
-# define rk_alloc_alignsize(align, ...)
-#endif
+#define rk_alloc_alignsize(align, ...) rk_alloc_align(align) rk_alloc_size(__VA_ARGS__)
 
 #if rk_has_c_cpp_attribute(deprecated)
 # define rk_deprecated(...) [[deprecated("" __VA_ARGS__)]]
@@ -592,18 +593,6 @@ RKI_HEADER_BEGIN
 # define rk_unsequenced
 #endif
 
-#if rk_has_gnu_attribute(pure)
-# define rk_pure __attribute__((pure))
-#else
-# define rk_pure
-#endif
-
-#if rk_has_gnu_attribute(const)
-# define rk_const __attribute__((const))
-#else
-# define rk_const rk_unsequenced
-#endif
-
 #if rk_has_c_cpp_attribute(likely)
 # define rk_attr_likely   [[likely]]
 # define rk_attr_unlikely [[unlikely]]
@@ -618,14 +607,6 @@ RKI_HEADER_BEGIN
 #else
 # define rk_likely(...)   ((__VA_ARGS__))
 # define rk_unlikely(...) ((__VA_ARGS__))
-#endif
-
-#if rk_has_gnu_attribute(always_inline)
-# define rk_forceinline __attribute__((always_inline))
-#elif defined(_MSC_VER)
-# define rk_forceinline __forceinline
-#else
-# define rk_forceinline
 #endif
 
 #if rk_has_c_cpp_attribute(noreturn)
@@ -670,7 +651,7 @@ RKI_HEADER_BEGIN
 
 #if !defined(typeof) && (defined(__cplusplus) || __STDC_VERSION__ < 202311L)
 # ifdef __cplusplus
-#  define typeof(...) std::remove_reference<__typeof__(__VA_ARGS__)>::type
+#  define typeof(...) rki_remove_reference_t<__typeof__(__VA_ARGS__)>
 # else
 #  define typeof __typeof__
 # endif
@@ -681,7 +662,7 @@ RKI_HEADER_BEGIN
 #  define rk_COUNTOF(...) (sizeof(__VA_ARGS__) / sizeof((__VA_ARGS__)[0]))
 #  define countof(...)    (static_assert_expr(rk_is_array((__VA_ARGS__))) + rk_COUNTOF(__VA_ARGS__))
 # else
-#  define countof(...)    RKI_countof(__VA_ARGS__)
+#  define countof(...)    rki_countof(__VA_ARGS__)
 #  define rk_COUNTOF(...) countof(__VA_ARGS__)
 # endif
 #else
@@ -694,19 +675,19 @@ RKI_HEADER_BEGIN
 
 #ifndef unreachable
 # if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
-#  define unreachable() std::unreachable()
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), std::unreachable())
 # elif defined(__GNUC__)
-#  define unreachable() __builtin_unreachable()
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), __builtin_unreachable())
 # elif defined(_MSC_VER)
-rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
+rklib_fun __forceinline rk_noreturn void rki_unreachable_impl(void) {
 #  if defined(_DEBUG)
   __debugbreak();
 #  endif
   __assume(0);
 }
-#  define unreachable() RKI_unreachable_impl()
+#  define unreachable() rki_unreachable_impl()
 # else
-#  define unreachable() (assert(!"unreachable code reached"), abort())
+#  define unreachable() (rk_assert(0 && "unreachable code reached"), abort())
 # endif
 #endif
 
@@ -714,13 +695,15 @@ rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
 ///////////////////////////////////   Pseudo  -  Keywords   ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(__cplusplus) || (!defined(_MSC_VER) && __STDC_VERSION__ >= 202000L)
+#if defined(__cplusplus)                                                                           \
+    || (!defined(_MSC_VER) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
 # define rk_null nullptr
 #else
 # define rk_null ((void*)0)
 #endif
+
 /// @brief The maximum fundamental alignment.
-#define align_max     alignof(RKI_max_align_t)
+#define align_max     alignof(rki_max_align_t)
 
 /// @brief Aligns an object to the maximum fundamental alignment.
 #define alignas_max   alignas(align_max)
@@ -738,11 +721,15 @@ rklib_fun __forceinline rk_noreturn void RKI_unreachable_impl(void) {
 #define maxof(T)      RKI_MAXOF(T)
 
 /// @brief Like the Kernel's container_of_const macro but portable
+// For a const `ptr`, the `const typeof(*(ptr))*` association spells a doubled qualifier, which C
+// permits but MSVC reports as C4114; `ptr` is generic, so it cannot be tested via a named member
+// type the way the container iteration macros do.
 #define containerof(ptr, type, member)                                                             \
-  ((typeof(_Generic(ptr,                                                                           \
-               const typeof(*(ptr))*: (const type*)0,                                              \
-               default: (type*)0)))((char*)(typeof(((const type*)0)->member)*){ptr}                \
-                                    - offsetof(type, member)))
+  RKI_IGNWARN_MSC(                                                                                 \
+      4114, ((typeof(_Generic((ptr),                                                               \
+                         const typeof(*(ptr))*: (const type*)0,                                    \
+                         default: (type*)0)))((char*)(typeof(((const type*)0)->member)*){ptr}      \
+                                              - offsetof(type, member))))
 
 /// @brief Overflow-checked `size_t` multiplication; `abort()`s instead of wrapping. Not used by
 /// default — see the `rk_mult` config hook in `rk_config.h` to opt every size/count computation in
@@ -758,64 +745,50 @@ rklib_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
   (static_assert_expr(sizeof(T) == 0 || (count) <= SIZE_MAX / sizeof(T), "overflow")               \
    + (sizeof(T) * (count)))
 
-#ifndef __cplusplus
-/// @brief static_assert-like check within expressions, evaluates to 0 if true and causes
-/// compile-time error if false.
-/// @param condition The condition to check for; must be a constant expression
-/// @param msg The message to show upon compile error (optional since C23/C++17)
-# define static_assert_expr(...)                                                                   \
-   (0 * sizeof(union {                                                                             \
-     static_assert(__VA_ARGS__);                                                                   \
-     char _;                                                                                       \
-    }))
-
-#elif __cplusplus >= 202002L
-# define static_assert_expr(...) (0 * sizeof([]() { static_assert(__VA_ARGS__); }))
-#else
-# define static_assert_expr(first, ...) (0 * sizeof(char[1 - 2 * !(first)]) && "" __VA_ARGS__)
-#endif
-
-#ifdef __GNUC__
-# define try_static_assert_expr(expr, ...)                                                         \
-   static_assert_expr((!__builtin_constant_p(expr) || !!(expr)), ##__VA_ARGS__)
-#else
-# define try_static_assert_expr(expr, ...) ((void)0)
-#endif
-
 /// @brief For static expression dispatch.
-#if defined(__GNUC__) && !defined(__cplusplus)
+#if rk_has_builtin(__builtin_choose_expr)
 # define rk_static_if(cond, _if, _else) __builtin_choose_expr(cond, _if, _else)
 #else
 # define rk_static_if(cond, _if, _else)                                                            \
    _Generic(((char (*)[1 + !!(cond)])0), char (*)[2]: _if, char (*)[1]: _else)
 #endif
 
-#ifndef __cplusplus
-# define RKI_pun_cast(to_type, expr)                                                               \
-   rk_static_if(!rk_is_array(expr),                                                                \
-                (union {                                                                           \
-                 static_assert(sizeof(typeof(expr)) == sizeof(to_type),                            \
-                               "Types must be the same size.");                                    \
-                 typeof_decayed(expr) f;                                                           \
-                 to_type t;                                                                        \
-                }){(expr)}                                                                         \
-                    .t,                                                                            \
-                *(to_type*)rk_memcpy(&(to_type){RKI_ZINIT},                                         \
-                                     (union {                                                      \
-                                      typeof_decayed(expr) _v2;                                    \
-                                      void* _v;                                                    \
-                                     }){(expr)}                                                    \
-                                         ._v,                                                      \
-                                     sizeof(to_type)))
+/// @brief static_assert-like check within expressions, evaluates to 0 if true and causes
+/// compile-time error if false.
+/// @param condition The condition to check for; must be a constant expression
+/// @param msg The message to show upon compile error (optional since C23/C++17)
+#define static_assert_expr(...) RKI_STATIC_ASSERT_EXPR(__VA_ARGS__)
 
-# ifndef _MSC_VER
-#  define pun_cast(to_type, ...) RKI_pun_cast(to_type, (__VA_ARGS__))
-# else
-#  define pun_cast(to_type, expr) RKI_IGNWARN_MSC(4116, RKI_pun_cast(to_type, expr))
-# endif
+// todo fix
+#if rk_has_builtin(__builtin_constant_p)
+# define try_static_assert_expr(expr, ...)                                                         \
+   static_assert_expr(rk_static_if(__builtin_constant_p(expr), !!(expr), 1), ##__VA_ARGS__)
+#else
+# define try_static_assert_expr(expr, ...) ((void)0)
+#endif
+
+#ifndef __cplusplus
+# define pun_cast(to_type, expr)                                                                   \
+   RKI_IGNWARN_MSC(4116, rk_static_if(!rk_is_array(expr),                                          \
+                                      (union {                                                     \
+                                       static_assert(sizeof(typeof(expr)) == sizeof(to_type),      \
+                                                     "Types must be the same size.");              \
+                                       typeof_decayed(expr) f;                                     \
+                                       to_type t;                                                  \
+                                      }){(expr)}                                                   \
+                                          .t,                                                      \
+                                      *(to_type*)rk_memcpy(&(to_type){RKI_ZINIT},                  \
+                                                           (union {                                \
+                                                            typeof_decayed(expr) _v2;              \
+                                                            const void* _v;                        \
+                                                           }){(expr)}                              \
+                                                               ._v,                                \
+                                                           sizeof(to_type))))
 
 #elif __cplusplus >= 202002L
 # define pun_cast(to_type, expr) (std::bit_cast<to_type>((expr)))
+#elif rk_has_builtin(__builtin_bit_cast)
+# define pun_cast(to_type, expr) __builtin_bit_cast(to_type, expr)
 #else
 # define pun_cast(to_type, expr)                                                                   \
    ([](const typename std::remove_reference<decltype(expr)>::type& _e) {                           \
@@ -863,8 +836,10 @@ __extension__ typedef __int128          s128;
 ///////////////////////////////////   Function Wrappers   //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// @brief round a size to a power of two alignment
 rklib_fun rk_const size_t      rk_align_up(size_t size, size_t align);
 
+/// @brief todo docs
 rklib_fun rk_const size_t      rk_align_pad(const void* ptr, size_t align);
 
 rklib_fun rk_const bool        rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
@@ -903,10 +878,10 @@ rklib_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, siz
 
 #ifdef RKLIB_DEBUG
 # define rk_assert(...)                                                                            \
-   (rk_likely((__VA_ARGS__)) ? (void)0 : RK_assertfail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
+   (rk_likely((__VA_ARGS__)) ? (void)0 : rki_assertfail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
 /// print to stderr if RKLIB_DEBUG is defined
-rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int line,
-                                         const char* func) {
+rk_noreturn rklib_fun void rki_assertfail(const char* expr, const char* file, int line,
+                                          const char* func) {
   fprintf(stderr, "Assertion failed: (%s), function %s, file %s, line %d.\n", expr, func, file,
           line);
   abort();
@@ -939,28 +914,28 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 #define rk_abs(x)                RKI_ABS(x)
 
 /// @brief Returns the smaller of `x` and `y`.
-#define rk_min(x, y)             RKI_twonum_macro(min_, RKI_NUM_TYPES, x, y)
+#define rk_min(x, y)             RKI_TWONUMS(min_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_min()` but not type-safe and may double-evaluate args.
 #define rk_MIN(a, b)             ((a) < (b) ? (a) : (b))
 
 /// @brief Returns the larger of `x` and `y`.
-#define rk_max(x, y)             RKI_twonum_macro(max_, RKI_NUM_TYPES, x, y)
+#define rk_max(x, y)             RKI_TWONUMS(max_, RKI_NUM_TYPES, x, y)
 /// @brief Like `rk_max()` but not type-safe and may double-evaluate args.
 #define rk_MAX(a, b)             ((a) > (b) ? (a) : (b))
 
 /// @brief Clamps `num` to the inclusive range [`low`, `high`]. Requires `low <= high`.
-#define rk_clamp(num, low, high) RKI_threenum_macro(clamp_, RKI_NUM_TYPES, num, low, high)
+#define rk_clamp(num, low, high) RKI_THREENUMS(clamp_, RKI_NUM_TYPES, num, low, high)
 /// @brief Like `rk_clamp()` but not type-safe and may double-evaluate args.
 #define rk_CLAMP(num, low, high) ((num) < (low) ? (low) : ((num) > (high) ? (high) : (num)))
 
 /// @brief Saturating addition, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_add(x, y)         RKI_twonum_macro(rk_sat_add_, RKI_SU_TYPES, x, y)
+#define rk_sat_add(x, y)         RKI_TWONUMS(rk_sat_add_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating subtraction, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_sub(x, y)         RKI_twonum_macro(rk_sat_sub_, RKI_SU_TYPES, x, y)
+#define rk_sat_sub(x, y)         RKI_TWONUMS(rk_sat_sub_, RKI_SU_TYPES, x, y)
 
 /// @brief Saturating multiplication, clamps to `[TYPE_MIN, TYPE_MAX]` of the common type.
-#define rk_sat_mul(x, y)         RKI_twonum_macro(rk_sat_mul_, RKI_SU_TYPES, x, y)
+#define rk_sat_mul(x, y)         RKI_TWONUMS(rk_sat_mul_, RKI_SU_TYPES, x, y)
 
 #define rk_SWAP(a, b)                                                                              \
   do {                                                                                             \
@@ -973,7 +948,7 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 
 /// @}
 
-#if RK_STDBIT_FALLBACK
+#if RKI_STDBIT_FALLBACK
 # define stdc_leading_zeros(...)                                                                   \
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
 # define stdc_leading_ones(...)                                                                    \
@@ -1002,11 +977,11 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
 # define stdc_has_single_bit(...)                                                                  \
    _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
-#endif /* RK_STDBIT_FALLBACK */
+#endif /* RKI_STDBIT_FALLBACK */
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////Implementation Details///////////////////////////////////////
+////////////////////////////////////// Implementation Details //////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
@@ -1037,31 +1012,27 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 #endif
 
 #define RKI_GENCASE(T, N, fun_name) , T : fun_name##N
+#define RKI_contrav(T, x)           _Generic((x), T: x, default: (T){RKI_ZINIT})
+#define RKI_contrav_p(T, x)         _Generic((x), T: x, default: (T)1)
 
-#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RKI_ZINIT})
-#define RKI_contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
-
-#ifndef __cplusplus
-# define rk_dummyof(v)     ((typeof(v)){RKI_ZINIT})
-# define rk_dummyofp(v)    ((typeof(v)*)0)
-# define typeof_decayed(v) typeof((void)0, rk_dummyof(v))
-#else
-# define rk_dummyof(v)     ((std::remove_reference<decltype(v)>::type*)0)
-# define rk_dummyofp(v)    ((typeof(v)*)0)
-# define typeof_decayed(v) std::decay<typeof(v)>::type
-#endif
+#define rk_dummyofp(v)              ((typeof(v)*)0)
 
 #ifndef __cplusplus
+# define typeof_decayed(v) typeof((void)0, (v))
 # define rk_to_rvalue(obj) ((void)0, (obj))
 #else
+# define typeof_decayed(v) typename std::decay<typeof(v)>::type
 # define rk_to_rvalue(obj) ((typeof(obj))(obj))
 #endif
 
-// Real MSVC (not clang-cl) never implemented `_Atomic` as a core-language
-// type qualifier -- it only partially supports the separate <stdatomic.h>
-// library -- so `_Atomic`-qualified types are simply inexpressible there.
-// Since nothing can ever reach those _Generic associations on that
-// compiler, omitting them is exact, not an approximation.
+#define rk_is_const(v)    _Generic(rk_dummyofp(v), const typeof(v)*: 1, default: 0)
+#define rk_is_volatile(v) _Generic(rk_dummyofp(v), volatile typeof(v)*: 1, default: 0)
+#if defined(_MSC_VER) && !defined(__clang__)
+# define rk_is_atomic(v) ((void)rk_dummyofp(v), 0)
+#else
+# define rk_is_atomic(v) _Generic(rk_dummyofp(v), _Atomic typeof(v)*: 1, default: 0)
+#endif
+
 #if defined(_MSC_VER) && !defined(__clang__)
 # define rk_is_array(v)                                                                            \
    _Generic(rk_dummyofp(v),                                                                        \
@@ -1084,14 +1055,6 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
        default: 1)
 #endif
 
-#define rk_is_const(v)    _Generic(rk_dummyofp(v), const typeof(v)*: 1, default: 0)
-#define rk_is_volatile(v) _Generic(rk_dummyofp(v), volatile typeof(v)*: 1, default: 0)
-#if defined(_MSC_VER) && !defined(__clang__)
-# define rk_is_atomic(v) ((void)rk_dummyofp(v), 0)
-#else
-# define rk_is_atomic(v) _Generic(rk_dummyofp(v), _Atomic typeof(v)*: 1, default: 0)
-#endif
-
 #define rk_is_same_type(T, U) _Generic(rk_dummyofp(T), typeof(U)*: 1, default: 0)
 
 #define rk_ptrs_copy_compatible(dst, src)                                                          \
@@ -1107,8 +1070,8 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
   static_assert_expr(RK_numclassof(x) & RK_numclassof(y), "Incompatible numeric types")
 
 #define rk_ensure_malloc_align(T)                                                                  \
-  static_assert_expr(alignof(T) <= RK_malloc_align, "Type alignment too "                          \
-                                                    "large.")
+  static_assert_expr(alignof(T) <= RKI_MALLOC_ALIGN, "Type alignment too "                         \
+                                                     "large.")
 
 /// ensures the backing array is legitimate storage, evaluates to 0
 #define rk_ensure_valid_storage_type(arr)                                                          \
@@ -1132,19 +1095,19 @@ rklib_fun rk_const bool rk_ptr_in_range(const void* ptr, const void* beg, const 
 
 #if defined(_MSC_VER)
 # if defined(_WIN64)
-#  define RK_malloc_align 16u
+#  define RKI_MALLOC_ALIGN 16u
 # endif
 #elif defined(__GLIBC__)
 # if defined(__LP64__) || defined(_LP64)
-#  define RK_malloc_align 16u
+#  define RKI_MALLOC_ALIGN 16u
 # endif
 #elif defined(__APPLE__) && defined(__MACH__)
 # if defined(__LP64__) || defined(_LP64)
-#  define RK_malloc_align 16u
+#  define RKI_MALLOC_ALIGN 16u
 # endif
 #endif
-#ifndef RK_malloc_align
-# define RK_malloc_align align_max
+#ifndef RKI_MALLOC_ALIGN
+# define RKI_MALLOC_ALIGN align_max
 #endif
 
 #if defined(_MSC_VER) || defined(__TINYC__)
@@ -1152,9 +1115,9 @@ typedef struct {
   long double ld;
   long long   ll;
   void*       vp;
-} RKI_max_align_t;
+} rki_max_align_t;
 #else
-typedef max_align_t RKI_max_align_t;
+typedef max_align_t rki_max_align_t;
 #endif
 
 /// bug prior to 17.44 that treated char == (un)signed char for _Generic
@@ -1224,21 +1187,21 @@ T:                                                                              
   RKI_INT_TYPES(X, ##__VA_ARGS__)                                                                  \
   RKI_F_TYPES(X, ##__VA_ARGS__)
 
-#define RKI_wider_t(x, y)                                                                          \
+#define RKI_WIDER_T(x, y)                                                                          \
   rk_static_if(rk_ensure_numclass_compatible(x, y) + sizeof(typeof(x)) >= sizeof(typeof(y)),       \
                (typeof(x))0, (typeof(y))0)
 
-#define RKI_wider_t3(a1, a2, a3)                                                                   \
-  rk_static_if(rk_ensure_numclass_compatible(RKI_wider_t(a1, a2), a3)                              \
-                       + sizeof(RKI_wider_t(a1, a2))                                               \
+#define RKI_WIDER_T3(a1, a2, a3)                                                                   \
+  rk_static_if(rk_ensure_numclass_compatible(RKI_WIDER_T(a1, a2), a3)                              \
+                       + sizeof(RKI_WIDER_T(a1, a2))                                               \
                    >= sizeof(typeof(a3)),                                                          \
-               RKI_wider_t(a1, a2), (typeof(a3))0)
+               RKI_WIDER_T(a1, a2), (typeof(a3))0)
 
-#define RKI_twonum_macro(pref, classes, x, y)                                                      \
-  _Generic(RKI_wider_t(x, y) classes(RKI_GENCASE, pref))(x, y)
+#define RKI_TWONUMS(pref, classes, x, y)                                                           \
+  _Generic(RKI_WIDER_T(x, y) classes(RKI_GENCASE, pref))(x, y)
 
-#define RKI_threenum_macro(pref, classes, x, y, z)                                                 \
-  _Generic(RKI_wider_t3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
+#define RKI_THREENUMS(pref, classes, x, y, z)                                                      \
+  _Generic(RKI_WIDER_T3(x, y, z) classes(RKI_GENCASE, pref))(x, y, z)
 
 RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
   return x < 0 ? -x : x; // UB if v == I128_MIN
@@ -1278,21 +1241,20 @@ RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
 
 #define RKI_CHELPER         rklib_fun rk_const rk_forceinline
 #define RKI_UNSEQUENCED_NOW rk_unsequenced
-#define RK_DEFINE_STUFF(T, N)                                                                      \
+#define RKI_DEFINE_STUFF(T, N)                                                                     \
   RKI_CHELPER T min_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MIN(x, y); }                     \
   RKI_CHELPER T max_##N(T x, T y) RKI_UNSEQUENCED_NOW { return rk_MAX(x, y); }                     \
   RKI_CHELPER T clamp_##N(T arg, T low, T high) RKI_UNSEQUENCED_NOW {                              \
     return rk_CLAMP(arg, low, high);                                                               \
   }
 
-// RKI_INT_TYPES
-RKI_INT_TYPES(RK_DEFINE_STUFF)
+RKI_INT_TYPES(RKI_DEFINE_STUFF)
 #undef RKI_UNSEQUENCED_NOW
 #define RKI_UNSEQUENCED_NOW
 #undef RKI_CHELPER
 #define RKI_CHELPER rklib_fun rk_forceinline
-RKI_F_TYPES(RK_DEFINE_STUFF)
-#undef RK_DEFINE_STUFF
+RKI_F_TYPES(RKI_DEFINE_STUFF)
+#undef RKI_DEFINE_STUFF
 #undef RKI_CHELPER
 #define RKI_CHELPER rklib_fun rk_const rk_forceinline
 
@@ -1374,12 +1336,14 @@ RKI_U_TYPES(RKI_DEF_SAT_U)
   }
 
 RKI_S_TYPES(RKI_DEF_SAT_S)
+#undef RKI_CHELPER
+#undef RKI_UNSEQUENCED_NOW
 #undef RKI_DEF_SS_S_
 #undef RKI_DEF_SA_S_
 #undef RKI_DEF_SM_S_
 #undef RKI_DEF_SAT_S
 
-#if RK_STDBIT_FALLBACK
+#if RKI_STDBIT_FALLBACK
 # ifdef __GNUC__
 #  if rk_has_builtin(__builtin_clzg)
 #   define RKI_DEF_LZ__(V) __builtin_clzg(V)
@@ -1479,13 +1443,15 @@ RKI_S_TYPES(RKI_DEF_SAT_S)
 # endif
 
 # define RKI_DEF_STDCBIT_FUNS(T, N)                                                                \
-   rklib_fun rk_const unsigned stdc_leading_zeros_##N(T value) rk_unsequenced{                     \
-       RKI_DEF_LZ_(T, value)} rklib_fun rk_const unsigned stdc_trailing_zeros_##N(T value)         \
-       rk_unsequenced{RKI_DEF_TZ_(value)} rklib_fun rk_const unsigned stdc_count_ones_##N(T value) \
-           rk_unsequenced{RKI_DEF_CO_(value)} rklib_fun rk_const unsigned stdc_count_zeros_##N(    \
-               T value) rk_unsequenced {                                                           \
+   rklib_fun rk_const unsigned stdc_leading_zeros_##N(T value)                                     \
+       rk_unsequenced{RKI_DEF_LZ_(T, value)} /**/                                                  \
+   rklib_fun rk_const unsigned stdc_trailing_zeros_##N(T value) rk_unsequenced{RKI_DEF_TZ_(value)} \
+   /**/                                                                                            \
+   rklib_fun rk_const unsigned stdc_count_ones_##N(T value) rk_unsequenced{RKI_DEF_CO_(value)}     \
+   /**/                                                                                            \
+   rklib_fun rk_const unsigned stdc_count_zeros_##N(T value) rk_unsequenced {                      \
      return bitsof(T) - stdc_count_ones_##N(value);                                                \
-   }                                                                                               \
+   } /**/                                                                                          \
    rklib_fun rk_const unsigned stdc_first_trailing_one_##N(T value) rk_unsequenced {               \
      return value ? stdc_trailing_zeros_##N(value) + 1u : 0u;                                      \
    }                                                                                               \
@@ -1527,7 +1493,7 @@ RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
 # undef RKI_DEF_CO_
 # undef RKI_DEF_STDCBIT_FUNS
 
-#endif /* RK_STDBIT_FALLBACK */
+#endif /* RKI_STDBIT_FALLBACK */
 
 #define rk_assert_ptr_nonnull(ptr) rk_assert(((ptr) != rk_null) && #ptr " must not be rk_null.")
 
@@ -1554,12 +1520,35 @@ rklib_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
 }
 
 RKI_HEADER_END
-
 #ifdef __cplusplus
 template <class T, size_t N>
-constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
+constexpr inline size_t rki_countof(T (&)[N]) noexcept {
   return N;
 }
+#endif
+
+#ifndef __cplusplus
+# define RKI_STATIC_ASSERT_EXPR(...)                                                               \
+   (0 * sizeof(union {                                                                             \
+     static_assert(__VA_ARGS__);                                                                   \
+     char _;                                                                                       \
+    }))
+
+#elif __cplusplus >= 202002L
+# define RKI_STATIC_ASSERT_EXPR(...) (0 * sizeof([]() { static_assert(__VA_ARGS__); }))
+#else
+template <bool Condition>
+struct rki_static_assert_expr_check {
+  static_assert(Condition, "static_assert_expr: condition is false");
+};
+# define RKI_STATIC_ASSERT_EXPR_(condition, message, ...)                                          \
+   (0 * sizeof(rki_static_assert_expr_check<!!(condition)>) + 0 * sizeof("" message))
+# define RKI_STATIC_ASSERT_EXPR(...) RKI_STATIC_ASSERT_EXPR_(__VA_ARGS__, "", unused)
+#endif
+
+#ifdef __cplusplus
+template <class T>
+using rki_remove_reference_t = typename std::remove_reference<T>::type;
 #endif
 
 /// @endcond
@@ -1602,9 +1591,9 @@ constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
 /// @brief Type-safe, generic binary search trees for C: a plain unbalanced `Bst`, a height-balanced
 /// `Avl`, and a left-leaning red-black `Rbt`. All three share the same node-walking, release, and
 /// iteration primitives (the `tree_*` names below) and expose the same shaped API (`_init`,
-/// `_set`, `_add`, `_get`, `_get_or_add` for Bst, `_contains`, `_extract`, `_remove`, `_min`,
-/// `_max`, `_release`, `_foreach`), differing only in their rebalancing strategy and therefore
-/// their worst-case complexity.
+/// `_set`, `_add`, `_get`, `_get_or_add`, `_contains`, `_extract`, `_remove`, `_min`,
+/// `_max`, `_release`, `_foreach`, `_foreach_reversed`, `_erase_if`), differing only in their
+/// rebalancing strategy and therefore their worst-case complexity.
 ///
 /// - `Bst`: no rebalancing. O(log n) average, O(n) worst case (e.g. sorted insertion order).
 /// - `Avl`: rotates to keep left/right subtree heights within 1 of each other. O(log n) worst case,
@@ -1640,7 +1629,7 @@ constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
 ///
 /// 5. Iterate in sorted order:
 ///    ```c
-///    tree_node* stack[64];
+///    TreeNode* stack[64];
 ///    bst_foreach(&tree, stack, 64, entry) {
 ///        printf("%d -> %s\n", entry->key, entry->val);
 ///    }
@@ -1662,34 +1651,31 @@ constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
 /* inlined from include/rk_trees.h:65: #include "rk_alloc.h" */
 /* BEGIN INLINE: include/rk_alloc.h */
 // SPDX-License-Identifier: MIT
+
 /// @file rk_alloc.h
 /// @version 1.0.0
 /// @defgroup rk_alloc Allocator Interface
-/// @brief Customizable memory allocator abstraction for C.
-///
-/// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
-/// context pointer. Two predefined allocators are provided: `alloc_malloc_allocator` and
-/// `alloc_page_allocator`. Custom allocators can be created by filling
-/// an `AllocatorVTable` and constructing an `Allocator`.
-///
-/// Allocation failures are handled inside the allocator, not at call sites. The provided allocators
-/// invoke the overridable failure macros from `rk_config.h` (`RK_MALLOC_FAIL`, `RK_MMAP_FAIL`,
-/// etc.), which by default assert and abort. Callers never need to NULL-check allocation results.
-///
-/// `RK_CUSTOM_ALLOCATORS` controls whether allocators are threaded through objects — see
-/// `rk_config.h`. When disabled, per-object `Allocator` fields, custom-allocator arguments, and
-/// function-pointer dispatch are compiled out.
-///
-/// When `RK_ALLOC_CTX_THREAD_LOCAL == 1`, `alloc_ctx` has thread-local storage duration, giving
-/// each thread its own construction-time default allocator.
+
+/// @brief Customizable allocator abstraction for C and C++.
+/// @details Allocator consists of a shared vtable and an optional context pointer. Built-in malloc
+/// and page allocators are provided; custom allocators implement the callback contracts below.
+/// Positive-size allocation and reallocation must return valid non-null storage or handle failure
+/// locally. Built-in allocators invoke failure macros from rk_config.h, which abort by default.
+/// Overrides that resume execution must preserve the operation's storage, alignment, and lifetime
+/// contracts; returning NULL is not a supported allocation-failure result for positive sizes.
+/// Public allocation wrappers return NULL for zero-size requests. Reallocation to zero deallocates
+/// and returns NULL. Null deallocation is a no-op, subject to the documented size preconditions.
+/// @note Optional allocator arguments are passed by value and default to alloc_ctx. When custom
+/// allocators are disabled, per-object allocator fields and explicit allocator arguments are
+/// disabled.
+/// @note Calls that use an unset container allocator fall back to the current alloc_ctx; containers
+/// that capture an allocator during initialization retain that handle.
 /// @{
 #ifndef RK_ALLOC_H
 #define RK_ALLOC_H
-
 #ifndef _MSC_VER
 # include <sys/mman.h>
 # include <unistd.h>
-
 # ifndef MAP_ANONYMOUS
 #  ifdef MAP_ANON
 #   define MAP_ANONYMOUS MAP_ANON
@@ -1707,76 +1693,68 @@ constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
 #  endif
 # endif
 #endif
-/* inlined from include/rk_alloc.h:47: #include "rk_defs.h" */
+/* inlined from include/rk_alloc.h:44: #include "rk_defs.h" */
 /* skipped already-included: "include/rk_defs.h" */
 RKI_HEADER_BEGIN
 
-/// @brief Allocation logging macros. Emit a tagged source location to `stderr` when `RKLIB_DEBUG
-/// defined`; expand to nothing otherwise. Can be used by custom allocators to get the same logging
-/// behaviour as the built-in ones.
-#define alloc_log_new    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_renew  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
-#define alloc_log_delete rk_log("[delete] %s:%d ", __FILE__, __LINE__)
+/// @brief Allocation logging hooks using rk_log(), subject to its configured logging policy.
+#define alloc_log_new()    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_renew()  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
+#define alloc_log_delete() rk_log("[delete] %s:%d ", __FILE__, __LINE__)
 
-/// @struct Allocator
-/// @brief General-purpose allocator handle: a vtable pointer plus an optional context pointer. Pass
-/// by value to init functions; pass by pointer to allocator-generic macros.
-///
-/// When custom allocators are enabled, rklib macros that accept an optional allocator argument
-/// default to `alloc_ctx`. Objects capture that allocator when initialised, so changing `alloc_ctx`
-/// affects only subsequently created objects.
-///
-/// Two predefined `Allocator` instances are provided:
-///   - `alloc_malloc_allocator` — thin wrappers over `malloc`/`free` (or `_aligned_malloc` on MSVC
-///     for over-aligned types). This is the default `alloc_ctx`.
-///   - `alloc_page_allocator` — OS page allocation (`mmap` / `VirtualAlloc`). All allocations are
-///     page-aligned; alignments larger than the page size are not supported.
-///
-/// @note Custom allocators must handle failures locally (via the failure macros in `rk_config.h`).
-/// Returning `NULL` from an allocator leads to immediate undefined behaviour at the call site.
-
-/// @brief Allocation Function.
-/// @param size  Desired size of the allocation in bytes.
-/// @param align Desired Alignment of the allocation. Must be a power of two.
-/// @param ctx   Allocator context. May be `NULL` depending on the allocator.
-/// @return A **valid** pointer to the allocated memory. May only be `NULL` if `size` is zero.
-/// @note Allocation failure is expected to be handled locally by the function via the respective
-/// failure macros defined in `rk_config.h`.
+/// @brief Allocation callback; called with a positive size by generic wrappers.
+/// @param size Requested size in bytes; must be nonzero.
+/// @param align Required alignment; must be a supported nonzero power of two.
+/// @param ctx Allocator context; may be NULL if the implementation permits it.
+/// @return Non-null storage of at least size bytes, aligned to align.
+/// @note Failure must be handled locally; the callback must not return NULL. Failure macros from
+/// rk_config.h may be used. Generic wrappers handle zero sizes before dispatch.
 typedef void*(alloc_allocation_f)(size_t size, size_t align, void* ctx);
 
-/// @brief Reallocation Function.
-/// @param old_ptr The pointer to the allocation to be deallocated. If `NULL`, this function shall
-/// act like the corresponding `alloc_allocation_f` of the same allocator.
-/// @param old_size The size of the allocation to be deallocated. In some allocators such as
-/// `alloc_malloc_allocator`, this parameter is discarded.
-/// @param new_size The desired new size of the allocation. If this is zero, this function shall act
-/// like the corresponding `alloc_deallocation_f` of the same allocator.
-/// @param align Desired Alignment of the allocation. Must match the alignment of the corresponding
-/// allocation function call.
+/// @brief Reallocation function. May move the allocation.
+/// @param old_ptr  Non-null pointer to a valid allocation owned by this allocator.
+/// @param old_size Current requested size of the allocation in bytes; must be nonzero.
+/// @param new_size Requested new size in bytes; must be nonzero.
+/// @param align    Alignment used for the original allocation.
 /// @param ctx      Allocator context. May be `NULL` depending on the allocator.
-/// @return A **valid** pointer to the allocated memory. May only be `NULL` if `new_size` is zero.
+/// @return A non-null pointer to at least `new_size` bytes of storage aligned to `align`.
+/// @note Preserves the first `min(old_size, new_size)` bytes. On success, the old allocation
+/// is replaced by the returned allocation.
+/// @note Allocation failure must be handled locally; the function must not return `NULL`.
+/// The failure macros in `rk_config.h` may be used for this purpose.
 typedef void*(alloc_reallocation_f)(void* old_ptr, size_t old_size, size_t new_size, size_t align,
                                     void* ctx);
 
-/// @brief Deallocation Function.
-/// @param ptr The pointer to the allocation to be freed. If `NULL`, this function shall be a no-op.
-/// @param old_size The size of the allocation to be deallocated. In some allocators such as
-/// `alloc_malloc_allocator`, this parameter is discarded.
-/// @param align Desired Alignment of the allocation. Must match the alignment of the corresponding
-/// allocation function call.
+/// @brief Deallocation function.
+/// @param ptr      Non-null pointer to a valid allocation owned by this allocator.
+/// @param old_size Current requested size of the allocation in bytes; must be nonzero.
+/// @param align    Alignment used for the original allocation.
 /// @param ctx      Allocator context. May be `NULL` depending on the allocator.
+/// @note Releases the allocation according to the allocator's strategy.
+/// Individual deallocations need not reclaim storage immediately.
 typedef void(alloc_deallocation_f)(void* ptr, size_t old_size, size_t align, void* ctx);
 
-/// @brief Vtable for an allocator. Holds function pointers for allocation, deallocation, and
-/// reallocation. Shared across all `Allocator` instances that use the same strategy (e.g. all arena
-/// allocators share one vtable). Implementations of each slot must follow the contracts described
-/// on the `alloc_allocation_f`, `alloc_reallocation_f` and `alloc_deallocation_f` typedefs below.
+/// @brief Shared allocation, reallocation, and deallocation callbacks.
+/// @note Every callback must be non-null and obey its corresponding function typedef's contract.
+/// Generic wrappers normalize zero-size and null-pointer cases before dispatch.
+/// @see alloc_allocation_f
+/// @see alloc_reallocation_f
+/// @see alloc_deallocation_f
 typedef struct AllocatorVTable {
   alloc_allocation_f*   rk_alloc_alignsize(2, 1) alloc_f;
   alloc_reallocation_f* rk_alloc_alignsize(4, 3) realloc_f;
   alloc_deallocation_f* dealloc_f;
 } AllocatorVTable;
 
+/// @brief Allocator handle containing a shared vtable pointer and an optional context pointer.
+/// @note Pass handles by value. The vtable and context must remain valid while the handle is used;
+/// copying a handle does not copy or take ownership of its context. A NULL context is permitted by
+/// some allocators, including the built-in malloc and page allocators.
+/// @note Explicit handles passed to alloc_* must have a valid vtable with all callbacks populated,
+/// even for zero-size requests or null deallocation. An unset stored container handle may instead
+/// use the library's internal fallback to alloc_ctx.
+/// @note Custom callbacks must return non-null storage for positive allocation/reallocation sizes
+/// or handle failure locally. Zero-size requests are handled by the public wrappers.
 typedef struct Allocator {
   const AllocatorVTable* vtab; ///< Vtable pointer
   void*                  ctx;  ///< Optional Context Pointer
@@ -1803,7 +1781,8 @@ rk_unused static const AllocatorVTable alloc_page_allocator_vtable
        .dealloc_f = rki_page_deallocate};
 
 /// @brief Allocator backed by OS page mapping (`mmap` / `VirtualAlloc`). All allocations are
-/// page-aligned and zero-initialized. Alignments greater than the system page size are not
+/// page-aligned; fresh allocations are zero-initialized, but bytes added by reallocation are not
+/// guaranteed to be zero (see page_realloc()). Alignments greater than the system page size are not
 /// supported.
 rk_unused static const Allocator alloc_page_allocator
     = {.vtab = &alloc_page_allocator_vtable, .ctx = rk_null};
@@ -1820,251 +1799,319 @@ rk_unused static const Allocator alloc_page_allocator
 # define RKI_ALLOCCTX_INIT(...) = {__VA_ARGS__}
 #endif
 
-/// @brief Default allocator used by all rklib macros when no explicit allocator argument is
-/// provided. Defaults to `alloc_malloc_allocator`. Objects capture its value when initialised, so
-/// replacing it affects only subsequently created objects. When `RK_ALLOC_CTX_THREAD_LOCAL == 1`,
-/// it is thread-local. Must always contain a valid, fully initialised `Allocator`.
+/// @brief Default handle used when an optional allocator argument is omitted.
+/// @note Initially uses alloc_malloc_allocator. Must always contain a valid Allocator. Objects that
+/// capture this handle retain it; later replacements affect subsequent captures and calls that
+/// consult the default. Unset stored container handles fall back to its current value.
+/// @note With custom allocators enabled, RK_ALLOC_CTX_THREAD_LOCAL selects thread-local storage.
+/// With custom allocators disabled, this is a fixed static const malloc allocator handle.
 RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc_allocator_vtable,
                                                            .ctx  = rk_null);
 
-/// @brief `void* alloc_allocate(size_t bytes, size_t align, Allocator alloc = alloc_ctx)` - Raw
-/// allocation: allocates `bytes` bytes with the given alignment. Prefer `alloc_new` for typed
-/// allocations.
-/// @param bytes Number of bytes to allocate
-/// @param align Alignment; must be a power of two
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
-/// @return pointer to the allocated memory. `NULL` iff `bytes` is zero.
+/// @brief `void* alloc_allocate(size_t bytes, size_t align, Allocator alloc = alloc_ctx)` -
+/// Allocates raw storage through the selected allocator.
+/// @param bytes Requested payload size; may be zero.
+/// @param align Supported nonzero power-of-two alignment.
+/// @param alloc Valid allocator handle; defaults to alloc_ctx. Explicit selection requires custom
+/// allocators.
+/// @return NULL if bytes is zero; otherwise non-null aligned storage or locally handled failure.
+/// @note Zero size does not invoke the allocation callback. Does not initialize storage or
+/// construct C++ objects. All size and alignment calculations must be representable.
+/// @see alloc_new
 #define alloc_allocate(bytes, align, ...)                                                          \
   ((void*)RKI_OVERLOAD(RKI_ALLOC_ALLOCATE, bytes, align, ##__VA_ARGS__))
 
 /// @brief `void* alloc_reallocate(void* ptr, size_t old_bytes, size_t new_bytes, size_t align,
-/// Allocator alloc = alloc_ctx)` - Raw reallocation. If `ptr` is `NULL`, behaves like
-/// `alloc_allocate`. If `new_bytes` is zero, behaves like `alloc_deallocate`. Prefer `alloc_renew`
-/// for typed use.
-/// @param ptr       Existing allocation (or `NULL`)
-/// @param old_bytes Size of the existing allocation in bytes
-/// @param new_bytes Desired new size in bytes
-/// @param align     Alignment; must match the original allocation
-/// @param alloc     Optional allocator; defaults to `alloc_ctx`
-/// @return pointer to the allocated memory. `NULL` iff `new_bytes` is zero.
+/// Allocator alloc = alloc_ctx)` - Resizes storage, possibly moving it.
+/// @param ptr Valid allocation owned by alloc, or NULL with old_bytes equal to zero.
+/// @param old_bytes Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param new_bytes Desired payload size; may be zero.
+/// @param align Original allocation alignment; for NULL input, supported alignment for the new
+/// allocation.
+/// @param alloc Valid owning allocator; defaults to alloc_ctx.
+/// @return NULL if new_bytes is zero; otherwise non-null storage aligned to align.
+/// @note NULL input routes to allocation. Zero new size deallocates a non-null input and returns
+/// NULL. Otherwise preserves min(old_bytes, new_bytes) bytes; added bytes are uninitialized. The
+/// old allocation is replaced by the result, which becomes the allocation to use and subsequently
+/// deallocate.
+/// @note Pointer/old-size mismatches are contract violations, including for zero new size. Failure
+/// must be handled locally. Does not construct or destroy C++ objects.
+/// @see alloc_renew
 #define alloc_reallocate(ptr, old_bytes, new_bytes, align, ...)                                    \
   ((void*)RKI_OVERLOAD(RKI_ALLOC_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
 
 /// @brief `void alloc_deallocate(void* ptr, size_t bytes, size_t align, Allocator alloc =
-/// alloc_ctx)` - Raw deallocation. If `ptr` is `NULL`, this is a no-op. Prefer `alloc_delete` for
-/// typed use.
-/// @param ptr   Pointer to the memory to free (or `NULL`)
-/// @param bytes Size of the allocation in bytes
-/// @param align Alignment; must match the original allocation
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
+/// alloc_ctx)` - Releases an allocation according to the allocator's strategy.
+/// @param ptr Valid allocation owned by alloc, or NULL with bytes equal to zero.
+/// @param bytes Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param align Original allocation alignment; must be a supported nonzero power of two.
+/// @param alloc Valid owning allocator; defaults to alloc_ctx.
+/// @note NULL input with zero size is a no-op and does not invoke the deallocation callback.
+/// Pointer/size mismatches are contract violations. Individual deallocation may reclaim no storage,
+/// as with arena allocators. Does not invoke C++ destructors.
+/// @see alloc_delete
 #define alloc_deallocate(ptr, bytes, align, ...)                                                   \
   ((void)RKI_OVERLOAD(RKI_ALLOC_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
 
-/// @brief `T* alloc_new(T, size_t count, Allocator alloc = alloc_ctx)` - Allocates memory for an
-/// array of `count` elements of type `T` using the specified allocator.
-/// @param T         The type of elements to allocate
-/// @param count     Count of elements to allocate
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to allocated and aligned memory block, cast to `T*`.
+/// @brief Allocates raw storage for count elements of T with alignof(T).
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return A T* to allocated storage, or NULL if count is zero.
+/// @note Uses alloc_allocate() failure and zero-size semantics. Does not invoke C++ constructors.
+/// @see alloc_allocate
 #define alloc_new(T, count, ...) ((T*)RKI_OVERLOAD(RKI_ALLOC_NEW, T, count, ##__VA_ARGS__))
 
-/// @brief `T* alloc_renew(T* ptr, size_t old_count, size_t new_count, Allocator alloc = alloc_ctx)`
-/// - Resizes (reallocates) memory block to hold `new_count` elements of the same type, for standard
-/// alignment according to the Allocator.
-/// @param ptr       Pointer to the existing allocated memory
-/// @param old_count Number of elements of type T previously allocated
-/// @param new_count Number of elements of type T to allocate after resizing
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to the reallocated and aligned memory block, cast to the same pointer type.
-/// @warning Must not be used on pointers from over-aligned allocations
+/// @brief Resizes typed storage to new_count elements, possibly moving the allocation.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @return The resulting pointer, cast to the input pointer type; NULL if new_count is zero.
+/// @note NULL input allocates; zero new count deallocates and returns NULL. Preserves retained
+/// bytes; does not construct or destroy C++ objects. Inherits alloc_reallocate() contracts.
+/// @note Uses the element type's alignment, which must match the original allocation request.
+/// Use alloc_renew_aligned() when the original requested alignment differs.
+/// @see alloc_reallocate
 #define alloc_renew(ptr, old_count, new_count, ...)                                                \
   ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
 
-/// @brief `void alloc_delete(T* ptr, size_t old_count, Allocator alloc = alloc_ctx)` - Deallocates
-/// memory.
-/// @param ptr       Pointer to the memory to deallocate
-/// @param old_count Number of elements of type T originally allocated
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
+/// @brief Deallocates typed storage without invoking C++ destructors.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL. The byte-size calculation must be representable.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @note NULL input with zero old count is a no-op. Inherits alloc_deallocate() contracts.
+/// Uses the element type's alignment, which must match the original request. Use
+/// alloc_delete_aligned() when the original requested alignment differs.
+/// @see alloc_deallocate
 #define alloc_delete(ptr, old_count, ...)                                                          \
   ((void)RKI_OVERLOAD(RKI_ALLOC_DELETE, ptr, old_count, ##__VA_ARGS__))
 
-/// @brief `T* alloc_new_aligned(T, size_t count, size_t align, Allocator alloc = alloc_ctx)` -
-/// Allocates memory for an array of `count` elements of type T with specified alignment.
-/// @param T         The type of elements to allocate
-/// @param count     Number of elements to allocate
-/// @param align     Desired alignment of the memory, must be a power of two
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to allocated and aligned memory block, cast to `T*`.
+/// @brief Allocates raw storage for count elements of T with explicit alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param align Supported nonzero power of two, at least alignof(T).
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return A T* to allocated storage, or NULL if count is zero.
+/// @note Uses alloc_allocate() failure and zero-size semantics. Does not invoke C++ constructors.
+/// @see alloc_allocate
 #define alloc_new_aligned(T, count, align, ...)                                                    \
   ((T*)RKI_OVERLOAD(RKI_ALLOC_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
 
-/// @brief `T* alloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align,
-/// Allocator alloc = alloc_ctx)` - Resizes (reallocates) memory block to hold `new_count` elements
-/// of the same type.
-/// @param ptr       Pointer to the existing allocated memory
-/// @param old_count Number of elements of type T previously allocated
-/// @param new_count Number of elements of type T to allocate after resizing
-/// @param align     Alignment of the memory; must match the original allocation
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to reallocated and aligned memory block, cast to the same pointer type.
+/// @brief Resizes typed storage to new_count elements, possibly moving the allocation.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param align Original allocation alignment, at least the element type's alignment. For NULL
+/// input, selects supported alignment for the new allocation.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @return The resulting pointer, cast to the input pointer type; NULL if new_count is zero.
+/// @note NULL input allocates; zero new count deallocates and returns NULL. Preserves retained
+/// bytes; does not construct or destroy C++ objects. Inherits alloc_reallocate() contracts.
+/// @see alloc_reallocate
 #define alloc_renew_aligned(ptr, old_count, new_count, align, ...)                                 \
-  ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                    \
-                            align, ##__VA_ARGS__))
+  ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                   \
+                             align, ##__VA_ARGS__))
 
-/// @brief `void alloc_delete_aligned(T* ptr, size_t old_count, size_t align, Allocator alloc =
-/// alloc_ctx)` - Deallocates aligned memory.
-/// @param ptr       Pointer to the memory to deallocate
-/// @param old_count Number of elements of type T originally allocated
-/// @param align     Alignment of the memory; must match the original allocation
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
+/// @brief Deallocates typed storage without invoking C++ destructors.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL. The byte-size calculation must be representable.
+/// @param align Original allocation alignment, at least the element type's alignment.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @note NULL input with zero old count is a no-op. Inherits alloc_deallocate() contracts.
+/// @see alloc_deallocate
 #define alloc_delete_aligned(ptr, old_count, align, ...)                                           \
   ((void)RKI_OVERLOAD(RKI_ALLOC_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
 
-/// @brief `void* malloc_allocate(size_t nbytes, size_t align)` - Allocates `nbytes` bytes of memory
-/// with the specified alignment.
-/// @note Zero-sized allocations are guaranteed to return a null pointer. Adjusts size to be a
-/// multiple of alignment on some platforms.
-/// @param nbytes Number of bytes to allocate
-/// @param align  Desired alignment of the memory; must be a power of two
-/// @return Pointer to allocated and aligned memory block, or `NULL` iff `nbytes` is zero.
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief `void* malloc_allocate(size_t nbytes, size_t align)` - Allocates raw malloc-backed
+/// storage.
+/// @param nbytes Payload size; may be zero. Required alignment rounding must be representable.
+/// @param align Supported nonzero power-of-two alignment.
+/// @return NULL for zero size; otherwise non-null storage aligned to align.
+/// @note Uses malloc for alignments up to RKI_MALLOC_ALIGN; larger alignments use aligned_alloc
+/// on non-MSVC platforms or _aligned_malloc on MSVC, rounding the size as necessary.
+/// Failure invokes RK_MALLOC_FAIL. Overrides must preserve the allocation contract.
+/// @note Use matching malloc_* operations for reallocation/deallocation; on MSVC ordinary and
+/// aligned allocation families must not be mixed.
+/// @see malloc_reallocate
+/// @see malloc_deallocate
 #define malloc_allocate(nbytes, align) ((void*)RKI_MALLOC_ALLOCATE(nbytes, align))
 
 /// @brief `void* malloc_reallocate(void* ptr, size_t obytes, size_t nbytes, size_t align)` -
-/// Resizes an aligned memory block from `obytes` to `nbytes` bytes.
-/// @note On MSVC, calls `_aligned_realloc`. On other platforms, allocates a new block, copies, and
-/// frees the old one (no in-place realloc available). For standard-aligned allocations prefer
-/// `malloc_renew`; for over-aligned allocations this is required.
-/// @param ptr    Pointer to the existing allocated memory
-/// @param obytes Old size of the allocation in bytes
-/// @param nbytes New size of the allocation in bytes
-/// @param align  Alignment of the memory; must match the original allocation
-/// @return Pointer to reallocated and aligned memory block.
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// Resizes malloc-backed storage, possibly moving it.
+/// @param ptr Valid malloc-backed allocation, or NULL with obytes equal to zero.
+/// @param obytes Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param nbytes New payload size; may be zero. Required alignment rounding must be representable.
+/// @param align Original requested alignment; for NULL input, supported alignment for the new
+/// allocation.
+/// @return NULL for zero new size; otherwise non-null aligned storage.
+/// @note NULL input allocates; zero new size frees and returns NULL. Preserves min(obytes, nbytes)
+/// bytes. Size preconditions apply even where the underlying implementation ignores obytes.
+/// @note Alignments up to RKI_MALLOC_ALIGN use realloc. Larger alignments use _aligned_realloc on
+/// MSVC; elsewhere they allocate aligned storage, copy, and free. Failure invokes RK_MALLOC_FAIL.
+/// Use matching malloc_* operations; do not mix ordinary and aligned allocation families on MSVC.
 #define malloc_reallocate(ptr, obytes, nbytes, align)                                              \
   ((void*)RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align))
 
-/// @brief `void malloc_deallocate(void* ptr, size_t align)` - Deallocates an aligned memory block
-/// previously allocated with `malloc_allocate` or `malloc_reallocate`.
-/// @param ptr   Pointer to the memory to deallocate
-/// @param align Alignment of the memory; must match the original allocation
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief `void malloc_deallocate(void* ptr, size_t align)` - Frees malloc-backed storage.
+/// @param ptr Valid allocation from the corresponding malloc_allocate()/malloc_reallocate() path,
+/// or NULL for a no-op.
+/// @param align Original requested alignment; must be a supported nonzero power of two.
+/// @note Selects free or, for over-aligned requests on MSVC, _aligned_free. Do not mix ordinary
+/// and aligned allocation families on MSVC.
 #define malloc_deallocate(ptr, align)       ((void)RKI_MALLOC_DEALLOCATE(ptr, align))
 
-/// @brief `T* malloc_new(T, size_t count)` - Allocates memory for an array of `count` elements of
-/// type `T` using `malloc`.
-/// @param T     The type of elements to allocate
-/// @param count Number of elements to allocate
-/// @return Pointer to allocated memory block, cast to `T*`.
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
-/// @note Zero-sized allocations are guaranteed to return a null pointer. Errors are handled via the
-/// `RK_MALLOC_FAIL` macro that may be redefined by the user.
+/// @brief Allocates raw storage for count elements of T using ordinary malloc.
+/// @param T Element type; its alignment must not exceed RKI_MALLOC_ALIGN.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @return A T* to uninitialized storage, or NULL if count is zero.
+/// @note Failure invokes RK_MALLOC_FAIL. Does not construct C++ objects.
+/// Use malloc_renew()/malloc_delete() for subsequent operations.
+/// @see malloc_new_aligned
 #define malloc_new(T, count)                ((T*)RKI_MALLOC_NEW(T, count))
 
-/// @brief `T* malloc_renew(T* ptr, size_t count)` - Resizes (reallocates) memory block to hold
-/// `count` elements of the same type.
-/// @note Passing `count == 0` frees the memory. Passing `ptr == NULL` is equivalent to calling
-/// `malloc_new`.
-/// @param ptr   Pointer to the existing allocated memory
-/// @param count Number of elements of type T to allocate after resizing
-/// @return Pointer to reallocated memory block, cast to the same pointer type
-/// @warning Must not be used on pointers from over-aligned allocations
+/// @brief Resizes ordinary malloc-backed storage to count elements, possibly moving it.
+/// @param ptr Valid ordinary malloc-backed allocation, or a typed NULL pointer.
+/// @param count New element count; may be zero. The byte-size calculation must be representable.
+/// @return The result cast to the input pointer type, or NULL if count is zero.
+/// @note NULL input allocates; zero count frees and returns NULL. Preserves the retained bytes.
+/// The element alignment must not exceed RKI_MALLOC_ALIGN. Does not construct or destroy C++
+/// objects.
+/// @warning On MSVC, must not be used for storage obtained through the aligned allocation family,
+/// even if the element type itself has ordinary alignment.
+/// @see malloc_renew_aligned
 #define malloc_renew(ptr, count)            ((typeof(ptr))RKI_MALLOC_RENEW(ptr, count))
 
-/// @brief `void malloc_delete(T* ptr)` - Deallocates memory previously allocated with one of the
-/// macros defined in this interface.
-/// @param ptr Pointer to the memory to deallocate
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief Frees ordinary malloc-backed typed storage; a typed NULL pointer is a no-op.
+/// @param ptr Valid ordinary malloc-backed allocation, or a typed NULL pointer.
+/// @note The element alignment must not exceed RKI_MALLOC_ALIGN. Does not invoke C++ destructors.
+/// @warning On MSVC, do not use for aligned-family storage; use malloc_delete_aligned() instead.
 #define malloc_delete(ptr)                  ((void)RKI_MALLOC_DELETE(ptr))
 
-/// @brief `T* malloc_new_aligned(T, size_t count, size_t align)` - Allocates memory for an array of
-/// `count` elements of type `T` with specified alignment using malloc (or _aligned_malloc with
-/// standard alignment on Msvc).
-/// @note Zero-sized allocations are guaranteed to return a null pointer. Adjusts size to be a
-/// multiple of alignment on some platforms.
-/// @param T     The type of elements to allocate
-/// @param count Number of elements to allocate
-/// @param align Desired alignment of the memory, must be a power of two
-/// @return Pointer to allocated memory block, cast to `T*`, or `NULL` iff `count` is zero.
+/// @brief Allocates raw storage for count elements using the aligned allocation family.
+/// @param T Element type.
+/// @param count Element count; may be zero. Byte-size and alignment rounding must be representable.
+/// @param align Supported nonzero power of two, at least alignof(T).
+/// @return A T* to uninitialized aligned storage, or NULL if count is zero.
+/// @note Always uses aligned_alloc on non-MSVC platforms or _aligned_malloc on MSVC, including
+/// for ordinary alignment. Raises alignment to at least RKI_MALLOC_ALIGN and rounds size
+/// accordingly. Failure invokes RK_MALLOC_FAIL. Does not invoke C++ constructors. Use
+/// malloc_renew_aligned()/malloc_delete_aligned() for subsequent operations.
 #define malloc_new_aligned(T, count, align) ((T*)RKI_MALLOC_ALIGNED_NEW(T, count, align))
 
-/// @brief `T* malloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align)` -
-/// Resizes (reallocates) an aligned memory block to hold `new_count` elements of the same type.
-/// @note On MSVC, calls `_aligned_realloc`. On other platforms, allocates a new block, copies, and
-/// frees the old one (no in-place realloc available). For standard-aligned types prefer
-/// `malloc_renew`; for over-aligned types this is required.
-/// @param ptr       Pointer to the existing allocated memory
-/// @param old_count Old number of elements of type T
-/// @param new_count New number of elements of type T
-/// @param align     Alignment of the memory; must be a power of two
-/// @return Pointer to reallocated memory block. `NULL` iff `new_count` is zero.
+/// @brief Resizes aligned-family typed storage to new_count elements, possibly moving it.
+/// @param ptr Valid aligned-family allocation, or a typed NULL pointer with old_count equal to
+/// zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL.
+/// @param new_count Desired element count; may be zero. Byte-size and rounding must be
+/// representable.
+/// @param align Original requested alignment, at least the element type's alignment. For NULL
+/// input, selects supported alignment for the new allocation.
+/// @return The result cast to the input pointer type, or NULL if new_count is zero.
+/// @note NULL input allocates; zero new count frees and returns NULL. Preserves retained bytes.
+/// Uses _aligned_realloc on MSVC; elsewhere allocates aligned storage, copies, and frees.
+/// Failure invokes RK_MALLOC_FAIL. Does not construct or destroy C++ objects.
+/// @see malloc_new_aligned
+/// @see malloc_delete_aligned
 #define malloc_renew_aligned(ptr, old_count, new_count, align)                                     \
   ((typeof(ptr))RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align))
 
-/// @brief `void malloc_delete_aligned(T* ptr)` - Deallocates memory previously allocated with
-/// malloc_new_aligned or with malloc_new for an over-aligned type. On non-MSVC it's always
-/// identical to malloc_delete; on MSVC it uses _aligned_free instead of free
-/// @param ptr Pointer to the memory to deallocate
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief Frees aligned-family storage; a typed NULL pointer is a no-op.
+/// @param ptr Valid allocation from malloc_new_aligned()/malloc_renew_aligned(), or a typed NULL
+/// pointer. Also accepts over-aligned storage from malloc_allocate()/malloc_reallocate().
+/// @note Uses free on non-MSVC platforms and _aligned_free on MSVC. Does not invoke C++
+/// destructors. On MSVC, ordinary malloc-family storage must not be passed to this operation.
 #define malloc_delete_aligned(ptr) ((void)RKI_MALLOC_ALIGNED_DELETE(ptr))
 
-/// @brief Allocate memory using OS-backed page mapping (`mmap` / `VirtualAlloc`). The returned
-/// memory is zero-initialized and page-aligned. Allocation failures invoke `RK_MMAP_FAIL`, which
-/// aborts by default.
-/// @param size Size in bytes. Rounded up to the next page boundary internally.
-/// @note Passing 0 returns `NULL` without invoking the failure handler.
-/// @return Pointer to the allocated memory.
+/// @brief Allocates zero-initialized, page-aligned storage using mmap or VirtualAlloc.
+/// @param size Requested payload size; may be zero. Rounding up to a page boundary must be
+/// representable.
+/// @return NULL for zero size; otherwise non-null page-aligned storage.
+/// @note Zero size invokes no failure handler. Positive-size failures invoke RK_MMAP_FAIL, which
+/// aborts by default. Use page_realloc()/page_free() for subsequent operations.
 rklib_fun void* page_alloc(size_t size);
 
-/// @brief Reallocate memory previously allocated with `page_alloc()`. On Linux, uses `mremap`
-/// (in-place when possible). On other POSIX platforms, allocates a new region, copies, and unmaps
-/// the old one. On Windows, uses `VirtualAlloc` + copy + `VirtualFree`.
-/// @param ptr Pointer to the existing block (or `NULL` to act like `page_alloc`)
-/// @param old_size Current size in bytes
-/// @param new_size New size in bytes (or 0 to act like `page_free`)
-/// @return Pointer to the reallocated memory block.
+/// @brief Resizes page-backed storage, possibly moving it.
+/// @param ptr Valid page_alloc()/page_realloc() allocation, or NULL with old_size equal to zero.
+/// @param old_size Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param new_size Desired payload size; may be zero. Page-size rounding must be representable.
+/// @return NULL if new_size is zero; otherwise non-null page-aligned storage.
+/// @note NULL input allocates. Zero new size frees and returns NULL. Preserves min(old_size,
+/// new_size) bytes. Added bytes are not guaranteed to be zero, including when growth stays within
+/// existing pages.
+/// @note Reuses the address when both sizes round to the same page count, and shrinks by releasing
+/// trailing pages. Growth uses mremap where enabled on Linux; otherwise allocates, copies, and
+/// frees. Failures invoke RK_MMAP_FAIL. Pointer/old-size mismatches are contract violations even
+/// for zero new size.
+
 rklib_fun void* page_realloc(void* ptr, size_t old_size, size_t new_size);
 
-/// @brief Free memory allocated via `page_alloc()`.
-/// @param ptr  Pointer to the memory block to free
-/// @param size Size of the block being freed, in bytes (must match allocation)
-/// @note Calling this with `size == 0` is a no-op.
+/// @brief Frees page-backed storage according to its current requested size.
+/// @param ptr Valid page allocation, or NULL.
+/// @param size Current requested payload size, or zero. Page-size rounding must be representable.
+/// @note Either NULL input or zero size is a no-op. In particular, passing zero with a non-null
+/// pointer does not free the allocation. For actual deallocation, ptr must be a valid page
+/// allocation and size must match its current requested size. Failures invoke RK_MMAP_FAIL.
 rklib_fun void  page_free(void* ptr, size_t size);
 
-/// @brief `T* rk_arrdup(T* src, size_t count, Allocator alloc = alloc_ctx)` - Copies an array of
-/// objects from `src` onto allocated storage
-/// @param src       The address of the array (must be typed correctly)
-/// @param count     The count of objects to copy
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return A pointer to the allocated array
-#define rk_arrdup(src, count, ...)                                                                 \
-  ((typeof(((void)0, (src)[0]))*)RKI_OVERLOAD(RKI_ARRDUP, src, count, ##__VA_ARGS__))
-
+/// @brief Copies nbytes bytes into newly allocated storage aligned to align_max.
+/// @param src Source readable for nbytes bytes; may be NULL when nbytes is zero.
+/// @param nbytes Byte count; may be zero.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return The allocated copy, or NULL if nbytes is zero.
+/// @note Performs a bytewise copy, not a deep copy; does not invoke C++ constructors.
+/// Zero-size requests do not access src. Failure follows alloc_allocate() semantics.
+/// @see rk_memdup_aligned
 #define rk_memdup(src, nbytes, ...)                                                                \
-  ((typeof(((void)0, (src)[0]))*)RKI_OVERLOAD(RKI_MEMDUP, src, nbytes, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_MEMDUP, src, nbytes, align_max, ##__VA_ARGS__))
 
+/// @brief Copies nbytes bytes into newly allocated storage with explicit alignment.
+/// @param src Source readable for nbytes bytes; may be NULL when nbytes is zero.
+/// @param nbytes Byte count; may be zero.
+/// @param align Supported nonzero power-of-two alignment.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return The allocated copy, or NULL if nbytes is zero.
+/// @note Performs a bytewise copy, not a deep copy; does not invoke C++ constructors.
+/// Zero-size requests do not access src. Failure follows alloc_allocate() semantics.
+/// @see rk_memdup
 #define rk_memdup_aligned(src, nbytes, align, ...)                                                 \
-  ((typeof(((void)0, (src)[0]))*)RKI_OVERLOAD(RKI_MEMDUP_ALIGNED, src, nbytes, align, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_MEMDUP, src, nbytes, align, ##__VA_ARGS__))
+
+/// @brief Copies count non-array elements into raw storage with their type's required alignment.
+/// @param src Typed source pointer or array, readable for count elements; may be a typed NULL
+/// pointer when count is zero. Array-valued elements are not supported by this macro's return type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return A pointer to the copied elements, or NULL if count is zero. Element type is obtained
+/// through typeof_decayed(*(src)); its qualification behavior follows that helper.
+/// @note Uses bytewise copy semantics; does not construct C++ objects or perform a deep copy.
+/// For array-valued elements, use rk_memdup_aligned() and an appropriate pointer-to-array type.
+/// @see rk_memdup_aligned
+#define rk_arrdup(src, count, ...)                                                                 \
+  ((typeof_decayed(*(src))*)RKI_OVERLOAD(RKI_MEMDUP, src, sizeof_n(typeof(*(src)), count),         \
+                                         alignof(typeof(*(src))), ##__VA_ARGS__))
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// @cond INTERNAL
 
 /// @brief Returns a container's effective allocator.
 /// If the stored allocator is unset (its `vtab` is NULL), returns `alloc_ctx`.
 /// `self` must point to an object containing an `Allocator alloc` member.
 /// The result is an rvalue and cannot be used to modify the stored allocator.
-
 #if RK_CUSTOM_ALLOCATORS
 # define RKI_REQUIRE_CUSTOM_ALLOCATORS(...) __VA_ARGS__
+
 rklib_fun rk_pure rk_forceinline Allocator rki_allocator_of(Allocator alloc) {
   return alloc.vtab ? alloc : alloc_ctx;
 }
@@ -2077,13 +2124,18 @@ rklib_fun rk_pure rk_forceinline Allocator rki_allocator_of(Allocator alloc) {
                : (RKI_assert_allocator_valid(alloc_ctx), (_alloc) = alloc_ctx)))
 #else
 # define RKI_allocator_disabled_assert()    static_assert_expr(0, "Allocators Disabled")
-
 # define RKI_REQUIRE_CUSTOM_ALLOCATORS(...) ((void*)RKI_allocator_disabled_assert())
 # define RKI_allocatorof(self)              ((void)(self), alloc_ctx)
 # define RKI_assert_allocator_valid(_alloc) ((void)0)
 # define RK_IFALLOC(...)
 # define RKI_set_alloc_fallback(_alloc) ((void)0)
 #endif
+
+// Allocation pointer/size pairing shared by every layer: a null pointer has size zero, and a
+// non-null allocation has a positive size.
+#define RKI_ASSERT_ALLOC_PAIR(ptr, size)                                                           \
+  ((ptr) ? rk_assert((size) && "Non-NULL allocation has zero size")                                \
+         : rk_assert(!(size) && "NULL allocation has nonzero size"))
 
 ///////////////////////// Page Allocator /////////////////////////////////
 #if defined(_MSC_VER) && !defined(_WINDOWS_)
@@ -2119,7 +2171,7 @@ rklib_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
 }
 
 rklib_fun void page_free(void* ptr, size_t size) {
-  if rk_unlikely (!size) { return; }
+  if rk_unlikely (!ptr || !size) { return; }
   size_t ps = rki_mmap_page_size();
   size      = rk_align_up(size, ps);
 #ifndef _MSC_VER
@@ -2132,8 +2184,9 @@ rklib_fun void page_free(void* ptr, size_t size) {
 }
 
 rklib_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_t new_size) {
-  if (!old_size) { return page_alloc(new_size); }
+  RKI_ASSERT_ALLOC_PAIR(ptr, old_size);
   if (!new_size) { return page_free(ptr, old_size), rk_null; }
+  if (!ptr) { return page_alloc(new_size); }
   size_t ps      = rki_mmap_page_size();
   size_t al_size = rk_align_up(new_size, ps), al_oldsize = rk_align_up(old_size, ps);
   if (al_size == al_oldsize) {
@@ -2188,25 +2241,23 @@ rklib_fun void rki_page_deallocate(void* ptr, size_t old_size, size_t align rk_u
   rk_assert(align <= rki_mmap_page_size() && "Wrong alignment");
   page_free(ptr, old_size);
 }
-
 ///////////////////////////////////    Malloc wrappers   ///////////////////////////////////////////
+// Zero/null normalization is retained here for direct public malloc_* entry points.
+
 rklib_fun rk_forceinline rk_malloc_fun rk_alloc_size(1) void* rki_malloc_f(size_t size) {
   if rk_unlikely (!size) { return rk_null; }
   void* res = malloc(size);
-  RK_MALLOC_FAIL(res, rk_null, rk_null, RK_malloc_align, size);
+  RK_MALLOC_FAIL(res, rk_null, rk_null, RKI_MALLOC_ALIGN, size);
   return res;
 }
 
-rklib_fun rk_forceinline void rki_free_f(void* ptr) {
-  if (ptr == rk_null) { return; }
-  free(ptr);
-}
+rklib_fun rk_forceinline void rki_free_f(void* ptr) { free(ptr); }
 
-rklib_fun rk_forceinline rk_alloc_size(2) void* rki_realloc_f(void* ptr, size_t size) {
+rklib_fun rk_forceinline      rk_alloc_size(2) void* rki_realloc_f(void* ptr, size_t size) {
   if (!size) { return rki_free_f(ptr), rk_null; }
   if (ptr == rk_null) { return rki_malloc_f(size); }
   void* res = realloc(ptr, size);
-  RK_MALLOC_FAIL(res, rk_null, ptr, RK_malloc_align, size);
+  RK_MALLOC_FAIL(res, rk_null, ptr, RKI_MALLOC_ALIGN, size);
   return res;
 }
 
@@ -2214,7 +2265,7 @@ rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_aligned_alloc_f(size_
                                                                            size_t align) {
   rk_assert_align_pow2(align);
   if rk_unlikely (!size) { return rk_null; }
-  align = rk_max(align, RK_malloc_align);
+  align = rk_max(align, RKI_MALLOC_ALIGN);
   size  = rk_align_up(size, align);
 #ifndef _MSC_VER
   void* res = aligned_alloc(align, size);
@@ -2224,10 +2275,10 @@ rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_aligned_alloc_f(size_
   RK_MALLOC_FAIL(res, rk_null, rk_null, align, size);
   return res;
 }
-
 #ifndef _MSC_VER
 # define rki_aligned_free_f rki_free_f
 #else
+
 rklib_fun rk_forceinline void rki_aligned_free_f(void* ptr) {
   if (ptr != rk_null) { _aligned_free(ptr); }
 }
@@ -2237,10 +2288,12 @@ rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_aligned_realloc_f(vo
                                                                               size_t old_size,
                                                                               size_t new_size,
                                                                               size_t align) {
-  if (!old_size) { return rki_aligned_alloc_f(new_size, align); }
+  // Same dispatch as rki_realloc_f: keyed on the pointer, not on old_size.
+  RKI_ASSERT_ALLOC_PAIR(ptr, old_size);
   if (!new_size) { return rki_aligned_free_f(ptr), rk_null; }
+  if (!ptr) { return rki_aligned_alloc_f(new_size, align); }
   rk_assert_align_pow2(align);
-  align    = rk_max(align, RK_malloc_align);
+  align    = rk_max(align, RKI_MALLOC_ALIGN);
   new_size = rk_align_up(new_size, align);
 #ifndef _MSC_VER
   void* res = aligned_alloc(align, new_size);
@@ -2258,55 +2311,53 @@ rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_aligned_realloc_f(vo
 rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_malloc_allocate(size_t    size,
                                                                            size_t    align,
                                                                            void* ctx rk_unused) {
-  return align <= RK_malloc_align ? rki_malloc_f(size) : rki_aligned_alloc_f(size, align);
+  return align <= RKI_MALLOC_ALIGN ? rki_malloc_f(size) : rki_aligned_alloc_f(size, align);
 }
 
 rklib_fun rk_alloc_alignsize(4, 3) void* rki_malloc_reallocate(void* ptr, size_t old_size,
                                                                size_t new_size, size_t align,
                                                                void* ctx rk_unused) {
-  return align <= RK_malloc_align ? rki_realloc_f(ptr, new_size)
-                                  : rki_aligned_realloc_f(ptr, old_size, new_size, align);
+  RKI_ASSERT_ALLOC_PAIR(ptr, old_size); // the ordinary realloc path ignores old_size
+  return align <= RKI_MALLOC_ALIGN ? rki_realloc_f(ptr, new_size)
+                                   : rki_aligned_realloc_f(ptr, old_size, new_size, align);
 }
 
 rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_t align rk_unused,
                                      void* ctx rk_unused) {
-  align <= RK_malloc_align ? rki_free_f(ptr) : rki_aligned_free_f(ptr);
+  align <= RKI_MALLOC_ALIGN ? rki_free_f(ptr) : rki_aligned_free_f(ptr);
 }
-
 // dynamically chose whether malloc or aligned_alloc
 #define RKI_MALLOC_ALLOCATE(bytes, align)                                                          \
-  (alloc_log_new, rki_malloc_allocate(bytes, align, rk_null))
+  (alloc_log_new(), rki_malloc_allocate(bytes, align, rk_null))
 #define RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align)                                          \
-  (alloc_log_renew, rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
+  (alloc_log_renew(), rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
 #define RKI_MALLOC_DEALLOCATE(ptr, align)                                                          \
-  (alloc_log_delete, rki_malloc_deallocate(ptr, 0, align, rk_null))
-
+  (alloc_log_delete(), rki_malloc_deallocate(ptr, 0, align, rk_null))
 // always call malloc, compiler error if over-aligned
 #define RKI_MALLOC_NEW(T, count)                                                                   \
-  (alloc_log_new, rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
+  (alloc_log_new(), rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
 #define RKI_MALLOC_RENEW(ptr, count)                                                               \
-  (alloc_log_renew, rk_ensure_malloc_align(typeof(*(ptr))),                                        \
+  (alloc_log_renew(), rk_ensure_malloc_align(typeof(*(ptr))),                                      \
    rki_realloc_f(ptr, sizeof_n(*(ptr), count)))
 #define RKI_MALLOC_DELETE(ptr)                                                                     \
-  (alloc_log_delete, rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
-
+  (alloc_log_delete(), rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
 // always call aligned_alloc, check if alignment is enough for type
 #define RKI_MALLOC_ALIGNED_NEW(T, count, align)                                                    \
-  (alloc_log_new, rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
+  (alloc_log_new(), rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
 #define RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align)                                 \
-  (alloc_log_renew, rk_assert_valid_align(typeof(*(ptr)), align),                                  \
+  (alloc_log_renew(), rk_assert_valid_align(typeof(*(ptr)), align),                                \
    rki_aligned_realloc_f(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count), align))
-#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete, rki_aligned_free_f(ptr))
-
+#define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete(), rki_aligned_free_f(ptr))
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
-
 #if RK_CUSTOM_ALLOCATORS
+
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes, size_t align,
                                                                        Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
   if (!nbytes) { return rk_null; }
   return alloc.vtab->alloc_f(nbytes, align, alloc.ctx);
 }
+
 rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_call_realloc(void* ptr, size_t obytes,
                                                                          size_t    nbytes,
                                                                          size_t    align,
@@ -2339,18 +2390,19 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc.vtab->dealloc_f(ptr, obytes, align, alloc.ctx);
 }
-# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align, all))
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new(), rki_call_alloc(bytes, align, all))
 # define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align, all))
+   (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align, all))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align, all))
-
+   (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align, all))
 #else
+
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes,
                                                                        size_t align) {
   if (!nbytes) { return rk_null; }
   return alloc_ctx.vtab->alloc_f(nbytes, align, alloc_ctx.ctx);
 }
+
 rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_call_realloc(void* ptr, size_t obytes,
                                                                          size_t nbytes,
                                                                          size_t align) {
@@ -2379,31 +2431,26 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   rk_assert(obytes && "Non-NULL allocation has zero size");
   alloc_ctx.vtab->dealloc_f(ptr, obytes, align, alloc_ctx.ctx);
 }
-# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new, rki_call_alloc(bytes, align))
+# define RKI_ALLOC_ALLOCATE(bytes, align, all) (alloc_log_new(), rki_call_alloc(bytes, align))
 # define RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all)                                     \
-   (alloc_log_renew, rki_call_realloc(ptr, obytes, nbytes, align))
+   (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
-   (alloc_log_delete, rki_call_dealloc(ptr, obytes, align))
-
+   (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align))
 #endif
-
 #define RKI_ALLOC_NEW(T, count, all) RKI_ALLOC_ALLOCATE(sizeof_n(T, count), alignof(T), all)
 #define RKI_ALLOC_ALIGNED_NEW(T, count, align, all)                                                \
   (rk_assert_valid_align(T, align), RKI_ALLOC_ALLOCATE(sizeof_n(T, count), align, all))
-
 #define RKI_ALLOC_RENEW(ptr, ocount, ncount, all)                                                  \
   RKI_ALLOC_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount),                    \
                        alignof(typeof(*(ptr))), all)
 #define RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, all)                                   \
   (rk_assert_valid_align(typeof(*(ptr)), align),                                                   \
    RKI_ALLOC_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount), align, all))
-
 #define RKI_ALLOC_DELETE(ptr, ocount, all)                                                         \
   RKI_ALLOC_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), alignof(typeof(*(ptr))), all)
 #define RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, all)                                          \
   (rk_assert_valid_align(typeof(*(ptr)), align),                                                   \
    RKI_ALLOC_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), align, all))
-
 // macros with allocator parameter; disabled if no local allocators enabled
 #define RKI_ALLOC_ALLOCATE3(bytes, align, all)                                                     \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALLOCATE(bytes, align, all))
@@ -2411,61 +2458,42 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all))
 #define RKI_ALLOC_DEALLOCATE4(ptr, obytes, align, all)                                             \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all))
-
 #define RKI_ALLOC_NEW3(T, count, all) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_NEW(T, count, all))
 #define RKI_ALLOC_ALIGNED_NEW4(T, count, align, all)                                               \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_NEW(T, count, align, all))
-
 #define RKI_ALLOC_RENEW4(ptr, ocount, ncount, all)                                                 \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_RENEW(ptr, ocount, ncount, all))
 #define RKI_ALLOC_ALIGNED_RENEW5(ptr, ocount, ncount, align, all)                                  \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, all))
-
 #define RKI_ALLOC_DELETE3(ptr, ocount, all)                                                        \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_DELETE(ptr, ocount, all))
 #define RKI_ALLOC_ALIGNED_DELETE4(ptr, ocount, align, all)                                         \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, all))
-// get_alloc_ctx
 //  macros with fewer parameters (might default to alloc_ctx)
 #define RKI_ALLOC_ALLOCATE2(bytes, align)       RKI_ALLOC_ALLOCATE(bytes, align, alloc_ctx)
 #define RKI_ALLOC_ALIGNED_NEW3(T, count, align) RKI_ALLOC_ALIGNED_NEW(T, count, align, alloc_ctx)
 #define RKI_ALLOC_NEW2(T, count)                RKI_ALLOC_NEW(T, count, alloc_ctx)
-
 #define RKI_ALLOC_REALLOCATE4(ptr, obytes, nbytes, align)                                          \
   RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, alloc_ctx)
 #define RKI_ALLOC_ALIGNED_RENEW4(ptr, ocount, ncount, align)                                       \
   RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, alloc_ctx)
 #define RKI_ALLOC_RENEW3(ptr, ocount, ncount) RKI_ALLOC_RENEW(ptr, ocount, ncount, alloc_ctx)
-
 #define RKI_ALLOC_DEALLOCATE3(ptr, obytes, align)                                                  \
   RKI_ALLOC_DEALLOCATE(ptr, obytes, align, alloc_ctx)
 #define RKI_ALLOC_ALIGNED_DELETE3(ptr, ocount, align)                                              \
   RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, alloc_ctx)
 #define RKI_ALLOC_DELETE2(ptr, ocount) RKI_ALLOC_DELETE(ptr, ocount, alloc_ctx)
-
 rklib_fun
     rk_alloc_alignsize(3, 2) void* rki_memdup_aligned(const void* src, size_t size,
                                                       size_t align RK_IFALLOC(, Allocator alloc)) {
   return rk_memcpy(alloc_allocate(size, align RK_IFALLOC(, alloc)), src, size);
 }
-
-#define RKI_MEMDUP_ALIGNED4(src, nbytes, align, alloc)                                             \
+#define RKI_MEMDUP4(src, nbytes, align, alloc)                                                     \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_memdup_aligned(src, nbytes, align, alloc))
-#define RKI_MEMDUP_ALIGNED3(src, nbytes, align)                                                    \
+#define RKI_MEMDUP3(src, nbytes, align)                                                            \
   rki_memdup_aligned(src, nbytes, align RK_IFALLOC(, alloc_ctx))
-
-#define RKI_ARRDUP3(src, count, alloc)                                                             \
-  RKI_MEMDUP_ALIGNED4(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))), alloc)
-#define RKI_ARRDUP2(src, count)                                                                    \
-  RKI_MEMDUP_ALIGNED3(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))))
-
-#define RKI_MEMDUP3(src, nbytes, alloc)                                                            \
-  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_memdup_aligned(src, nbytes, align_max, alloc))
-#define RKI_MEMDUP2(src, nbytes) rki_memdup_aligned(src, nbytes, align_max RK_IFALLOC(, alloc_ctx))
-
 #undef RKI_ALLOCCTX_STORAGE
 #undef RKI_ALLOCCTX_INIT
-
 /// @endcond
 #pragma endregion implementation
 RKI_HEADER_END
@@ -2499,66 +2527,124 @@ RKI_HEADER_END
 /* END INLINE: include/rk_alloc.h */
 RKI_HEADER_BEGIN
 
-/// @brief Type-erased node header shared by every tree type's concrete node (`RKI_BstNode`,
-/// `RKI_AvlNode`, `RKI_RbtNode` all start with the same `l`/`r` layout). This is the type a caller
-/// declares a traversal stack buffer as, e.g. `tree_node* stack[64];` for `bst_foreach()`.
-/// @note Deliberately just the two pointers, with no `alignas_max`-forced over-alignment: the
-/// shared primitives below only ever touch `l`/`r` through this type (entry data is reached via an
-/// explicit byte offset into the real, per-(K,V) node -- see `rki_tree_min_off`/`rki_tree_max_off`
-/// -- never via a member of `tree_node` itself). A concrete node's actual allocation is only ever
-/// guaranteed to meet *its own* alignment (e.g. `alignof(RKI_AvlNode(K, V))`, which can be less
-/// than `align_max`), so giving `tree_node` a stricter alignment than plain pointers would make
-/// every `(tree_node*)` cast of such a node technically misaligned.
-typedef struct tree_node { struct tree_node *l, *r; } tree_node;
-
-/// @brief Type-erased tree header (allocator, count, root), aliased with each concrete tree
-/// struct's own typed view. Not normally constructed directly.
-typedef struct tree_data {
-  RK_IFALLOC(Allocator alloc;)
-  size_t     count;
-  tree_node* root;
-} tree_data;
-
-/// @brief In-order traversal state used by `bst_foreach()`/`avl_foreach()`/`rbt_foreach()`. Not
-/// normally constructed directly; the `_foreach` macros build one internally from the stack buffer
-/// and capacity you pass in.
-typedef struct tree_iter {
-  tree_node **stack, *curr;
-  size_t      cap, top;
-} tree_iter;
+/// @brief Shared node header embedded as the first member of every concrete tree node.
+/// A caller uses `TreeNode* stack[64]` as traversal workspace. The links point to actual
+/// embedded headers; concrete algorithms convert their values back to concrete node pointers.
+/// @note Keep this header first in every node. No additional allocation or over-alignment is used.
+/// Concrete C++ node types must be standard-layout; the instantiation macros enforce this.
+/// The shared state is an actual `base` member: access fields as `tree.base.root`,
+/// `tree.base.count`, and (with custom allocators) `tree.base.alloc`.
+/// Tree roots store TreeNode* values. Convert a root to the concrete node type before accessing
+/// its entry. A tree's rki_node_type member is type metadata for sizeof/typeof only and must
+/// never be read or written at runtime.
+typedef struct TreeNode { struct TreeNode *l, *r; } TreeNode;
 
 /// @brief Frees all nodes in the tree and resets it to an empty state. Identical across
 /// `Bst`/`Avl`/`Rbt` (also reachable as `bst_release`/`avl_release`/`rbt_release`) since it only
 /// ever needs to walk `l`/`r` and deallocate -- no rebalancing-specific logic applies here.
+/// @note `self` is evaluated once. Preserves the stored allocator.
 #define tree_release(self)                                                                         \
-  rki_tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
+  rki_tree_release(sizeof(*(self)->rki_node_type), alignof(typeof(*(self)->rki_node_type)),        \
+                   &(self)->base)
 
 /// @brief `size_t tree_count(self)` - Returns the number of key-value pairs stored. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
 /// mutation are the only operations that differ by rebalancing strategy and therefore stay
 /// variant-prefixed.
-#define tree_count(self)     ((size_t)(self)->count)
+#define tree_count(self)     ((size_t)(self)->base.count)
 
 /// @brief `Allocator tree_allocator(self)` - Returns the Allocator the tree was constructed with,
 /// or `alloc_ctx` if the tree was never initialized or custom allocators are disabled. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_allocator`/`avl_allocator`/`rbt_allocator`).
-#define tree_allocator(self) RKI_allocatorof(self)
+#define tree_allocator(self) RKI_allocatorof(&(self)->base)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
 #define tree_is_empty(self)  (tree_count(self) == 0)
 
-/// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
-/// Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`): the
-/// real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
+/// @brief Returns the entry with the smallest key as an lvalue: mutable for a mutable tree, const
+/// for a const tree. The entry's `key` is always const; its `val` is writable through a mutable
+/// tree.
+/// @param self Pointer to a `Bst`, `Avl`, or `Rbt`. Evaluated more than once.
+/// @pre The tree is nonempty; use `tree_peek_min()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`):
+/// the real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
 /// `Avl`/`Rbt` nodes carry extra bookkeeping (height/color) that `Bst` nodes don't.
+/// @note For Bst/Rbt, removal or extraction can invalidate references to other entries too:
+/// deletion may copy a successor's entry and free its node. For Avl, only references to the
+/// removed entry are invalidated. Releasing any tree invalidates all its entries. O(height).
+/// @see tree_peek_min
 #define tree_min(self)                                                                             \
-  ((typeof((self)->root->entry)*)rki_tree_min_off((self)->_tree.root,                              \
-                                                  offsetof(typeof(*(self)->root), entry)))
+  (*(typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_check_min_off(                                      \
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
 
 /// @brief Like `tree_min()`, but for the largest key.
+/// @pre The tree is nonempty; use `tree_peek_max()` to check safely.
+/// @see tree_peek_max
 #define tree_max(self)                                                                             \
-  ((typeof((self)->root->entry)*)rki_tree_max_off((self)->_tree.root,                              \
-                                                  offsetof(typeof(*(self)->root), entry)))
+  (*(typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_check_max_off(                                      \
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
+
+/// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
+/// @param self Pointer to a `Bst`, `Avl`, or `Rbt`. Evaluated more than once.
+/// @return `Entry*` for a mutable tree, `const Entry*` for a const tree.
+/// @note Inherits the reference invalidation rules of `tree_min()`. O(height).
+/// @see tree_min
+#define tree_peek_min(self)                                                                        \
+  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_min_off(                                             \
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
+
+/// @brief Like `tree_peek_min()`, but for the largest key.
+/// @see tree_max
+#define tree_peek_max(self)                                                                        \
+  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_max_off(                                             \
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
+
+/// @brief Iterates over all entries in ascending key order.
+///
+/// Works with Bst, Avl, and Rbt. Performs an in-order traversal using a caller-supplied stack,
+/// without allocating memory.
+///
+/// The loop variable is a pointer to the tree's corresponding entry type: `BstEntry(K, V)*`,
+/// `AvlEntry(K, V)*`, or `RbtEntry(K, V)*`.
+/// Entries are const when traversing a pointer to a const tree.
+///
+/// @param self      Pointer to the tree. If NULL, the loop body is not executed.
+/// @param stack_buf Writable array of `TreeNode*` used as traversal workspace.
+/// @param stack_cap Number of pointer slots available in `stack_buf`. Must be at least the tree
+///                  height, measured in nodes.
+/// @param entry     Name of the entry-pointer variable declared by the macro.
+///
+/// @note `self` is evaluated once. `stack_buf` and `stack_cap` are evaluated once if `self` is
+///       non-NULL, and are not evaluated otherwise.
+/// @note `break` stops traversal; `continue` advances to the next entry.
+/// @note Do not insert, remove, release, or otherwise restructure the tree
+///       during traversal. Entry keys are read-only; values may be modified
+///       where their type permits it.
+/// @note Each concurrent or nested traversal requires its own stack buffer.
+/// @note A complete traversal takes O(n) time and uses O(h) stack slots,
+///       where n is the entry count and h is the tree height.
+///
+/// @warning Insufficient stack capacity is checked by `rk_assert` only.
+///          If assertions are disabled, exceeding the buffer capacity causes
+///          undefined behaviour.
+///
+/// Example:
+/// ```c
+/// // Assumes the tree height is at most 64 nodes.
+/// TreeNode* stack[64];
+/// tree_foreach(&tree, stack, 64, entry) {
+///     printf("%d -> %s\n", entry->key, entry->val);
+/// }
+/// ```
+///
+/// @see tree_foreach_reversed
+#define tree_foreach(self, stack_buf, stack_cap, entry_)                                           \
+  RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_)
+
+/// @brief Like `tree_foreach()`, but iterates in descending key order.
+#define tree_foreach_reversed(self, stack_buf, stack_cap, entry_)                                  \
+  RKI_TREE_FOREACH_REVERSED(self, stack_buf, stack_cap, entry_)
 
 //////////////////////////////////// Bst: unbalanced BST //////////////////////////////////////////
 
@@ -2614,13 +2700,21 @@ typedef struct tree_iter {
 /// Alias for `tree_is_empty()`.
 #define bst_is_empty(self)              tree_is_empty(self)
 
-/// @brief `BstEntry(K, V)* bst_min(Bst(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the BST is empty. Alias for `tree_min()`.
+/// @brief `BstEntry(K, V) bst_min(Bst(K, V)* self)` - Returns the entry with the smallest key as an
+/// lvalue (const for a const Bst). Asserts the BST is nonempty. Alias for `tree_min()`.
 #define bst_min(self)                   tree_min(self)
 
-/// @brief `BstEntry(K, V)* bst_max(Bst(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the BST is empty. Alias for `tree_max()`.
+/// @brief `BstEntry(K, V) bst_max(Bst(K, V)* self)` - Returns the entry with the largest key as an
+/// lvalue (const for a const Bst). Asserts the BST is nonempty. Alias for `tree_max()`.
 #define bst_max(self)                   tree_max(self)
+
+/// @brief `BstEntry(K, V)* bst_peek_min(Bst(K, V)* self)` - Returns a pointer to the entry with
+/// the smallest key, or `NULL` if the BST is empty. Alias for `tree_peek_min()`.
+#define bst_peek_min(self)              tree_peek_min(self)
+
+/// @brief `BstEntry(K, V)* bst_peek_max(Bst(K, V)* self)` - Returns a pointer to the entry with
+/// the largest key, or `NULL` if the BST is empty. Alias for `tree_peek_max()`.
+#define bst_peek_max(self)              tree_peek_max(self)
 
 /// @brief `V* bst_get(K, V, Bst(K, V)* self, K key)` - Looks up a key and returns a pointer to its
 /// associated value, or `NULL` if not found.
@@ -2669,25 +2763,51 @@ typedef struct tree_iter {
 /// is a `const BstEntry(K, V)*` pointing to each entry in turn.
 ///
 /// @param self          Pointer to the `Bst(K, V)` to iterate
-/// @param stack_buf     Array of `tree_node*` used as the traversal stack
+/// @param stack_buf     Array of `TreeNode*` used as the traversal stack
 /// @param stack_cap     Number of elements in `stack_buf`; must be at least the number of nodes on
 /// the tree's longest root-to-leaf path (its height, counting nodes rather than edges) to avoid
 /// writing past `stack_buf`. Checked via `rk_assert` in debug builds only; violating this in a
 /// release build is undefined behaviour, not a caught error.
 /// @param entry         Name for the loop variable (a `const BstEntry(K, V)*`)
 ///
-/// @warning Do not insert or remove elements during iteration.
+/// @note break stops traversal; continue advances to the next entry.
+/// @note Do not insert or remove elements during iteration.
 /// @warning If `stack_cap` is less than the tree height, an assertion fires.
 ///
 /// Example:
 /// ```c
-/// tree_node* stack[64];
+/// TreeNode* stack[64];
 /// bst_foreach(&tree, stack, 64, e) {
 ///     printf("%d -> %s\n", e->key, e->val);
 /// }
 /// ```
 #define bst_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
+
+/// @brief Like `bst_foreach()`, but iterates in descending key order. Same parameters and contract.
+#define bst_foreach_reversed(self, stack_buf, stack_cap, entry)                                    \
+  tree_foreach_reversed(self, stack_buf, stack_cap, entry)
+
+/// @brief Erases every entry satisfying `pred`.
+///
+/// Performs an in-order traversal using the given stack buffer (same contract as `bst_foreach()`)
+/// to find every entry satisfying `pred`, then removes each one by key.
+/// @param K,V             Key/value types, as passed to `BST_DEFINE()`
+/// @param self            Pointer to a mutable `Bst(K, V)`
+/// @param stack_buf       Array of `TreeNode*` used as the traversal stack (see `bst_foreach()`)
+/// @param stack_cap       Number of elements in `stack_buf`
+/// @param entry           Name for the loop variable (a `const BstEntry(K, V)*`)
+/// @param pred            Predicate expression, evaluated once per entry present at the start of
+/// the call
+/// @note The predicate must not insert or remove entries.
+///
+/// Usage:
+/// ```c
+/// TreeNode* stack[64];
+/// bst_erase_if(int, cstr, &tree, stack, 64, e, e->val[0] == 'x');
+/// ```
+#define bst_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
+  RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_BST_PUB(K, V, remove))
 
 /////////////////////////////////////// Avl: AVL-balanced BST /////////////////////////////////////
 
@@ -2727,13 +2847,21 @@ typedef struct tree_iter {
 /// Alias for `tree_is_empty()`.
 #define avl_is_empty(self)              tree_is_empty(self)
 
-/// @brief `AvlEntry(K, V)* avl_min(Avl(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
+/// @brief `AvlEntry(K, V) avl_min(Avl(K, V)* self)` - Returns the entry with the smallest key as an
+/// lvalue (const for a const Avl). Asserts the tree is nonempty. Alias for `tree_min()`.
 #define avl_min(self)                   tree_min(self)
 
-/// @brief `AvlEntry(K, V)* avl_max(Avl(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
+/// @brief `AvlEntry(K, V) avl_max(Avl(K, V)* self)` - Returns the entry with the largest key as an
+/// lvalue (const for a const Avl). Asserts the tree is nonempty. Alias for `tree_max()`.
 #define avl_max(self)                   tree_max(self)
+
+/// @brief `AvlEntry(K, V)* avl_peek_min(Avl(K, V)* self)` - Returns a pointer to the entry with
+/// the smallest key, or `NULL` if the tree is empty. Alias for `tree_peek_min()`.
+#define avl_peek_min(self)              tree_peek_min(self)
+
+/// @brief `AvlEntry(K, V)* avl_peek_max(Avl(K, V)* self)` - Returns a pointer to the entry with
+/// the largest key, or `NULL` if the tree is empty. Alias for `tree_peek_max()`.
+#define avl_peek_max(self)              tree_peek_max(self)
 
 /// @brief `V* avl_get(K, V, Avl(K, V)* self, K key)` - See `bst_get()`.
 #define avl_get(K, V, self, key)        RKI_AVL_PUB(K, V, get)(self, key)
@@ -2772,6 +2900,14 @@ typedef struct tree_iter {
 #define avl_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
 
+/// @brief Like `avl_foreach()`, but iterates in descending key order. Same parameters and contract.
+#define avl_foreach_reversed(self, stack_buf, stack_cap, entry)                                    \
+  tree_foreach_reversed(self, stack_buf, stack_cap, entry)
+
+/// @brief Erases every entry satisfying `pred`, rebalancing as needed. See `bst_erase_if()`.
+#define avl_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
+  RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_AVL_PUB(K, V, remove))
+
 ////////////////////////////////// Rbt: left-leaning red-black tree ///////////////////////////////
 
 /// @brief `RBT_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific left-leaning red-black
@@ -2806,13 +2942,21 @@ typedef struct tree_iter {
 /// Alias for `tree_is_empty()`.
 #define rbt_is_empty(self)              tree_is_empty(self)
 
-/// @brief `RbtEntry(K, V)* rbt_min(Rbt(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
+/// @brief `RbtEntry(K, V) rbt_min(Rbt(K, V)* self)` - Returns the entry with the smallest key as an
+/// lvalue (const for a const Rbt). Asserts the tree is nonempty. Alias for `tree_min()`.
 #define rbt_min(self)                   tree_min(self)
 
-/// @brief `RbtEntry(K, V)* rbt_max(Rbt(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
+/// @brief `RbtEntry(K, V) rbt_max(Rbt(K, V)* self)` - Returns the entry with the largest key as an
+/// lvalue (const for a const Rbt). Asserts the tree is nonempty. Alias for `tree_max()`.
 #define rbt_max(self)                   tree_max(self)
+
+/// @brief `RbtEntry(K, V)* rbt_peek_min(Rbt(K, V)* self)` - Returns a pointer to the entry with
+/// the smallest key, or `NULL` if the tree is empty. Alias for `tree_peek_min()`.
+#define rbt_peek_min(self)              tree_peek_min(self)
+
+/// @brief `RbtEntry(K, V)* rbt_peek_max(Rbt(K, V)* self)` - Returns a pointer to the entry with
+/// the largest key, or `NULL` if the tree is empty. Alias for `tree_peek_max()`.
+#define rbt_peek_max(self)              tree_peek_max(self)
 
 /// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
 #define rbt_get(K, V, self, key)        RKI_RBT_PUB(K, V, get)(self, key)
@@ -2851,98 +2995,223 @@ typedef struct tree_iter {
 #define rbt_foreach(self, stack_buf, stack_cap, entry)                                             \
   tree_foreach(self, stack_buf, stack_cap, entry)
 
+/// @brief Like `rbt_foreach()`, but iterates in descending key order. Same parameters and contract.
+#define rbt_foreach_reversed(self, stack_buf, stack_cap, entry)                                    \
+  tree_foreach_reversed(self, stack_buf, stack_cap, entry)
+
+/// @brief Erases every entry satisfying `pred`, rebalancing as needed. See `bst_erase_if()`.
+#define rbt_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
+  RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_RBT_PUB(K, V, remove))
+
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+// Internal: actual shared state embedded in every concrete tree as `base`.
+typedef struct RKI_TreeData {
+  RK_IFALLOC(Allocator alloc;)
+  size_t    count;
+  TreeNode* root;
+} RKI_TreeData;
+
+// Internal: in-order traversal state used by `bst_foreach()`/`avl_foreach()`/`rbt_foreach()`. The
+// `_foreach` macros build one internally from the stack buffer and capacity you pass in.
+typedef struct RKI_TreeIter {
+  TreeNode **stack, *curr;
+  size_t     cap, top;
+} RKI_TreeIter;
 
 ////////////////////////////// Shared node/iterator primitives (`tree_*`) //////////////////////////
 
-/// @brief Type-erased view of any of this file's concrete node types (`RKI_BstNode`,
-/// `RKI_AvlNode`, `RKI_RbtNode`), used by the shared release/iteration primitives below, which only
-/// ever need to walk `l`/`r` -- never touch `data`/`entry` directly (that's only ever done after
-/// re-casting to the real, per-(K,V) node type, since the entry's offset differs by node type: it
-/// sits right after `l`/`r` for `Bst`, but after an extra height/color bookkeeping field for
-/// `Avl`/`Rbt`). Where the entry itself must be reached generically (`_min`/`_max`), the real
-/// offset is passed explicitly rather than assumed -- see `rki_tree_min_off`/`rki_tree_max_off`.
+/// @brief Shared release primitive operating on the embedded TreeNode headers.
+/// Every header is at offset zero, so its address is also the allocation's start address.
 rklib_fun void rki_tree_release_nodes(size_t nodesize, size_t nodealign,
-                                      tree_node* restrict node RK_IFALLOC(, Allocator alloc)) {
+                                      TreeNode* restrict node RK_IFALLOC(, Allocator alloc)) {
   while (node) {
     if (node->l) {
-      tree_node* left = node->l;
-      node->l         = left->r;
-      left->r         = node;
-      node            = left;
+      TreeNode* left = node->l;
+      node->l        = left->r;
+      left->r        = node;
+      node           = left;
     } else {
-      tree_node* right = node->r;
+      TreeNode* right = node->r;
       alloc_deallocate(node, nodesize, nodealign RK_IFALLOC(, alloc));
       node = right;
     }
   }
 }
 
-rklib_fun void rki_tree_release(size_t nodesize, size_t nodealign, tree_data* self) {
+// Operates on the actual embedded base object; no state overlay or field offsets.
+rklib_fun void rki_tree_release(size_t nodesize, size_t nodealign, RKI_TreeData* self) {
   rki_tree_release_nodes(nodesize, nodealign, self->root RK_IFALLOC(, self->alloc));
-  self->root = rk_null, self->count = 0;
+  self->root  = rk_null;
+  self->count = 0;
 }
 
 /// @brief Returns a pointer to the leftmost (minimum) node's entry, `entry_off` bytes into the
 /// node. Passing the real offset (rather than assuming entry data sits right after `l`/`r`, as a
-/// bare `tree_node*` would) is what makes this safe to reuse for node types that carry extra
+/// bare `TreeNode*` would) is what makes this safe to reuse for node types that carry extra
 /// bookkeeping (e.g. an AVL height or a red-black color bit) between the pointers and the entry.
-rklib_fun rk_pure void* rki_tree_min_off(tree_node* node, size_t entry_off) {
+rklib_fun rk_pure void* rki_tree_min_off(TreeNode* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->l) { node = node->l; }
   return (char*)node + entry_off;
 }
 
 /// @brief Like `rki_tree_min_off()`, but for the rightmost (maximum) node.
-rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
+rklib_fun rk_pure void* rki_tree_max_off(TreeNode* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
 }
 
-rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) {
+// Not rk_pure: the asserts are side effects, and a pure call whose result is discarded (e.g.
+// `(void)tree_min(t)`) may be removed entirely, silently skipping the emptiness check.
+rklib_fun void* rki_tree_check_min_off(TreeNode* node, size_t entry_off) {
+  rk_assert(node && "Cannot access min of empty tree");
+  return rki_tree_min_off(node, entry_off);
+}
+
+rklib_fun void* rki_tree_check_max_off(TreeNode* node, size_t entry_off) {
+  rk_assert(node && "Cannot access max of empty tree");
+  return rki_tree_max_off(node, entry_off);
+}
+
+// Entry pointer type matching the tree's constness. Constness is detected through `count`, a
+// member of a named type, as for the Dict/Deque iteration pointers (avoids `const const`, C4114).
+#define RKI_TREE_ENTRY_PTR(self)                                                                   \
+  _Generic(&(self)->base.count,                                                                    \
+      const size_t*: (const typeof((self)->rki_node_type->entry)*)0,                               \
+      default: (typeof((self)->rki_node_type->entry)*)0)
+
+rklib_fun TreeNode* rki_tree_iter_next(RKI_TreeIter* restrict it) {
   while (it->curr) {
     rk_assert(it->top < it->cap && "Tree iterator stack overflow");
     it->stack[it->top++] = it->curr;
     it->curr             = it->curr->l;
   }
-  if (!it->top) { return false; }
-  tree_node* node = it->stack[--it->top];
-  *node_out       = node;
-  it->curr        = node->r;
-  return true;
+  if (!it->top) { return rk_null; }
+  TreeNode* node = it->stack[--it->top];
+  it->curr       = node->r;
+  return node;
 }
 
-/// @brief Shared in-order-traversal loop backing `bst_foreach`/`avl_foreach`/`rbt_foreach`. Not
-/// normally used directly -- prefer the tree-specific macro, which documents its own parameters;
-/// the shape is identical across all three.
-#define tree_foreach(self, stack_buf, stack_cap, entry_)                                           \
-  for (typeof(*(self))*const RKI_rs = (self), *RKI_once = RKI_rs; RKI_once;)                       \
-    for (tree_node * RKI_node; RKI_once; RKI_once = 0)                                             \
-      for (tree_iter RKI_it = {.stack = (stack_buf),                                               \
-                               .curr  = (tree_node*)RKI_rs->root,                                  \
-                               .cap   = (stack_cap),                                               \
-                               .top   = 0};                                                        \
-           rki_tree_iter_next(&RKI_it, &RKI_node);)                                                \
-        for (typeof(RKI_rs->root->entry)*const entry_ = &((typeof(RKI_rs->root))RKI_node)->entry,  \
-                                               *RKI_once1 = entry_;                                \
-             RKI_once1; RKI_once1                         = 0)
+/// @brief Like `rki_tree_iter_next()`, but walks the tree right-to-left (descending order).
+rklib_fun TreeNode* rki_tree_iter_next_reversed(RKI_TreeIter* restrict it) {
+  while (it->curr) {
+    rk_assert(it->top < it->cap && "Tree iterator stack overflow");
+    it->stack[it->top++] = it->curr;
+    it->curr             = it->curr->r;
+  }
+  if (!it->top) { return rk_null; }
+  TreeNode* node = it->stack[--it->top];
+  it->curr       = node->l;
+  return node;
+}
 
-//////////////////////////////////////////// Bst internals /////////////////////////////////////////
+/// @brief Shared in-order-traversal loop backing `bst_foreach`/`avl_foreach`/`rbt_foreach` and
+/// their
+/// `_reversed` counterparts. Not normally used directly -- prefer the tree-specific macro, which
+/// documents its own parameters; the shape is identical across all three.
+///
+/// `entry_` is the loop variable itself (computed directly in the condition from whichever node
+/// `rki_tree_iter_next[_reversed]` just returned), so this is a single real loop: `break` exits
+/// traversal immediately and `continue` re-evaluates the condition to advance to the next node,
+/// exactly like a plain array loop. (An earlier version exposed `entry_` through an innermost
+/// "do-once" loop nested inside the real traversal loop; that inner loop always ran to completion
+/// regardless of the body, so a user's `break` only ever exited it and fell through to the real
+/// loop's own re-check -- which unconditionally advances -- making `break` silently behave like
+/// `continue`.)
+#define RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_)                                       \
+  for (struct {                                                                                    \
+         typeof(*(self))* tree;                                                                    \
+         RKI_TreeIter     it;                                                                      \
+         TreeNode*        node;                                                                    \
+       } RKI_state = {(self), {0}, rk_null};                                                       \
+       RKI_state.tree                                                                              \
+       && (RKI_state.it = (RKI_TreeIter){.stack = (stack_buf),                                     \
+                                         .curr  = (TreeNode*)RKI_state.tree->base.root,            \
+                                         .cap   = (stack_cap),                                     \
+                                         .top   = 0},                                              \
+          1);                                                                                      \
+       RKI_state.tree = rk_null)                                                                   \
+    for (typeof(RKI_TREE_ENTRY_PTR(RKI_state.tree)) entry_ = rk_null;                              \
+         (RKI_state.node = rki_tree_iter_next(&RKI_state.it))                                      \
+         && (entry_ = &((typeof(RKI_state.tree->rki_node_type))(void*)RKI_state.node)->entry, 1);)
 
-#define RKI_BstEntryPriv(K, V)      RKI_bst_entry_##K##_##V
+#define RKI_TREE_FOREACH_REVERSED(self, stack_buf, stack_cap, entry_)                              \
+  for (struct {                                                                                    \
+         typeof(*(self))* tree;                                                                    \
+         RKI_TreeIter     it;                                                                      \
+         TreeNode*        node;                                                                    \
+       } RKI_state = {(self), {0}, rk_null};                                                       \
+       RKI_state.tree                                                                              \
+       && (RKI_state.it = (RKI_TreeIter){.stack = (stack_buf),                                     \
+                                         .curr  = (TreeNode*)RKI_state.tree->base.root,            \
+                                         .cap   = (stack_cap),                                     \
+                                         .top   = 0},                                              \
+          1);                                                                                      \
+       RKI_state.tree = rk_null)                                                                   \
+    for (typeof(RKI_TREE_ENTRY_PTR(RKI_state.tree)) entry_ = rk_null;                              \
+         (RKI_state.node = rki_tree_iter_next_reversed(&RKI_state.it))                             \
+         && (entry_ = &((typeof(RKI_state.tree->rki_node_type))(void*)RKI_state.node)->entry, 1);)
 
-#define RKI_BST_INIT(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
-#define RKI_BST_INIT3(K, V, _Alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, _Alloc))
-#define RKI_BST_INIT2(K, V)         RKI_BST_INIT(K, V, alloc_ctx)
+/// @brief Shared erase_if implementation backing `bst_erase_if`/`avl_erase_if`/`rbt_erase_if`. Not
+/// normally used directly.
+///
+/// Deleting a tree node can trigger rotations that would invalidate an in-progress traversal stack,
+/// so this makes two passes instead of deleting while walking: first it traverses the tree once
+/// (via `tree_foreach`, which does not mutate it) collecting the key of every entry satisfying
+/// `pred` into a scratch buffer, then it removes each collected key through `remove_fn` -- the
+/// variant's own, already-correct `remove` function, which rebalances exactly as it would for a
+/// standalone `_remove()` call.
+#define RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry_, pred, remove_fn)                     \
+  do {                                                                                             \
+    typeof(*(self))* const RKI_eif_self = (self);                                                  \
+    if (!RKI_eif_self->base.count) { break; }                                                      \
+    const size_t RKI_eif_count = RKI_eif_self->base.count;                                         \
+    typeof(RKI_eif_self->rki_node_type->entry_mod.key)* const RKI_eif_keys                         \
+        = alloc_new(typeof(RKI_eif_self->rki_node_type->entry_mod.key),                            \
+                    RKI_eif_count RK_IFALLOC(, RKI_eif_self->base.alloc));                         \
+    size_t RKI_eif_n = 0;                                                                          \
+    tree_foreach(RKI_eif_self, stack_buf, stack_cap, entry_) {                                     \
+      if (pred) { RKI_eif_keys[RKI_eif_n++] = entry_->key; }                                       \
+    }                                                                                              \
+    for (size_t RKI_eif_i = 0; RKI_eif_i < RKI_eif_n; ++RKI_eif_i) {                               \
+      remove_fn(RKI_eif_self, RKI_eif_keys[RKI_eif_i]);                                            \
+    }                                                                                              \
+    alloc_delete(RKI_eif_keys, RKI_eif_count RK_IFALLOC(, RKI_eif_self->base.alloc));              \
+  } while (0)
 
-#define RKI_BstNode(K, V)           RKI_bst_node_##K##_##V
-#define RKI_BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
-#define RKI_BST_PRI(K, V, FNAME)    rki_bst_##K##_##V##_##FNAME
+///// These macros convert pointer values only. The stored links and root remain TreeNode*.
+#define RKI_TREE_LEFT(node)             ((typeof(node))(void*)(node)->links.l)
+#define RKI_TREE_RIGHT(node)            ((typeof(node))(void*)(node)->links.r)
+#define RKI_TREE_ROOT(self)             ((typeof((self)->rki_node_type))(void*)(self)->base.root)
+#define RKI_TREE_SET_LEFT(node, child)  ((node)->links.l = (TreeNode*)(child))
+#define RKI_TREE_SET_RIGHT(node, child) ((node)->links.r = (TreeNode*)(child))
+#define RKI_TREE_SET_ROOT(self, node)   ((self)->base.root = (TreeNode*)(node))
+
+#ifdef __cplusplus
+# define RKI_TREE_CHECK_NODE_LAYOUT(Node)                                                          \
+   static_assert(std::is_standard_layout<Node>::value, "Tree nodes must be standard-layout")
+#else
+# define RKI_TREE_CHECK_NODE_LAYOUT(Node)                                                          \
+   static_assert(offsetof(Node, links) == 0, "Tree node header must be the first member")
+#endif
+
+///////////////////////////////////////// Bst internals /////////////////////////////////////////
+
+#define RKI_BstEntryPriv(K, V) RKI_bst_entry_##K##_##V
+
+#define RKI_BST_INIT(K, V, A)                                                                      \
+  ((Bst(K, V)){.base = {RK_IFALLOC(.alloc = A, ).count = 0, .root = rk_null}})
+#define RKI_BST_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, A))
+#define RKI_BST_INIT2(K, V)      RKI_BST_INIT(K, V, alloc_ctx)
+
+#define RKI_BstNode(K, V)        RKI_bst_node_##K##_##V
+#define RKI_BST_PUB(K, V, FNAME) bst_##K##_##V##_##FNAME
+#define RKI_BST_PRI(K, V, FNAME) rki_bst_##K##_##V##_##FNAME
 
 #define RKI_BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
@@ -2955,22 +3224,24 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
     V val;                                                                                         \
   } RKI_BstEntryPriv(K, V);                                                                        \
   struct RKI_BstNode(K, V) {                                                                       \
-    struct RKI_BstNode(K, V) * l, *r;                                                              \
+    TreeNode links;                                                                                \
     union {                                                                                        \
       RKI_BstEntryPriv(K, V) entry_mod;                                                            \
       BstEntry(K, V) entry;                                                                        \
     };                                                                                             \
   };                                                                                               \
+  RKI_TREE_CHECK_NODE_LAYOUT(struct RKI_BstNode(K, V));                                            \
   typedef struct Bst(K, V) {                                                                       \
     union {                                                                                        \
-      tree_data _tree;                                                                             \
-      struct {                                                                                     \
-        RK_IFALLOC(Allocator alloc;)                                                               \
-        size_t count;                                                                              \
-        struct RKI_BstNode(K, V) * root;                                                           \
-      };                                                                                           \
+      RKI_TreeData base;                                                                           \
+      struct RKI_BstNode(K, V) * rki_node_type; /* Unevaluated type metadata only. */              \
     };                                                                                             \
   } Bst(K, V);                                                                                     \
+  /* The only call site of the user's comparator: its parameters use reserved names, so a  */      \
+  /* comparator named like a local of the functions below (c, key, n, ...) is not shadowed. */     \
+  rklib_fun int RKI_BST_PRI(K, V, cmp)(K rki_var_a, K rki_var_b) {                                 \
+    return CMP_FUN(rki_var_a, rki_var_b);                                                          \
+  }                                                                                                \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); bst_count()/bst_is_empty()/bst_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
@@ -2983,40 +3254,39 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   rklib_fun rk_pure Allocator RKI_BST_PUB(K, V, allocator)(const Bst(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  rklib_fun rk_pure struct RKI_BstNode(K, V)                                                       \
-      * *RKI_BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
+  rklib_fun rk_pure TreeNode** RKI_BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {            \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** curr = &self->root;                                                                   \
-    for (; *curr;) {                                                                               \
-      int cmp_res = CMP_FUN(key, (*curr)->entry.key);                                              \
-      if (cmp_res == 0) { break; }                                                                 \
-      curr = cmp_res < 0 ? &((*curr)->l) : &((*curr)->r);                                          \
+    TreeNode** curr = &self->base.root;                                                            \
+    while (*curr) {                                                                                \
+      node_t* node    = (node_t*)(void*)*curr;                                                     \
+      int     cmp_res = RKI_BST_PRI(K, V, cmp)(key, node->entry.key);                              \
+      if (!cmp_res) { break; }                                                                     \
+      curr = cmp_res < 0 ? &node->links.l : &node->links.r;                                        \
     }                                                                                              \
     return curr;                                                                                   \
   }                                                                                                \
   rklib_fun rk_pure V* RKI_BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                           \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** node = RKI_BST_PRI(K, V, search_ptr)(self, key);                                      \
-    return *node ? &((*node)->entry.val) : rk_null;                                                \
+    node_t* node = (node_t*)(void*)*RKI_BST_PRI(K, V, search_ptr)(self, key);                      \
+    return node ? &node->entry_mod.val : rk_null;                                                  \
   }                                                                                                \
   rklib_fun rk_pure bool RKI_BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                    \
-    return !!(*RKI_BST_PRI(K, V, search_ptr)(self, key));                                          \
+    return !!*RKI_BST_PRI(K, V, search_ptr)(self, key);                                            \
   }                                                                                                \
-  rklib_fun V* RKI_BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,       \
-                                          V val) {                                                 \
+  rklib_fun V* RKI_BST_PRI(K, V, set_add)(bool always_insert, Bst(K, V) * self, K key, V val) {    \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
+    TreeNode** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                     \
     if (*lnk) {                                                                                    \
-      if (always_insert) { (*lnk)->entry.val = val; }                                              \
+      if (always_insert) { ((node_t*)(void*)*lnk)->entry_mod.val = val; }                          \
       return rk_null;                                                                              \
     }                                                                                              \
-    RKI_set_alloc_fallback(self->alloc);                                                           \
-    node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
-    n->r = n->l  = rk_null;                                                                        \
-    n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
-    *lnk         = n;                                                                              \
-    ++self->count;                                                                                 \
-    return &(n->entry_mod.val);                                                                    \
+    RKI_set_alloc_fallback(self->base.alloc);                                                      \
+    node_t* node  = alloc_new(node_t, 1 RK_IFALLOC(, self->base.alloc));                           \
+    node->links.l = node->links.r = rk_null;                                                       \
+    node->entry_mod               = (typeof(node->entry_mod)){.key = key, .val = val};             \
+    *lnk                          = &node->links;                                                  \
+    ++self->base.count;                                                                            \
+    return &node->entry_mod.val;                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                          \
     return !!RKI_BST_PRI(K, V, set_add)(true, self, key, val);                                     \
@@ -3027,50 +3297,51 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   rklib_fun V* RKI_BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                       \
                                              bool* restrict inserted_out) {                        \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
+    TreeNode** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                     \
     if (*lnk) {                                                                                    \
       if (inserted_out) { *inserted_out = false; }                                                 \
-      return &((*lnk)->entry_mod.val);                                                             \
+      return &((node_t*)(void*)*lnk)->entry_mod.val;                                               \
     }                                                                                              \
-    RKI_set_alloc_fallback(self->alloc);                                                           \
-    node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
-    n->r = n->l  = rk_null;                                                                        \
-    n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
-    *lnk         = n;                                                                              \
-    ++self->count;                                                                                 \
+    RKI_set_alloc_fallback(self->base.alloc);                                                      \
+    node_t* node  = alloc_new(node_t, 1 RK_IFALLOC(, self->base.alloc));                           \
+    node->links.l = node->links.r = rk_null;                                                       \
+    node->entry_mod               = (typeof(node->entry_mod)){.key = key, .val = val};             \
+    *lnk                          = &node->links;                                                  \
+    ++self->base.count;                                                                            \
     if (inserted_out) { *inserted_out = true; }                                                    \
-    return &(n->entry_mod.val);                                                                    \
+    return &node->entry_mod.val;                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {                \
     rk_assert_ptr_nonnull(val_out);                                                                \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
+    TreeNode** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                     \
     if (!*lnk) { return false; }                                                                   \
-    --self->count;                                                                                 \
-    node_t* curr = *lnk;                                                                           \
-    *val_out     = curr->entry.val;                                                                \
-    if (curr->l && curr->r) {                                                                      \
-      lnk = (node_t**)&curr->r;                                                                    \
-      while ((*lnk)->l) { lnk = (node_t**)(&(*lnk)->l); }                                          \
-      node_t* succ    = *lnk;                                                                      \
+    --self->base.count;                                                                            \
+    node_t* curr = (node_t*)(void*)*lnk;                                                           \
+    *val_out     = curr->entry_mod.val;                                                            \
+    if (curr->links.l && curr->links.r) {                                                          \
+      lnk = &curr->links.r;                                                                        \
+      while ((*lnk)->l) { lnk = &(*lnk)->l; }                                                      \
+      node_t* succ    = (node_t*)(void*)*lnk;                                                      \
       curr->entry_mod = succ->entry_mod;                                                           \
-      *lnk            = (node_t*)(succ->r);                                                        \
-      alloc_delete(succ, 1 RK_IFALLOC(, self->alloc));                                             \
+      *lnk            = succ->links.r;                                                             \
+      alloc_delete(succ, 1 RK_IFALLOC(, self->base.alloc));                                        \
       return true;                                                                                 \
     }                                                                                              \
-    *lnk = (node_t*)(curr->l ? curr->l : curr->r);                                                 \
-    alloc_delete(curr, 1 RK_IFALLOC(, self->alloc));                                               \
+    *lnk = curr->links.l ? curr->links.l : curr->links.r;                                          \
+    alloc_delete(curr, 1 RK_IFALLOC(, self->base.alloc));                                          \
     return true;                                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_BST_PUB(K, V, remove)(Bst(K, V) * self, K key) {                              \
-    V _;                                                                                           \
-    return RKI_BST_PUB(K, V, extract)(self, key, &_);                                              \
+    V ignored;                                                                                     \
+    return RKI_BST_PUB(K, V, extract)(self, key, &ignored);                                        \
   }                                                                                                \
   RK_EXTERNC_END
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_AVL_INIT(K, V, A)                                                                      \
+  ((Avl(K, V)){.base = {RK_IFALLOC(.alloc = A, ).count = 0, .root = rk_null}})
 #define RKI_AVL_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_AVL_INIT(K, V, A))
 #define RKI_AVL_INIT2(K, V)      RKI_AVL_INIT(K, V, alloc_ctx)
 
@@ -3089,23 +3360,25 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
     V val;                                                                                         \
   } RKI_AVL_PRI(K, V, entry);                                                                      \
   typedef struct RKI_AvlNode(K, V) {                                                               \
-    struct RKI_AvlNode(K, V) * l, *r;                                                              \
-    int height;                                                                                    \
+    TreeNode links;                                                                                \
+    int      height;                                                                               \
     union {                                                                                        \
       RKI_AVL_PRI(K, V, entry) entry_mod;                                                          \
       AvlEntry(K, V) entry;                                                                        \
     };                                                                                             \
   } RKI_AvlNode(K, V);                                                                             \
+  RKI_TREE_CHECK_NODE_LAYOUT(RKI_AvlNode(K, V));                                                   \
   typedef struct Avl(K, V) {                                                                       \
     union {                                                                                        \
-      tree_data _tree;                                                                             \
-      struct {                                                                                     \
-        RK_IFALLOC(Allocator alloc;)                                                               \
-        size_t count;                                                                              \
-        RKI_AvlNode(K, V) * root;                                                                  \
-      };                                                                                           \
+      RKI_TreeData base;                                                                           \
+      RKI_AvlNode(K, V) * rki_node_type; /* Unevaluated type metadata only. */                     \
     };                                                                                             \
   } Avl(K, V);                                                                                     \
+  /* The only call site of the user's comparator: its parameters use reserved names, so a  */      \
+  /* comparator named like a local of the functions below (c, key, n, ...) is not shadowed. */     \
+  rklib_fun int RKI_AVL_PRI(K, V, cmp)(K rki_var_a, K rki_var_b) {                                 \
+    return CMP_FUN(rki_var_a, rki_var_b);                                                          \
+  }                                                                                                \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); avl_count()/avl_is_empty()/avl_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
@@ -3120,37 +3393,39 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   }                                                                                                \
   rklib_fun rk_pure int RKI_AVL_PRI(K, V, h)(RKI_AvlNode(K, V) * n) { return n ? n->height : 0; }  \
   rklib_fun void        RKI_AVL_PRI(K, V, fixh)(RKI_AvlNode(K, V) * n) {                           \
-    int a = RKI_AVL_PRI(K, V, h)(n->l), b = RKI_AVL_PRI(K, V, h)(n->r);                            \
+    int a = RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(n)), b = RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(n));   \
     n->height = 1 + (a > b ? a : b);                                                               \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotl)(RKI_AvlNode(K, V) * x) {                   \
-    RKI_AvlNode(K, V)* y = x->r;                                                                   \
-    x->r                 = y->l;                                                                   \
-    y->l                 = x;                                                                      \
+    RKI_AvlNode(K, V)* y = RKI_TREE_RIGHT(x);                                                      \
+    RKI_TREE_SET_RIGHT(x, RKI_TREE_LEFT(y));                                                       \
+    RKI_TREE_SET_LEFT(y, x);                                                                       \
     RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
     RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
     return y;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotr)(RKI_AvlNode(K, V) * y) {                   \
-    RKI_AvlNode(K, V)* x = y->l;                                                                   \
-    y->l                 = x->r;                                                                   \
-    x->r                 = y;                                                                      \
+    RKI_AvlNode(K, V)* x = RKI_TREE_LEFT(y);                                                       \
+    RKI_TREE_SET_LEFT(y, RKI_TREE_RIGHT(x));                                                       \
+    RKI_TREE_SET_RIGHT(x, y);                                                                      \
     RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
     RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
     return x;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, balance)(RKI_AvlNode(K, V) * n) {                \
     RKI_AVL_PRI(K, V, fixh)(n);                                                                    \
-    int bf = RKI_AVL_PRI(K, V, h)(n->l) - RKI_AVL_PRI(K, V, h)(n->r);                              \
+    int bf = RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(n)) - RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(n));     \
     if (bf > 1) {                                                                                  \
-      if (RKI_AVL_PRI(K, V, h)(n->l->l) < RKI_AVL_PRI(K, V, h)(n->l->r)) {                         \
-        n->l = RKI_AVL_PRI(K, V, rotl)(n->l);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(RKI_TREE_LEFT(n)))                                    \
+          < RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(RKI_TREE_LEFT(n)))) {                              \
+        RKI_TREE_SET_LEFT(n, RKI_AVL_PRI(K, V, rotl)(RKI_TREE_LEFT(n)));                           \
       }                                                                                            \
       return RKI_AVL_PRI(K, V, rotr)(n);                                                           \
     }                                                                                              \
     if (bf < -1) {                                                                                 \
-      if (RKI_AVL_PRI(K, V, h)(n->r->r) < RKI_AVL_PRI(K, V, h)(n->r->l)) {                         \
-        n->r = RKI_AVL_PRI(K, V, rotr)(n->r);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(RKI_TREE_RIGHT(n)))                                  \
+          < RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(RKI_TREE_RIGHT(n)))) {                              \
+        RKI_TREE_SET_RIGHT(n, RKI_AVL_PRI(K, V, rotr)(RKI_TREE_RIGHT(n)));                         \
       }                                                                                            \
       return RKI_AVL_PRI(K, V, rotl)(n);                                                           \
     }                                                                                              \
@@ -3160,43 +3435,46 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
       * RKI_AVL_PRI(K, V, put)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V val,              \
                                bool overwrite, V** out, bool* added) {                             \
     if (!n) {                                                                                      \
-      RKI_set_alloc_fallback(self->alloc);                                                         \
-      n    = alloc_new(RKI_AvlNode(K, V), 1 RK_IFALLOC(, self->alloc));                            \
-      n->l = n->r  = rk_null;                                                                      \
-      n->height    = 1;                                                                            \
-      n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                               \
-      *out         = &n->entry_mod.val;                                                            \
-      *added       = true;                                                                         \
+      RKI_set_alloc_fallback(self->base.alloc);                                                    \
+      n          = alloc_new(RKI_AvlNode(K, V), 1 RK_IFALLOC(, self->base.alloc));                 \
+      n->links.l = n->links.r = rk_null;                                                           \
+      n->height               = 1;                                                                 \
+      n->entry_mod            = (typeof(n->entry_mod)){.key = key, .val = val};                    \
+      *out                    = &n->entry_mod.val;                                                 \
+      *added                  = true;                                                              \
       return n;                                                                                    \
     }                                                                                              \
-    int c = CMP_FUN(key, n->entry.key);                                                            \
+    int c = RKI_AVL_PRI(K, V, cmp)(key, n->entry.key);                                             \
     if (!c) {                                                                                      \
       if (overwrite) { n->entry_mod.val = val; }                                                   \
       *out = &n->entry_mod.val;                                                                    \
       return n;                                                                                    \
     }                                                                                              \
     if (c < 0) {                                                                                   \
-      n->l = RKI_AVL_PRI(K, V, put)(self, n->l, key, val, overwrite, out, added);                  \
+      RKI_TREE_SET_LEFT(                                                                           \
+          n, RKI_AVL_PRI(K, V, put)(self, RKI_TREE_LEFT(n), key, val, overwrite, out, added));     \
     } else {                                                                                       \
-      n->r = RKI_AVL_PRI(K, V, put)(self, n->r, key, val, overwrite, out, added);                  \
+      RKI_TREE_SET_RIGHT(                                                                          \
+          n, RKI_AVL_PRI(K, V, put)(self, RKI_TREE_RIGHT(n), key, val, overwrite, out, added));    \
     }                                                                                              \
     return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
   rklib_fun rk_pure V* RKI_AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                           \
-    RKI_AvlNode(K, V)* n = self->root;                                                             \
+    RKI_AvlNode(K, V)* n = RKI_TREE_ROOT(self);                                                    \
     while (n) {                                                                                    \
-      int c = CMP_FUN(key, n->entry.key);                                                          \
+      int c = RKI_AVL_PRI(K, V, cmp)(key, n->entry.key);                                           \
       if (!c) { return &n->entry_mod.val; }                                                        \
-      n = c < 0 ? n->l : n->r;                                                                     \
+      n = c < 0 ? RKI_TREE_LEFT(n) : RKI_TREE_RIGHT(n);                                            \
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
   rklib_fun V* RKI_AVL_PRI(K, V, setadd)(Avl(K, V) * self, K key, V val, bool overwrite,           \
                                          bool* added) {                                            \
-    V* out     = rk_null;                                                                          \
-    *added     = false;                                                                            \
-    self->root = RKI_AVL_PRI(K, V, put)(self, self->root, key, val, overwrite, &out, added);       \
-    if (*added) { ++self->count; }                                                                 \
+    V* out = rk_null;                                                                              \
+    *added = false;                                                                                \
+    RKI_TREE_SET_ROOT(self, RKI_AVL_PRI(K, V, put)(self, RKI_TREE_ROOT(self), key, val, overwrite, \
+                                                   &out, added));                                  \
+    if (*added) { ++self->base.count; }                                                            \
     return out;                                                                                    \
   }                                                                                                \
   rklib_fun bool RKI_AVL_PUB(K, V, set)(Avl(K, V) * self, K key, V val) {                          \
@@ -3217,35 +3495,35 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V)                                                                      \
       * RKI_AVL_PRI(K, V, detach_min)(RKI_AvlNode(K, V) * n, RKI_AvlNode(K, V) * *out) {           \
-    if (!n->l) {                                                                                   \
+    if (!RKI_TREE_LEFT(n)) {                                                                       \
       *out = n;                                                                                    \
-      return n->r;                                                                                 \
+      return RKI_TREE_RIGHT(n);                                                                    \
     }                                                                                              \
-    n->l = RKI_AVL_PRI(K, V, detach_min)(n->l, out);                                               \
+    RKI_TREE_SET_LEFT(n, RKI_AVL_PRI(K, V, detach_min)(RKI_TREE_LEFT(n), out));                    \
     return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V)                                                                      \
       * RKI_AVL_PRI(K, V, erase)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V * out,          \
                                  bool* removed) {                                                  \
     if (!n) return rk_null;                                                                        \
-    int c = CMP_FUN(key, n->entry.key);                                                            \
+    int c = RKI_AVL_PRI(K, V, cmp)(key, n->entry.key);                                             \
     if (c < 0) {                                                                                   \
-      n->l = RKI_AVL_PRI(K, V, erase)(self, n->l, key, out, removed);                              \
+      RKI_TREE_SET_LEFT(n, RKI_AVL_PRI(K, V, erase)(self, RKI_TREE_LEFT(n), key, out, removed));   \
     } else if (c > 0) {                                                                            \
-      n->r = RKI_AVL_PRI(K, V, erase)(self, n->r, key, out, removed);                              \
+      RKI_TREE_SET_RIGHT(n, RKI_AVL_PRI(K, V, erase)(self, RKI_TREE_RIGHT(n), key, out, removed)); \
     } else {                                                                                       \
       *out                 = n->entry_mod.val;                                                     \
       *removed             = true;                                                                 \
-      RKI_AvlNode(K, V)* l = n->l, *r = n->r;                                                      \
+      RKI_AvlNode(K, V)* l = RKI_TREE_LEFT(n), *r = RKI_TREE_RIGHT(n);                             \
       if (!r) {                                                                                    \
-        alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                              \
+        alloc_delete(n, 1 RK_IFALLOC(, self->base.alloc));                                         \
         return l;                                                                                  \
       }                                                                                            \
       RKI_AvlNode(K, V) * m;                                                                       \
-      r    = RKI_AVL_PRI(K, V, detach_min)(r, &m);                                                 \
-      m->l = l;                                                                                    \
-      m->r = r;                                                                                    \
-      alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                                \
+      r = RKI_AVL_PRI(K, V, detach_min)(r, &m);                                                    \
+      RKI_TREE_SET_LEFT(m, l);                                                                     \
+      RKI_TREE_SET_RIGHT(m, r);                                                                    \
+      alloc_delete(n, 1 RK_IFALLOC(, self->base.alloc));                                           \
       return RKI_AVL_PRI(K, V, balance)(m);                                                        \
     }                                                                                              \
     return *removed ? RKI_AVL_PRI(K, V, balance)(n) : n;                                           \
@@ -3253,8 +3531,9 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   rklib_fun bool RKI_AVL_PUB(K, V, extract)(Avl(K, V) * self, K key, V * out) {                    \
     rk_assert_ptr_nonnull(out);                                                                    \
     bool removed = false;                                                                          \
-    self->root   = RKI_AVL_PRI(K, V, erase)(self, self->root, key, out, &removed);                 \
-    if (removed) { --self->count; }                                                                \
+    RKI_TREE_SET_ROOT(self,                                                                        \
+                      RKI_AVL_PRI(K, V, erase)(self, RKI_TREE_ROOT(self), key, out, &removed));    \
+    if (removed) { --self->base.count; }                                                           \
     return removed;                                                                                \
   }                                                                                                \
   rklib_fun bool RKI_AVL_PUB(K, V, remove)(Avl(K, V) * self, K key) {                              \
@@ -3265,7 +3544,8 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_RBT_INIT(K, V, A)                                                                      \
+  ((Rbt(K, V)){.base = {RK_IFALLOC(.alloc = A, ).count = 0, .root = rk_null}})
 #define RKI_RBT_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_RBT_INIT(K, V, A))
 #define RKI_RBT_INIT2(K, V)      RKI_RBT_INIT(K, V, alloc_ctx)
 
@@ -3286,23 +3566,25 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
     V val;                                                                                         \
   } RKI_RBT_PRI(K, V, E);                                                                          \
   typedef struct RKI_RbtNode(K, V) {                                                               \
-    struct RKI_RbtNode(K, V) * l, *r;                                                              \
-    bool red;                                                                                      \
+    TreeNode links;                                                                                \
+    bool     red;                                                                                  \
     union {                                                                                        \
       RKI_RBT_PRI(K, V, E) entry_mod;                                                              \
       RbtEntry(K, V) entry;                                                                        \
     };                                                                                             \
   } RKI_RbtNode(K, V);                                                                             \
+  RKI_TREE_CHECK_NODE_LAYOUT(RKI_RbtNode(K, V));                                                   \
   typedef struct Rbt(K, V) {                                                                       \
     union {                                                                                        \
-      tree_data _tree;                                                                             \
-      struct {                                                                                     \
-        RK_IFALLOC(Allocator alloc;)                                                               \
-        size_t count;                                                                              \
-        RKI_RbtNode(K, V) * root;                                                                  \
-      };                                                                                           \
+      RKI_TreeData base;                                                                           \
+      RKI_RbtNode(K, V) * rki_node_type; /* Unevaluated type metadata only. */                     \
     };                                                                                             \
   } Rbt(K, V);                                                                                     \
+  /* The only call site of the user's comparator: its parameters use reserved names, so a  */      \
+  /* comparator named like a local of the functions below (c, key, n, ...) is not shadowed. */     \
+  rklib_fun int RKI_RBT_PRI(K, V, cmp)(K rki_var_a, K rki_var_b) {                                 \
+    return CMP(rki_var_a, rki_var_b);                                                              \
+  }                                                                                                \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); rbt_count()/rbt_is_empty()/rbt_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
@@ -3317,48 +3599,49 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   }                                                                                                \
   rklib_fun rk_pure bool RKI_RBT_PRI(K, V, red)(RKI_RbtNode(K, V) * n) { return n && n->red; }     \
   rklib_fun              RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rl)(RKI_RbtNode(K, V) * h) {        \
-    RKI_RbtNode(K, V)* x = h->r;                                                                   \
-    h->r                 = x->l;                                                                   \
-    x->l                 = h;                                                                      \
-    x->red               = h->red;                                                                 \
-    h->red               = true;                                                                   \
+    RKI_RbtNode(K, V)* x = RKI_TREE_RIGHT(h);                                                      \
+    RKI_TREE_SET_RIGHT(h, RKI_TREE_LEFT(x));                                                       \
+    RKI_TREE_SET_LEFT(x, h);                                                                       \
+    x->red = h->red;                                                                               \
+    h->red = true;                                                                                 \
     return x;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rr)(RKI_RbtNode(K, V) * h) {                     \
-    RKI_RbtNode(K, V)* x = h->l;                                                                   \
-    h->l                 = x->r;                                                                   \
-    x->r                 = h;                                                                      \
-    x->red               = h->red;                                                                 \
-    h->red               = true;                                                                   \
+    RKI_RbtNode(K, V)* x = RKI_TREE_LEFT(h);                                                       \
+    RKI_TREE_SET_LEFT(h, RKI_TREE_RIGHT(x));                                                       \
+    RKI_TREE_SET_RIGHT(x, h);                                                                      \
+    x->red = h->red;                                                                               \
+    h->red = true;                                                                                 \
     return x;                                                                                      \
   }                                                                                                \
   rklib_fun void RKI_RBT_PRI(K, V, flip)(RKI_RbtNode(K, V) * h) {                                  \
-    h->red    = !h->red;                                                                           \
-    h->l->red = !h->l->red;                                                                        \
-    h->r->red = !h->r->red;                                                                        \
+    h->red                 = !h->red;                                                              \
+    RKI_TREE_LEFT(h)->red  = !RKI_TREE_LEFT(h)->red;                                               \
+    RKI_TREE_RIGHT(h)->red = !RKI_TREE_RIGHT(h)->red;                                              \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, fix)(RKI_RbtNode(K, V) * h) {                    \
-    if (RKI_RBT_PRI(K, V, red)(h->r)) { h = RKI_RBT_PRI(K, V, rl)(h); }                            \
-    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->l->l)) {                         \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(h))) { h = RKI_RBT_PRI(K, V, rl)(h); }               \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))                                                   \
+        && RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                              \
       h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
     }                                                                                              \
-    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->r)) {                            \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h)) && RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(h))) {   \
       RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, ml)(RKI_RbtNode(K, V) * h) {                     \
     RKI_RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RKI_RBT_PRI(K, V, red)(h->r->l)) {                                                         \
-      h->r = RKI_RBT_PRI(K, V, rr)(h->r);                                                          \
-      h    = RKI_RBT_PRI(K, V, rl)(h);                                                             \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_RIGHT(h)))) {                                \
+      RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, rr)(RKI_TREE_RIGHT(h)));                             \
+      h = RKI_RBT_PRI(K, V, rl)(h);                                                                \
       RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mr)(RKI_RbtNode(K, V) * h) {                     \
     RKI_RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RKI_RBT_PRI(K, V, red)(h->l->l)) {                                                         \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                                 \
       h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
       RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
@@ -3368,20 +3651,20 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
       * RKI_RBT_PRI(K, V, put)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
                                bool* added) {                                                      \
     if (!h) {                                                                                      \
-      RKI_set_alloc_fallback(s->alloc);                                                            \
-      h    = alloc_new(RKI_RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
-      h->l = h->r  = rk_null;                                                                      \
-      h->red       = true;                                                                         \
-      h->entry_mod = (typeof(h->entry_mod)){.key = k, .val = v};                                   \
-      *out         = &h->entry_mod.val;                                                            \
-      *added       = true;                                                                         \
+      RKI_set_alloc_fallback(s->base.alloc);                                                       \
+      h          = alloc_new(RKI_RbtNode(K, V), 1 RK_IFALLOC(, s->base.alloc));                    \
+      h->links.l = h->links.r = rk_null;                                                           \
+      h->red                  = true;                                                              \
+      h->entry_mod            = (typeof(h->entry_mod)){.key = k, .val = v};                        \
+      *out                    = &h->entry_mod.val;                                                 \
+      *added                  = true;                                                              \
       return h;                                                                                    \
     }                                                                                              \
-    int c = CMP(k, h->entry.key);                                                                  \
+    int c = RKI_RBT_PRI(K, V, cmp)(k, h->entry.key);                                               \
     if (c < 0) {                                                                                   \
-      h->l = RKI_RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
+      RKI_TREE_SET_LEFT(h, RKI_RBT_PRI(K, V, put)(s, RKI_TREE_LEFT(h), k, v, ow, out, added));     \
     } else if (c > 0) {                                                                            \
-      h->r = RKI_RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
+      RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, put)(s, RKI_TREE_RIGHT(h), k, v, ow, out, added));   \
     } else {                                                                                       \
       if (ow) { h->entry_mod.val = v; }                                                            \
       *out = &h->entry_mod.val;                                                                    \
@@ -3389,20 +3672,20 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
     return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
   rklib_fun rk_pure V* RKI_RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                                \
-    RKI_RbtNode(K, V)* n = s->root;                                                                \
+    RKI_RbtNode(K, V)* n = RKI_TREE_ROOT(s);                                                       \
     while (n) {                                                                                    \
-      int c = CMP(k, n->entry.key);                                                                \
+      int c = RKI_RBT_PRI(K, V, cmp)(k, n->entry.key);                                             \
       if (!c) { return &n->entry_mod.val; }                                                        \
-      n = c < 0 ? n->l : n->r;                                                                     \
+      n = c < 0 ? RKI_TREE_LEFT(n) : RKI_TREE_RIGHT(n);                                            \
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
   rklib_fun V* RKI_RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {          \
-    V* out       = rk_null;                                                                        \
-    *added       = false;                                                                          \
-    s->root      = RKI_RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
-    s->root->red = false;                                                                          \
-    if (*added) { ++s->count; }                                                                    \
+    V* out = rk_null;                                                                              \
+    *added = false;                                                                                \
+    RKI_TREE_SET_ROOT(s, RKI_RBT_PRI(K, V, put)(s, RKI_TREE_ROOT(s), k, v, ow, &out, added));      \
+    RKI_TREE_ROOT(s)->red = false;                                                                 \
+    if (*added) { ++s->base.count; }                                                               \
     return out;                                                                                    \
   }                                                                                                \
   rklib_fun bool RKI_RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                 \
@@ -3421,51 +3704,54 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
     return RKI_RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
   }                                                                                                \
   rklib_fun rk_pure RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mn)(RKI_RbtNode(K, V) * h) {             \
-    while (h->l) { h = h->l; }                                                                     \
+    while (RKI_TREE_LEFT(h)) { h = RKI_TREE_LEFT(h); }                                             \
     return h;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, dm)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h) {      \
-    if (!h->l) {                                                                                   \
-      alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                   \
+    if (!RKI_TREE_LEFT(h)) {                                                                       \
+      alloc_delete(h, 1 RK_IFALLOC(, s->base.alloc));                                              \
       return rk_null;                                                                              \
     }                                                                                              \
-    if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                       \
+    if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))                                                  \
+        && !RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                             \
       h = RKI_RBT_PRI(K, V, ml)(h);                                                                \
     }                                                                                              \
-    h->l = RKI_RBT_PRI(K, V, dm)(s, h->l);                                                         \
+    RKI_TREE_SET_LEFT(h, RKI_RBT_PRI(K, V, dm)(s, RKI_TREE_LEFT(h)));                              \
     return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V)                                                                      \
       * RKI_RBT_PRI(K, V, del)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
-    if (CMP(k, h->entry.key) < 0) {                                                                \
-      if (h->l) {                                                                                  \
-        if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                   \
+    if (RKI_RBT_PRI(K, V, cmp)(k, h->entry.key) < 0) {                                             \
+      if (RKI_TREE_LEFT(h)) {                                                                      \
+        if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))                                              \
+            && !RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                         \
           h = RKI_RBT_PRI(K, V, ml)(h);                                                            \
         }                                                                                          \
-        h->l = RKI_RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
+        RKI_TREE_SET_LEFT(h, RKI_RBT_PRI(K, V, del)(s, RKI_TREE_LEFT(h), k, out, gone));           \
       }                                                                                            \
     } else {                                                                                       \
-      if (RKI_RBT_PRI(K, V, red)(h->l)) { h = RKI_RBT_PRI(K, V, rr)(h); }                          \
-      int c = CMP(k, h->entry.key);                                                                \
-      if (!c && !h->r) {                                                                           \
+      if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))) { h = RKI_RBT_PRI(K, V, rr)(h); }              \
+      int c = RKI_RBT_PRI(K, V, cmp)(k, h->entry.key);                                             \
+      if (!c && !RKI_TREE_RIGHT(h)) {                                                              \
         *out  = h->entry_mod.val;                                                                  \
         *gone = true;                                                                              \
-        alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                 \
+        alloc_delete(h, 1 RK_IFALLOC(, s->base.alloc));                                            \
         return rk_null;                                                                            \
       }                                                                                            \
-      if (h->r) {                                                                                  \
-        if (!RKI_RBT_PRI(K, V, red)(h->r) && !RKI_RBT_PRI(K, V, red)(h->r->l)) {                   \
+      if (RKI_TREE_RIGHT(h)) {                                                                     \
+        if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(h))                                             \
+            && !RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_RIGHT(h)))) {                        \
           h = RKI_RBT_PRI(K, V, mr)(h);                                                            \
         }                                                                                          \
-        c = CMP(k, h->entry.key);                                                                  \
+        c = RKI_RBT_PRI(K, V, cmp)(k, h->entry.key);                                               \
         if (!c) {                                                                                  \
-          RKI_RbtNode(K, V)* m = RKI_RBT_PRI(K, V, mn)(h->r);                                      \
+          RKI_RbtNode(K, V)* m = RKI_RBT_PRI(K, V, mn)(RKI_TREE_RIGHT(h));                         \
           *out                 = h->entry_mod.val;                                                 \
           *gone                = true;                                                             \
           h->entry_mod         = m->entry_mod;                                                     \
-          h->r                 = RKI_RBT_PRI(K, V, dm)(s, h->r);                                   \
+          RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, dm)(s, RKI_TREE_RIGHT(h)));                      \
         } else {                                                                                   \
-          h->r = RKI_RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
+          RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, del)(s, RKI_TREE_RIGHT(h), k, out, gone));       \
         }                                                                                          \
       }                                                                                            \
     }                                                                                              \
@@ -3473,14 +3759,15 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
   }                                                                                                \
   rklib_fun bool RKI_RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                         \
     rk_assert_ptr_nonnull(out);                                                                    \
-    if (!s->root || !RKI_RBT_PUB(K, V, get)(s, k)) { return false; }                               \
+    if (!RKI_TREE_ROOT(s) || !RKI_RBT_PUB(K, V, get)(s, k)) { return false; }                      \
     bool gone = false;                                                                             \
-    if (!RKI_RBT_PRI(K, V, red)(s->root->l) && !RKI_RBT_PRI(K, V, red)(s->root->r)) {              \
-      s->root->red = true;                                                                         \
+    if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_ROOT(s)))                                   \
+        && !RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(RKI_TREE_ROOT(s)))) {                            \
+      RKI_TREE_ROOT(s)->red = true;                                                                \
     }                                                                                              \
-    s->root = RKI_RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
-    if (s->root) { s->root->red = false; }                                                         \
-    if (gone) { --s->count; }                                                                      \
+    RKI_TREE_SET_ROOT(s, RKI_RBT_PRI(K, V, del)(s, RKI_TREE_ROOT(s), k, out, &gone));              \
+    if (RKI_TREE_ROOT(s)) { RKI_TREE_ROOT(s)->red = false; }                                       \
+    if (gone) { --s->base.count; }                                                                 \
     return gone;                                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                   \
@@ -4205,11 +4492,106 @@ rklib_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len
   return bitset_clear_padding(dst, len);
 }
 
+/// @brief Visits every set bit's index in increasing order.
+/// @param self  Bitset storage, mutable or const. Evaluated once.
+/// @param nbits Logical bit count. Evaluated once.
+/// @param idx   Name of the size_t index variable.
+/// @note break stops traversal; continue advances to the next set bit.
+/// @note Clearing the current bit is supported. Each storage word is cached when reached;
+/// changes to other bits in that word are not reflected in traversal. Words not yet
+/// reached are read when traversal advances to them.
+///
+/// Usage:
+/// ```c
+/// bitset_foreach(bs, 128, i) { printf("set bit: %zu\n", i); }
+/// ```
+#define bitset_foreach(self, nbits, idx)          RKI_BITSET_FOREACH(self, nbits, idx)
+
+/// @brief Like `bitset_foreach()`, but iterates in decreasing order. Same parameters and contract.
+#define bitset_foreach_reversed(self, nbits, idx) RKI_BITSET_FOREACH_REVERSED(self, nbits, idx)
+
+/// @brief Clears every set bit whose index satisfies `pred`.
+/// @param self  Mutable bitset storage. Evaluated once.
+/// @param nbits Logical bit count. Evaluated once.
+/// @param idx   Name of the const size_t index variable.
+/// @param pred  Predicate expression, evaluated once per original set bit.
+/// @note The predicate must not modify the bitset.
+///
+/// Usage:
+/// ```c
+/// bitset_clear_if(bs, 128, i, i % 2 == 0); // clear even-indexed bits
+/// ```
+#define bitset_clear_if(self, nbits, idx, pred)   RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)
+
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+
+// Each word is loaded once. Mutations to other bits in a cached word are not observed.
+typedef struct RKI_BitsetIter {
+  cbitset     bits;
+  size_t      count, word;
+  bitset_word remaining;
+} RKI_BitsetIter;
+
+rklib_fun rk_forceinline size_t rki_bitset_iter_next(RKI_BitsetIter* state) {
+  enum { W = bitsof(bitset_word) }; // NOLINT
+  while (!state->remaining) {
+    if (state->word >= state->count / W + (state->count % W != 0)) { return BITSET_NPOS; }
+    state->remaining  = state->bits[state->word++];
+    const size_t rest = state->count % W;
+    if (rest && state->word - 1 == state->count / W) {
+      state->remaining &= ((bitset_word)1 << rest) - 1;
+    }
+  }
+  const size_t bit  = stdc_first_trailing_one(state->remaining) - 1;
+  state->remaining &= state->remaining - 1;
+  return (state->word - 1) * W + bit;
+}
+
+rklib_fun rk_forceinline size_t rki_bitset_iter_prev(RKI_BitsetIter* state) {
+  enum { W = bitsof(bitset_word) }; // NOLINT
+  while (!state->remaining) {
+    if (!state->word) { return BITSET_NPOS; }
+    state->remaining  = state->bits[--state->word];
+    const size_t rest = state->count % W;
+    if (rest && state->word == state->count / W) {
+      state->remaining &= ((bitset_word)1 << rest) - 1;
+    }
+  }
+  const size_t bit  = W - stdc_first_leading_one(state->remaining);
+  state->remaining &= ~((bitset_word)1 << bit);
+  return state->word * W + bit;
+}
+
+#define RKI_BITSET_FOREACH(self, nbits, idx)                                                       \
+  for (RKI_BitsetIter rki_var_state = {(self), (nbits), 0, 0}; rki_var_state.bits;                 \
+       rki_var_state.bits           = rk_null)                                                     \
+    for (size_t idx = 0;                                                                           \
+         (idx = rki_bitset_iter_next(&rki_var_state)) != BITSET_NPOS && ((void)idx, 1);)
+
+#define RKI_BITSET_FOREACH_REVERSED(self, nbits, idx)                                              \
+  for (RKI_BitsetIter rki_var_state = {(self), (nbits), 0, 0};                                     \
+       rki_var_state.bits                                                                          \
+       && (rki_var_state.word = rki_var_state.count / bitsof(bitset_word)                          \
+                              + (rki_var_state.count % bitsof(bitset_word) != 0),                  \
+          1);                                                                                      \
+       rki_var_state.bits = rk_null)                                                               \
+    for (size_t idx = 0;                                                                           \
+         (idx = rki_bitset_iter_prev(&rki_var_state)) != BITSET_NPOS && ((void)idx, 1);)
+
+#define RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)                                                \
+  do {                                                                                             \
+    bitset const rki_var_bits  = (self);                                                           \
+    const size_t rki_var_count = (nbits);                                                          \
+    RKI_BITSET_FOREACH(rki_var_bits, rki_var_count, rki_var_cursor) {                              \
+      const size_t idx = rki_var_cursor;                                                           \
+      (void)idx;                                                                                   \
+      if (pred) { bitset_clear(rki_var_bits, rki_var_count, idx); }                                \
+    }                                                                                              \
+  } while (0)
 
 /// @brief Internal helper implementing range operations.
 /// @param bs Bitset to modify
@@ -4294,178 +4676,255 @@ RKI_HEADER_END
 /// @file rk_arena.h
 /// @version 1.0.0
 /// @defgroup rk_arena Arena Allocator Interface
-/// @brief Arena Allocator Implementation
-///
-/// Provides a simple linear/stack-style arena allocator for fast temporary memory allocation.
-/// Supports reset and simple realloc-like behavior. Also provides integration with the Allocator
-/// interface defined in `rk_alloc.h` for use as a plug-in allocator.
-///
-/// Arena allocators are efficient when many small allocations are needed with the same lifetime, as
-/// freeing all allocations at once is trivial.
-///
-/// @note This arena is not thread-safe, it is recommended to create several thread-local arenas
-/// instead
+/// @brief Linear arena allocation over borrowed storage, with Allocator integration.
+/// @details Allocations advance a cursor. Clearing or rewinding reclaims storage in bulk without
+/// releasing the backing buffer. Direct arena operations and generic alloc_* wrappers have
+/// different zero-size semantics; see arena_allocate() and arena_to_alloc_static().
+/// @note Concurrent access involving cursor changes requires external synchronization. Separate
+/// arenas may be used independently when their backing storage does not interfere.
 /// @see rk_alloc.h
 /// @see rk_defs.h
 /// @{
 #ifndef RK_ARENA_H
 #define RK_ARENA_H
-/* inlined from include/rk_arena.h:21: #include "rk_alloc.h" */
+/* inlined from include/rk_arena.h:16: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
 RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wreturn-type-c-linkage")
 
-/// @brief Linear / stack allocator for fast, temporary memory management.
-/// @details The Arena allocator manages a region of memory where allocations increment a pointer,
-/// allowing fast allocation and reset.
+/// @brief Non-owning linear arena over a fixed backing buffer.
+/// @details Allocation advances the cursor; marks, rewinding, and clearing allow bulk reuse.
+/// @note The backing buffer must remain valid while the arena or its allocations are used.
+/// Copying an Arena copies its cursor state and pointers; it does not copy the backing storage.
+/// All Arena pointer arguments must be non-null and refer to initialized objects.
+/// A zero-initialized Arena has no backing buffer; queries, clearing, marking, and
+/// allocation/resize attempts support this state.
 typedef struct Arena {
   unsigned char* beg; ///< Start of arena memory block
   unsigned char* cur; ///< Current Position in arena memory block
   unsigned char* end; ///< End of arena memory block
 } Arena;
 
-/// @brief Initialises an Arena from an array as storage at runtime. Allows for any memory to use
-/// the arena allocator and the more general allocator interface.
-/// @param arr The byte array to serve as the arena's backing memory
-/// @param len The length of `arr`, in bytes
-/// @return New Arena using the array as backing storage
+/// @brief Initializes an arena over borrowed byte storage.
+/// @param arr Backing buffer, readable and writable for `len` bytes, or `NULL` for no backing
+/// storage.
+/// @param len Buffer length in bytes. Must not extend beyond the backing buffer.
+/// @return An arena with its cursor at the beginning. A null buffer produces a null-backed arena.
+/// @note No storage is allocated or owned by the arena; a null buffer ignores `len`.
 rklib_fun rk_const Arena arena_init(unsigned char* arr, size_t len) {
   return (Arena){.beg = arr, .cur = arr, .end = arr ? arr + len : 0};
 }
 
-/// @brief `Arena arena_init_static(unsigned char arr[])` Initialises an Arena from an array as
-/// storage at compile time. This macro allows for non-dynamically allocated memory to use the arena
-/// allocator and the more general allocator interface.
-/// @param array_non_compound_literal The byte array to serve as the arena's backing memory
-/// @return New Arena with the array as backing storage
-/// @warning Do not use with compound literals; use `arena_init()` instead.
+/// @brief `Arena arena_init_static(unsigned char arr[])` - Produces an initializer for an arena
+/// using a byte array as borrowed backing storage; capacity is determined by `sizeof(arr)`.
+/// @param array_non_compound_literal The backing byte array; must be an actual array, not a
+/// pointer.
+/// @return An initializer for a new Arena.
+/// @warning Do not use with compound literals; use arena_init() instead.
+/// @note Can be used for static initialization when the array has a suitable storage duration.
 #define arena_init_static(array_non_compound_literal)                                              \
   RKI_ARENA_INIT_STATIC(array_non_compound_literal)
 
-/// @brief Resets the arena, marking all of its allocations as free.
-/// @return `self`, for chaining
+/// @brief Resets the cursor to the beginning, reclaiming all consumed storage, including padding.
+/// @return `self`, for chaining.
+/// @note Invalidates all previous allocations and marks. Does not release or clear the backing
+/// buffer. A zero-initialized, null-backed arena is supported.
 rklib_fun Arena*         arena_clear(Arena* self) { return self->cur = self->beg, self; }
 
-/// @brief Returns the number of bytes an Arena can allocate in total, or 0 if `self` was never
-/// initialized.
+/// @brief Returns the backing-buffer capacity in bytes, or zero for a null-backed arena.
 rklib_fun rk_pure size_t arena_cap(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->end - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena has allocated, or 0 if `self` was never initialized.
+/// @brief Returns consumed storage in bytes, including alignment padding and unreclaimed storage.
+/// @note Returns zero for a null-backed arena; this is not a count of live allocation bytes.
 rklib_fun rk_pure size_t arena_used(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->cur - self->beg) : 0;
 }
 
-/// @brief Returns the number of bytes an Arena can still allocate before running out of space, or 0
-/// if `self` was never initialized.
+/// @brief Returns unused backing-buffer bytes, or zero for a null-backed arena.
+/// @note A request may require additional alignment padding, so this is not necessarily the largest
+/// payload that can be allocated with a particular alignment.
 rklib_fun rk_pure size_t arena_remaining(const Arena* self) {
   return rk_likely(self->beg) ? (size_t)(self->end - self->cur) : 0;
 }
 
-/// @brief Returns whether the arena has no allocations. Returns `true` if `self` was never
-/// initialized.
+/// @brief Returns whether the cursor is at the beginning, or true for a null-backed arena.
+/// @note Tests consumed storage, not the number of live allocations. Padding can keep the result
+/// false after payload storage has been reclaimed.
 rklib_fun rk_pure bool arena_is_empty(const Arena* self) {
   return rk_likely(self->beg) ? self->cur == self->beg : true;
 }
 
 typedef struct ArenaMark { unsigned char* pos; } ArenaMark;
 
-/// @brief Returns the current position of the arena as an opaque marker. Pass to `arena_rewind_to`
-/// to restore the arena to this state.
-/// @return Pointer to the current position in the arena
+/// @brief Saves the current cursor as a marker for arena_rewind_to().
+/// @return A marker for this arena's current position; a null-backed arena yields a null-position
+/// mark.
+/// @note A mark neither allocates storage nor keeps allocations alive.
 rklib_fun rk_pure ArenaMark arena_mark(const Arena* self) { return (ArenaMark){.pos = self->cur}; }
 
-/// @brief Rewinds the arena's current pointer to `mark`, marking memory starting from `mark` as
-/// free.
-/// @return `self`, for chaining
-/// @attention Behavior is undefined if `mark` was not allocated by the arena.
+/// @brief Restores a saved cursor position, reclaiming storage consumed after that position.
+/// @param self Arena from which the mark was obtained.
+/// @param mark A mark obtained from arena_mark() on this arena, valid for its current state and
+/// not ahead of its current cursor.
+/// @return `self`, for chaining.
+/// @note Invalidates allocations discarded by the rewind and marks into the discarded region.
+/// Rewinding a null-backed arena to its own null-position mark is supported. A null-position mark
+/// used after the arena was given backing storage is stale, and therefore a contract violation.
 rklib_fun Arena*            arena_rewind_to(Arena* self, ArenaMark mark);
 
-/// @brief Returns whether `ptr` is the most recently made allocation of the given `size`, i.e.
-/// whether it ends exactly at the arena's current position.
-/// @param ptr The allocation to check. Must be an allocation made by the arena.
-/// @param size Size of the allocation in bytes
-/// @return `true` if `ptr` is the top allocation, `false` otherwise
+/// @brief Returns whether the given allocation ends exactly at the current cursor.
+/// @param self Arena owning the allocation.
+/// @param ptr Non-null pointer to a valid allocation or zero-size position returned by this arena.
+/// @param size Current allocation size in bytes; must describe valid storage at `ptr`.
+/// @return True if `ptr + size` equals the current cursor, false otherwise.
+/// @note This is an end-position check, not an ownership or allocation-history validator.
 rklib_fun rk_pure bool arena_is_top_allocation(const Arena* self, const void* ptr, size_t size) {
   return (const unsigned char*)ptr + size == self->cur;
 }
 
-/// @brief `void* arena_allocate(size_t nbytes, size_t align, Arena* self)` - Allocates `nbytes`
-/// bytes with the given alignment. Aborts on failure via `RK_ARENA_FAIL`. Prefer `arena_new` for
-/// typed allocations.
-/// @param nbytes Number of bytes to allocate
-/// @param align  Desired alignment; must be a power of two
-/// @param self   Pointer to the arena to allocate from
-/// @return Pointer to the allocated memory
+/// @brief `void* arena_allocate(size_t nbytes, size_t align, Arena* self)` - Allocates aligned
+/// storage from the arena. Invokes `RK_ARENA_FAIL` on failure; the default handler aborts.
+/// @param nbytes Requested payload size in bytes; may be zero.
+/// @param align Required alignment; must be a nonzero power of two.
+/// @param self Arena to allocate from; may be null-backed, in which case the request fails.
+/// @return A non-null aligned pointer on success, provided any failure override preserves the
+/// contract.
+/// @note Zero-size requests reserve no payload but advance the cursor by any required alignment
+/// padding. Their result may equal the end pointer and must not be dereferenced. Alignment padding
+/// must fit.
+/// @note Unlike the generic alloc_allocate() wrapper, this direct API does not return null for zero
+/// bytes. Such a zero-size position must not be passed to alloc_deallocate()/alloc_reallocate(),
+/// which require `NULL` for zero-size allocations.
+/// @see arena_try_allocate
 rklib_fun void* arena_allocate(size_t nbytes, size_t align, Arena* self);
 
-/// @brief `void* arena_try_allocate(size_t nbytes, size_t align, Arena* self)`
-/// - like `arena_allocate()` but returns NULL if the arena does not have enough space instead of
-///   invoking the failure handler.
+/// @brief `void* arena_try_allocate(size_t nbytes, size_t align, Arena* self)` - Like
+/// arena_allocate(), but returns `NULL` on insufficient space or a null backing buffer.
+/// @note Failure leaves the cursor unchanged. Zero-size requests succeed if the required alignment
+/// padding fits, return an aligned position, and consume only that padding.
+/// @see arena_allocate
 rklib_fun void* arena_try_allocate(size_t nbytes, size_t align, Arena* self);
 
 /// @brief `void* arena_resize_top(size_t old_size, size_t new_size, Arena* self)` - Resizes the
-/// most recent allocation in the arena by moving the cursor. Aborts on failure via `RK_ARENA_FAIL`.
-/// Prefer `arena_extend` for typed resizes.
-/// @param old_size Current size of the allocation in bytes
-/// @param new_size Desired size of the allocation in bytes
-/// @param self     Pointer to the arena owning the allocation
-/// @return `ptr` on success
+/// current top allocation without moving its start. Invokes `RK_ARENA_FAIL` on failure.
+/// @param old_size Current payload size of the top allocation in bytes; may be zero for a valid
+/// zero-size position at the current cursor.
+/// @param new_size Desired payload size in bytes; may be zero.
+/// @param self Arena owning the top allocation or zero-size position. For a null-backed arena,
+/// `old_size` must be zero and the request fails, including when `new_size` is zero.
+/// @return The unchanged start pointer on success, including when `new_size` is zero.
+/// @note A zero new size reclaims the payload but not preceding alignment padding; the returned
+/// pointer then denotes only a zero-size position and must not be dereferenced.
+/// @note Failure leaves the cursor unchanged before invoking the failure handler. Overrides that
+/// resume must preserve the start address, arena state, and resize guarantees; `align_max` passed
+/// to the handler is not necessarily the original allocation alignment.
+/// @see arena_try_resize_top
 rklib_fun void* arena_resize_top(size_t old_size, size_t new_size, Arena* self);
 
 /// @brief `void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self)` - Like
-/// `arena_resize_top()` but returns NULL if the arena does not have enough space instead of
-/// invoking the failure handler.
+/// arena_resize_top(), but returns `NULL` if the requested size does not fit or the arena is
+/// null-backed.
+/// @note Failure leaves the cursor unchanged. Success returns the unchanged start pointer even for
+/// zero new size. The top-allocation precondition still applies; a null-backed arena requires
+/// `old_size == 0`.
+/// @note Operates on the implicit top allocation, so `old_size` correctly describing it is a
+/// precondition, not a checked failure. To resize a specific allocation that may not be on top,
+/// use arena_try_resize() or arena_try_extend().
+/// @see arena_resize_top
+/// @see arena_try_resize
 rklib_fun void* arena_try_resize_top(size_t old_size, size_t new_size, Arena* self);
 
-/// @brief `T* arena_new(T, size_t count, Arena* arena)` - Creates a new allocation in the arena for
-/// a given type and count.
-/// @param  T     The type to allocate
-/// @param  count Number of elements of type T to allocate
-/// @param  arena Pointer to the arena to allocate from
-/// @return T* Pointer to the allocated memory
+/// @brief `void* arena_try_resize(void* ptr, size_t old_size, size_t new_size, Arena* self)` -
+/// Attempts to resize a specific allocation in place without moving it; it can grow or shrink.
+/// @param ptr Non-null pointer to an allocation or zero-size position owned by this arena; it need
+/// not be the top allocation.
+/// @param old_size Current payload size in bytes; must match the allocation.
+/// @param new_size Desired payload size in bytes; may be zero.
+/// @param self Arena owning the allocation.
+/// @return `ptr` on success, including when `new_size` is zero. `NULL` if `ptr` is not the top
+/// allocation, the requested size does not fit, or the arena is null-backed.
+/// @note Failure leaves the arena unchanged; a non-top allocation is an ordinary failure, not a
+/// contract violation. Ownership and a correct `old_size` remain preconditions. Preserves the
+/// retained bytes. A zero new size reclaims the payload but not preceding alignment padding; the
+/// returned pointer then denotes only a zero-size position and must not be dereferenced.
+/// @see arena_try_extend
+/// @see arena_try_resize_top
+rklib_fun void* arena_try_resize(void* ptr, size_t old_size, size_t new_size, Arena* self);
+
+/// @brief `T* arena_new(T, size_t count, Arena* arena)` - Allocates storage for `count` elements
+/// with the type's required alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param arena Arena to allocate from.
+/// @return A typed pointer to the allocated storage.
+/// @note Allocates raw storage; does not invoke C++ constructors. Uses arena_allocate() zero-size
+/// and failure semantics.
+/// @see arena_allocate
 #define arena_new(T, count, arena)                RKI_ARENA_NEW(T, count, arena)
 
-/// @brief `T* arena_try_new(T, size_t count, Arena* arena)` - Like `arena_new()`, but returns
-/// `NULL` if the arena does not have enough space instead of invoking the failure handler.
+/// @brief `T* arena_try_new(T, size_t count, Arena* arena)` - Like arena_new(), but returns
+/// `NULL` on allocation failure without invoking the failure handler.
+/// @note Zero count follows arena_try_allocate() semantics and may return a non-null pointer.
+/// @see arena_new
+/// @see arena_try_allocate
 #define arena_try_new(T, count, arena)            arena_try_new_aligned(T, count, alignof(T), arena)
 
-/// @brief `T* arena_new_aligned(T, size_t count, size_t alignment, Arena* arena)` - Creates a new
-/// allocation in the arena for a given type T and count with a given alignment independent of type.
-/// @param T      The type to allocate
-/// @param count  Number of elements of type T to allocate
-/// @param align  Desired alignment of the allocation
-/// @param arena  Pointer to the arena to allocate from
-/// @return Pointer to the allocated memory.
-/// @note Alignment must be a power of two.
+/// @brief `T* arena_new_aligned(T, size_t count, size_t align, Arena* arena)` - Like arena_new(),
+/// with explicitly requested alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param align A nonzero power of two, at least the alignment required by T.
+/// @param arena Arena to allocate from.
+/// @return A typed pointer to the allocated storage.
+/// @see arena_new
+/// @see arena_allocate
 #define arena_new_aligned(T, count, align, arena) RKI_ARENA_ALIGNED_NEW(T, count, align, arena)
 
-/// @brief `T* arena_try_new_aligned(T, size_t count, size_t align, Arena* arena)` like
-/// `arena_new_aligned()`, but returns `NULL` if the arena does not have enough space instead of
-/// invoking the failure handler.
+/// @brief `T* arena_try_new_aligned(T, size_t count, size_t align, Arena* arena)` - Like
+/// arena_new_aligned(), but returns `NULL` on allocation failure without invoking the failure
+/// handler.
+/// @note Zero count follows arena_try_allocate() semantics and may return a non-null pointer.
+/// @see arena_new_aligned
+/// @see arena_try_allocate
 #define arena_try_new_aligned(T, count, align, arena)                                              \
-  (rk_assert_valid_align(T, align), (T*)arena_try_allocate(sizeof_n(T, count), align, arena))
+  ((T*)(alloc_log_new(), rk_assert_valid_align(T, align),                                          \
+        arena_try_allocate(sizeof_n(T, count), align, arena)))
 
-/// @brief `T* arena_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Resizes the
-/// most recent allocation from `old_count` to `new_count` elements. Aborts on failure via
-/// `RK_ARENA_FAIL`.
-/// @param ptr Pointer to the allocation to extend; must be the most recent allocation in the arena
-/// @param old_count Current number of allocated elements
-/// @param new_count Desired number of elements after resizing
-/// @param arena     Arena owning the allocation
-/// @return `ptr` on success, cast to the same pointer type
+/// @brief `T* arena_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Like
+/// arena_try_extend(), but invokes `RK_ARENA_FAIL` on failure, including when `ptr` is not the top
+/// allocation.
+/// @return `ptr` on success, cast to the same pointer type, including when `new_count` is zero.
+/// @note Failure leaves the cursor unchanged before invoking the failure handler.
+/// @see arena_try_extend
 #define arena_extend(ptr, old_count, new_count, arena)                                             \
   ((typeof(ptr))rki_arena_extend(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
                                  arena))
 
-/// @brief `T* arena_try_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` - Like
-/// `arena_extend()` but returns `NULL` if the arena does not have enough space instead of invoking
-/// the failure handler.
+/// @brief `T* arena_try_extend(T* ptr, size_t old_count, size_t new_count, Arena* arena)` -
+/// Typed arena_try_resize() using element counts; despite the name, it can also shrink.
+/// @param ptr Non-null pointer to an allocation or zero-size position owned by this arena; it need
+/// not be the top allocation.
+/// @param old_count Current payload element count; must match the allocation.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param arena Arena owning the allocation.
+/// @return `ptr` on success, cast to the same pointer type, including when `new_count` is zero.
+/// `NULL` under the same conditions as arena_try_resize(), including a non-top `ptr`.
+/// @note Inherits arena_try_resize() semantics. Does not construct or destroy C++ objects.
+/// @see arena_try_resize
 #define arena_try_extend(ptr, old_count, new_count, arena)                                         \
-  ((typeof(ptr))rki_arena_try_extend(ptr, sizeof_n(*(ptr), old_count),                             \
-                                     sizeof_n(*(ptr), new_count), arena))
+  ((typeof(ptr))arena_try_resize(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count),    \
+                                 arena))
 
+/// @brief Internal allocation callback for the Arena allocator adapter.
+/// @note Generic alloc_* wrappers handle zero-size and null-pointer cases before dispatch:
+/// allocation callbacks receive positive sizes; reallocation/deallocation callbacks receive valid
+/// non-null existing allocations with matching sizes and alignment, and reallocation receives a
+/// positive new size. Allocation and reallocation callbacks must return valid storage or handle
+/// failure locally. The allocation callback also serves arena_allocate(), whose direct zero-size
+/// contract is broader.
 rklib_fun alloc_allocation_f   rki_arena_allocate;
 rklib_fun alloc_reallocation_f rki_arena_reallocate;
 rklib_fun alloc_deallocation_f rki_arena_deallocate;
@@ -4473,20 +4932,38 @@ static const AllocatorVTable   arena_allocator_vtable = {.alloc_f   = rki_arena_
                                                          .realloc_f = rki_arena_reallocate,
                                                          .dealloc_f = rki_arena_deallocate};
 
-/// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Creates an Allocator from an Arena
-/// allowing it to serve as backing allocator for other rk_clib types. Works at compile-time and can
-/// be used for static initialisation.
+/// @brief `Allocator arena_to_alloc_static(Arena* arena)` - Produces an Allocator initializer
+/// borrowing an Arena as its context.
+/// @note The Arena must remain at the same address and its backing buffer must remain valid while
+/// this handle or allocations using it remain in use.
+/// @note Generic alloc_* wrappers normalize zero-size and null-pointer cases before vtable
+/// dispatch. Reallocation resizes top allocations in place where possible; non-top shrinks reclaim
+/// no storage, and moving growth retains the old storage until it can be reclaimed by rewinding or
+/// clearing. Deallocation reclaims only a top allocation's payload; preceding padding remains
+/// consumed.
+/// @note Clearing or rewinding must not discard storage still accessed by objects using this
+/// handle.
+/// @see arena_to_alloc
 #define arena_to_alloc_static(arena) {.vtab = &arena_allocator_vtable, .ctx = (arena)}
 
-/// @brief Creates an Allocator from an Arena at runtime, allowing it to serve as backing allocator
-/// for other rk_clib types.
+/// @brief Returns an Allocator handle borrowing the given Arena as its context.
+/// @note Does not allocate, copy, or take ownership of the arena or its backing buffer.
+/// @note Only useful with custom allocators enabled: otherwise alloc_* wrappers accept no explicit
+/// allocator and alloc_ctx cannot be replaced, so the handle cannot be passed anywhere. The same
+/// applies to arena_to_alloc_static() and arr_allocator.
+/// @see arena_to_alloc_static
 static_fun rk_const Allocator arena_to_alloc(Arena* arena) {
   return (Allocator)arena_to_alloc_static(arena);
 }
 
-/// @brief Type of an Allocator object managing an array of size `size` using an Arena to manage its
-/// memory.
-#define arr_allocator(size)                                                                        \
+/// @brief Defines a type containing an Allocator handle, an Arena, and an embedded byte buffer.
+/// @param size Positive compile-time buffer size in bytes.
+/// @note Initialization stores pointers into the object itself. Keep the initialized object at its
+/// original address; copying it does not retarget those pointers to the copy.
+/// @note Only useful with custom allocators enabled; see arena_to_alloc().
+/// @see arr_allocator_init
+/// @see arr_allocator_create
+#define arr_allocator(size)                                                                      \
   struct {                                                                                         \
     union {                                                                                        \
       const Allocator alloc;                                                                       \
@@ -4499,27 +4976,25 @@ static_fun rk_const Allocator arena_to_alloc(Arena* arena) {
     alignas_max unsigned char arr[(size)];                                                         \
   }
 
-/// @brief Initialise an arr_allocator object by passing its address.
+/// @brief Produces an initializer for an arr_allocator object using its address.
+/// @param self Address of the object being initialized.
+/// @note This is an initializer, not a runtime reinitialization function. The embedded buffer is
+/// borrowed by the embedded Arena, and the Allocator context points to that Arena.
 #define arr_allocator_init(self)                                                                   \
   {.vtab = &arena_allocator_vtable, .ctx = &(self)->arena, .arena = arena_init_static((self)->arr)}
 
-/// @brief Declares and initializes a static, stack-allocated Allocator instance with internal
-/// arena-based storage.
-/// @details This macro creates a compound struct on the stack (or in static scope) that embeds:
-/// - a fixed-size memory buffer (`arr[size]`) as backing storage,
-/// - and an `Arena` allocator using that buffer.
-/// - an `Allocator` interface (via union for compatibility), The resulting variable can be treated
-///   like an `Allocator` and used anywhere the `rk_clib` allocator interface is expected. This is
-///   particularly useful for creating fast, temporary allocators with automatic storage duration.
-/// @param name The name of the variable to declare
-/// @param size The size (in bytes) of the internal backing memory buffer, must be a compile-time
-/// constant.
-///
-/// Usage:
-/// ```c
-///     arr_allocator_create(temp_alloc, 4096);
-///     int* ptr = alloc_new(int, 10, temp_alloc.alloc);
-/// ```
+/// @brief Declares and initializes an allocator with an embedded arena and fixed-size backing
+/// buffer.
+/// @param name Name of the object to declare.
+/// @param size Positive compile-time buffer size in bytes.
+/// @note Use `name.alloc` as the Allocator handle. The object's storage duration follows its
+/// declaration context; keep it at its initialized address and alive while dependent allocations
+/// are used.
+/// @code
+/// arr_allocator_create(temp_alloc, 4096);
+/// int* ptr = alloc_new(int, 10, temp_alloc.alloc);
+/// @endcode
+/// @see arr_allocator
 #define arr_allocator_create(name, size) arr_allocator(size) name = arr_allocator_init(&name)
 
 #pragma region implementation
@@ -4548,6 +5023,7 @@ rklib_fun rk_alloc_alignsize(2, 1) void* arena_try_allocate(size_t nbytes, size_
 rklib_fun rk_alloc_size(2) void* arena_try_resize_top(size_t old_size, size_t new_size,
                                                       Arena* self) {
   if (arena_remaining(self) + old_size < new_size) { return rk_null; }
+  if rk_unlikely (!self->cur) { return rk_null; }
   unsigned char* ptr = self->cur - old_size;
   self->cur          = ptr + new_size;
   return ptr;
@@ -4555,7 +5031,7 @@ rklib_fun rk_alloc_size(2) void* arena_try_resize_top(size_t old_size, size_t ne
 
 rklib_fun rk_alloc_size(2) void* arena_resize_top(size_t old_size, size_t new_size, Arena* self) {
   void* res = arena_try_resize_top(old_size, new_size, self);
-  RK_ARENA_FAIL(res, self, (self->cur - old_size), align_max, new_size);
+  RK_ARENA_FAIL(res, self, (self->cur ? self->cur - old_size : rk_null), align_max, new_size);
   return res;
 }
 
@@ -4577,31 +5053,31 @@ rklib_fun rk_alloc_alignsize(4, 3) void* rki_arena_reallocate(void* ptr, size_t 
                                                               void* ctx) {
   rk_assert_align_pow2(align);
   Arena* self = (Arena*)ctx;
-  if (!old_size) { return rki_arena_allocate(new_size, align, self); }
+
   if ((arena_is_top_allocation(self, ptr, old_size)
        && arena_try_resize_top(old_size, new_size, self))
-      || new_size <= old_size) { // non-top shrinks are no-ops
+      || new_size <= old_size) {
     return ptr;
   }
-  void* res = rki_arena_allocate(new_size, align, ctx);
-  rk_memcpy(res, ptr, rk_min(old_size, new_size));
+
+  void* res = rki_arena_allocate(new_size, align, self);
+  rk_memcpy(res, ptr, old_size);
   return res;
 }
 
 rklib_fun rk_alloc_alignsize(2, 1) void* arena_allocate(size_t nbytes, size_t align, Arena* self) {
   return rki_arena_allocate(nbytes, align, self);
 }
-rklib_fun rk_alloc_size(3) void* rki_arena_try_extend(void* ptr, size_t old_size, size_t new_size,
-                                                      Arena* self) {
-  rk_assert(arena_is_top_allocation(self, ptr, old_size)
-            && "Can only resize the top allocation of the arena");
+rklib_fun rk_alloc_size(3) void* arena_try_resize(void* ptr, size_t old_size, size_t new_size,
+                                                  Arena* self) {
+  if (!arena_is_top_allocation(self, ptr, old_size)) { return rk_null; }
   return arena_try_resize_top(old_size, new_size, self);
 }
 
 rklib_fun rk_alloc_size(3) void* rki_arena_extend(void* ptr, size_t old_size, size_t new_size,
                                                   Arena* self) {
-  void* r = rki_arena_try_extend(ptr, old_size, new_size, self);
-  RK_ARENA_FAIL(r, self, (self->cur - old_size), align_max, new_size);
+  void* r = arena_try_resize(ptr, old_size, new_size, self);
+  RK_ARENA_FAIL(r, self, ptr, align_max, new_size);
   return r;
 }
 
@@ -4609,10 +5085,10 @@ rklib_fun rk_alloc_size(3) void* rki_arena_extend(void* ptr, size_t old_size, si
   {.beg = (arr) + rk_ensure_valid_storage_type(arr), .cur = (arr), .end = (arr) + sizeof(arr)}
 
 #define RKI_ARENA_ALIGNED_NEW(T, count, align, arena)                                              \
-  ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
+  ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
                 arena_allocate(sizeof_n(T, count), align, arena)))
 #define RKI_ARENA_NEW(T, count, arena)                                                             \
-  ((typeof(T)*)(alloc_log_new, arena_allocate(sizeof_n(T, count), alignof(T), arena)))
+  ((typeof(T)*)(alloc_log_new(), arena_allocate(sizeof_n(T, count), alignof(T), arena)))
 RKI_IGNWARN_CLANG_END()
 
 /// @endcond
@@ -4675,6 +5151,13 @@ RKI_HEADER_END
 /// (e.g., `Vec(int) v = NULL; vec_push(v, 5)` initializes the Vec and adds the element 5). Once
 /// initialized, vecs maintain the invariant that capacity is always >= length.
 ///
+/// Allocator binding: the constructors (`vec_init()`, `vec_from()`, `vec_init_list()`) always
+/// return a non-NULL Vec bound to the given allocator (default `alloc_ctx`), even for a capacity or
+/// count of 0. A non-NULL Vec always has capacity >= 1: a requested capacity of 0 is rounded up to
+/// 1, and shrinking an empty Vec keeps one slot. `NULL` means never constructed, or released by
+/// `vec_release()`; such a Vec grows lazily from the current `alloc_ctx`. Use `Vec(T) v = NULL`
+/// for an empty Vec that performs no allocation.
+///
 /// Features:
 /// - Automatic resizing and capacity management
 /// - Optional custom allocator support
@@ -4694,7 +5177,7 @@ RKI_HEADER_END
 
 #ifndef RK_VEC_H
 #define RK_VEC_H
-/* inlined from include/rk_vec.h:47: #include "rk_alloc.h" */
+/* inlined from include/rk_vec.h:54: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
 RKI_HEADER_BEGIN
 
@@ -4712,18 +5195,18 @@ RKI_HEADER_BEGIN
 /// @brief `Vec(T) vec_init(T, size_t cap, Allocator alloc = alloc_ctx)`
 /// - Initialises a Vec from an initial capacity and an optional Allocator.
 /// @param T           The desired type of the Vec's elements
-/// @param init_cap    The initial capacity of the Vec (in elements)
+/// @param init_cap    The initial capacity of the Vec (in elements); 0 is rounded up to 1.
 /// @param allocator   Optional allocator; defaults to `alloc_ctx`.
-/// @return Vec(T) the vec
-/// @note Zero-Capacity vecs are always uninitialised
+/// @return A non-NULL, empty Vec bound to `allocator`.
+/// @note Always allocates, so the allocator stays bound even for a capacity of 0. For an empty Vec
+/// without any allocation, use `Vec(T) v = NULL` instead; it grows from `alloc_ctx`.
 ///
 /// Usage:
 /// ```c
-/// Vec(int) v1  = vec_init(int, 10);           // create an int-Vec with 10 cap
-///                                                using alloc_ctx
-/// Vec(int) v2 = vec_init(int, 2, my_alloc);   // creates an int Vec with 2 cap
-///                                             // using my_alloc as allocator
-/// Vec(int) v3 = vec_init(int, 0);             // does nothing (0 cap)
+/// Vec(int) v1 = vec_init(int, 10);            // int Vec with capacity 10, using alloc_ctx
+/// Vec(int) v2 = vec_init(int, 2, my_alloc);   // int Vec with capacity 2, using my_alloc
+/// Vec(int) v3 = vec_init(int, 0, my_alloc);   // capacity 1; later growth still uses my_alloc
+/// Vec(int) v4 = NULL;                         // no allocation; grows from alloc_ctx
 /// ```
 #define vec_init(T, init_cap, ...)                                                                 \
   ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
@@ -4757,7 +5240,8 @@ RKI_HEADER_BEGIN
 /// type (via `typeof(*arr)`)
 /// @param count Number of elements to copy
 /// @param alloc Allocator Optional, defaults to `alloc_ctx`
-/// @return A Vec containing a copy of `arr`'s first `count` elements, or `NULL` if `count == 0`
+/// @return A non-NULL Vec bound to `alloc`, containing a copy of `arr`'s first `count` elements.
+/// For `count == 0` it is empty with capacity 1, and `arr` is not accessed (it may be NULL).
 /// @note To clone an existing Vec while preserving its own allocator, pass it directly along with
 /// its own count/allocator: `vec_from(v, vec_count(v), vec_allocator(v))`. Unlike a Vec, a plain
 /// array has no allocator of its own to default to, so `vec_from()` always defaults to `alloc_ctx`
@@ -4774,6 +5258,9 @@ RKI_HEADER_BEGIN
 
 /// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
 /// NULL.
+/// @note The allocator binding is released too: if the Vec is used again, it grows from the current
+/// `alloc_ctx`. This is the only operation that returns a constructed Vec to NULL. Safe to call on
+/// a NULL Vec.
 #define vec_release(self) ((void)RKI_VEC_RELEASE(self))
 
 /// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
@@ -4825,14 +5312,16 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// two greater than or equal to its length (matching `str_shrink_to_fit()`'s convention), leaving
 /// some slack to reduce reallocation on subsequent growth.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
+/// @note Reassigns `self`, if necessary. An empty Vec shrinks to capacity 1 rather than being
+/// deallocated, so it keeps its allocator; use `vec_release()` to free it entirely.
 /// @note Use `vec_shrink_to_fit_exact()` for an exact-capacity shrink.
 #define vec_shrink_to_fit(self)       ((void)RKI_VEC_SHRINK_TO_FIT(self))
 
 /// @brief `void vec_shrink_to_fit_exact(Vec(T)& self)` - Shrinks the Vec's capacity to be exactly
-/// equal to its length.
+/// equal to its length, or 1 if it is empty.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
+/// @note Reassigns `self`, if necessary. An empty Vec keeps one slot rather than being
+/// deallocated, so it keeps its allocator; use `vec_release()` to free it entirely.
 #define vec_shrink_to_fit_exact(self) ((void)RKI_VEC_SHRINK_TO_FIT_EXACT(self))
 
 /// @brief `void vec_assign(Vec(T)& self, T* arr, size_t count)` - Assigns `count` objects of `arr`
@@ -4845,22 +5334,59 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @note Reassigns `self`, if necessary.
 #define vec_assign(self, arr, count)  ((void)RKI_VEC_ASSIGN(self, arr, count))
 
-/// @brief `T& vec_front(Vec(T) self)` - Returns an Lvalue reference to the first element of the
-/// Vec.
+// todo docs
+#define vec_begin(self)               ((typeof(self))(self))
+
+/// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
+/// `self` or `NULL` if `self` is `NULL`.
+#define vec_end(self)                 ((self) ? ((self) + RKI_VEC_COUNT(self)) : (self))
+
+/// @brief Returns the first element as an lvalue, preserving the element type's constness.
+/// @pre The Vec is nonempty.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour undefined for empty or uninitialised vec
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_front(self)               (((typeof(self))rki_vec_check_front(self))[0])
 
-/// @brief `T& vec_back(Vec(T) self)` - Returns an Lvalue reference to the last element of the Vec.
+/// @brief Returns the last element as an lvalue, preserving the element type's constness.
+/// @pre The Vec is nonempty.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour undefined for empty or uninitialised vec
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_back(self)                (*((typeof(self))rki_vec_check_back(sizeof(*(self)), self)))
+
+/// @brief Returns the element at zero-based index `idx` as an lvalue, preserving the element
+/// type's constness.
+/// @param self The Vec, by value.
+/// @param idx Zero-based element index.
+/// @pre `idx < vec_count(self)`.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @see vec_peek_at
+#define vec_at(self, idx)            (*((typeof(self))rki_vec_check_at(sizeof(*(self)), self, idx)))
+
+/// @brief Returns a pointer to the first element, or `NULL` if the Vec is empty or uninitialised.
+/// @return An element pointer preserving the element type's constness.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+#define vec_peek_front(self)         ((typeof(self))rki_vec_peek_at(sizeof(*(self)), self, 0))
+
+/// @brief Returns a pointer to the last element, or `NULL` if the Vec is empty or uninitialised.
+/// @return An element pointer preserving the element type's constness.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+#define vec_peek_back(self)          ((typeof(self))rki_vec_peek_back(sizeof(*(self)), self))
+
+/// @brief Returns a pointer to the element at zero-based index `idx`, or `NULL` if the index is
+/// out of bounds (including an empty or uninitialised Vec).
+/// @param self The Vec, by value.
+/// @param idx Zero-based element index.
+/// @return An element pointer preserving the element type's constness.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Bounds are checked in both debug and release builds.
+#define vec_peek_at(self, idx)       ((typeof(self))rki_vec_peek_at(sizeof(*(self)), self, idx))
 
 /// @brief `void vec_push(Vec(T)& self, T obj)` - Pushes a value onto the Vec, resising the
 /// allocation, if necessary.
 /// @attention **`obj` must not modify the vec due to sequencing issues**
 /// @note Reassigns `self`, if necessary
-#define vec_push(self, obj)           ((void)RKI_VEC_PUSH(self, obj)) // NOLINT
+#define vec_push(self, obj)          ((void)RKI_VEC_PUSH(self, obj)) // NOLINT
 
 /// @brief `void vec_push_n(Vec(T)& self, T* arr, size_t count)` - Copies `count` values of `arr`
 /// onto `self`. `arr` must be a pointer variable of type `T*`.
@@ -4868,7 +5394,7 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @attention `arr[0..count)` must not overlap the Vec's own backing allocation, for the same
 /// reasons documented on `vec_assign()`.
 /// @note Reassigns `self`, if necessary
-#define vec_push_n(self, arr, count)  ((void)RKI_VEC_PUSH_ARR(self, arr, count))
+#define vec_push_n(self, arr, count) ((void)RKI_VEC_PUSH_N(self, arr, count))
 
 /// @brief `void vec_push_unchecked(Vec(T)& self, T obj)` - Pushes a value onto the Vec, not
 /// checking for capacity.
@@ -4877,15 +5403,26 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 
 /// @brief `T vec_pop(Vec(T)& self)` - Pops the last value off the Vec and decreases its length.
 /// @return The popped value
+/// @pre The Vec is nonempty; use `vec_try_pop()` to check safely.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of empty or uninitialised Vec is undefined
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_pop(self)                 ((self)[--RKI_VEC_COUNT(rki_check_vec_pop(self))])
 
-/// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
+/// @brief `bool vec_try_pop(Vec(T) self, T* out)` - Removes the last value and writes it to `*out`,
+/// if the Vec is nonempty.
+/// @param out Destination for the removed value. Evaluated at most once, and only when a value is
+/// removed; left untouched if the Vec is empty or uninitialised.
+/// @return `true` if a value was removed, `false` if the Vec was empty or uninitialised.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Never reallocates, so `self` is not reassigned.
+#define vec_try_pop(self, out)        RKI_VEC_TRY_POP(self, out)
+
+/// @brief `T* vec_pop_n(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
 /// its length.
 /// @return A pointer to the popped memory region, to copy away from
+/// @pre `count <= vec_count(self)`.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of `count > vec_count(self)` undefined
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_pop_n(self, count)        (typeof(self))rki_vec_pop_n(sizeof(*(self)), self, count)
 
 /// @brief `void vec_insert_at(Vec(T)& self, size_t idx, T obj)` - Inserts an object at index `idx`,
@@ -4940,58 +5477,6 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @note Behavior is undefined if `idx` + count > vec_count()
 #define vec_erase_at_n(self, idx, count) ((void)(RKI_VEC_ERASE_AT_N(self, idx, count)))
 
-/// @brief `T* vec_end(Vec(T) self)` - Returns a pointer one past the end of a the elements of
-/// `self` or `NULL` if `self` is `NULL`.
-#define vec_end(self)                    ((self) ? ((self) + RKI_VEC_COUNT(self)) : (self))
-
-/// @brief Convenience Macro to loop over the elements of a vec.
-/// @param vec The Vec to loop over
-/// @param it  The name of the iterator (pointer to each element)
-/// @note Do not erase or add elements while looping in this fashion. Use `vec_iterate()` in that
-/// case.
-///
-/// Usage:
-/// ```c
-/// Vec(int) vec = vec_init(int, 10);
-/// vec_push(vec, 1), vec_push(vec, 2);
-/// vec_foreach(vec, it) { printf("%d\n", *it); }
-/// ```
-#define vec_foreach(vec, it)                                                                       \
-  for (typeof(*(vec))*RKI__VEC = (vec), *const RKI__END = vec_end(RKI__VEC); RKI__VEC != RKI__END; \
-       ++RKI__VEC)                                                                                 \
-    for (typeof(*RKI__VEC)*const it = RKI__VEC, *RKI__ONCE = RKI__VEC; RKI__ONCE; RKI__ONCE = 0)
-
-/// @brief Like vec_foreach(), iterating in reverse order.
-#define vec_foreach_reversed(vec, it)                                                              \
-  for (typeof(*(vec))*const RKI__VEC = (vec), *RKI__END = vec_end(RKI__VEC);                       \
-       RKI__VEC != RKI__END;)                                                                      \
-    for (typeof(*RKI__VEC)*const it = --RKI__END, *RKI__ONCE = it; RKI__ONCE; RKI__ONCE = 0)
-
-/// @brief Convenience Macro to erase all elements in a Vec that satisfy a predicate.
-/// @param vec         The Vec to loop over
-/// @param it          The name of the iterator (access via *it)
-/// @param pred        The predicate (an expression working on *it)
-///
-/// Usage:
-/// ```c
-/// Vec(int) vec = vec_init(int, 10);
-/// vec_push(vec, 1), vec_push(vec, 2);
-/// vec_erase_if(vec, it, *it % 2); // remove odd numbers
-/// ```
-#define vec_erase_if(vec, it, pred)                                                                \
-  do {                                                                                             \
-    RKI_IGNWARN_MSC_BEG(4114)                                                                      \
-    typeof(vec) RKI__VEC = (vec);                                                                  \
-    if (!vec_count(RKI__VEC)) { break; }                                                           \
-    typeof(*RKI__VEC)*RKI__BEG = RKI__VEC, *const RKI__END = RKI__BEG + RKI_VEC_COUNT(RKI__BEG);   \
-    for (typeof(*RKI__VEC)* RKI__IT = RKI__VEC; RKI__IT != RKI__END; ++RKI__IT) {                  \
-      typeof(*RKI__VEC)* const it = RKI__IT;                                                       \
-      if (!(pred)) { *RKI__BEG++ = *RKI__IT; }                                                     \
-    }                                                                                              \
-    RKI_VEC_COUNT(RKI__VEC) = (size_t)(RKI__BEG - RKI__VEC);                                       \
-    RKI_IGNWARN_MSC_END()                                                                          \
-  } while (0)
-
 /// @brief Reverse the elements of a Vec in place.
 #define vec_reverse(vec)                                                                           \
   do {                                                                                             \
@@ -5000,6 +5485,34 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
     typeof(RKI__BEG) RKI__END = RKI__BEG + RKI_VEC_COUNT(RKI__BEG) - 1;                            \
     for (; RKI__BEG < RKI__END; ++RKI__BEG, --RKI__END) { rk_SWAP(*RKI__BEG, *RKI__END); }         \
   } while (0)
+
+/// @brief Visits every element in index order.
+/// @param vec The Vec to iterate. Evaluated once.
+/// @param it  Iterator name (a pointer into the Vec; access via `*it`).
+/// @note break stops traversal; continue advances to the next element.
+///
+/// Usage:
+/// ```c
+/// vec_foreach(vec, it) { printf("%d\n", *it); }
+/// ```
+#define vec_foreach(vec, it)          RKI_VEC_FOREACH(vec, it)
+
+/// @brief Like `vec_foreach()`, but iterates in reverse index order. Same parameters and contract.
+#define vec_foreach_reversed(vec, it) RKI_VEC_FOREACH_REVERSED(vec, it)
+
+/// @brief Erases every element satisfying `pred`.
+/// @param vec  The Vec to erase from. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original element.
+/// @note The predicate must not structurally modify the Vec.
+///
+/// Usage:
+/// ```c
+/// Vec(int) vec = vec_init(int, 10);
+/// vec_push(vec, 1), vec_push(vec, 2);
+/// vec_erase_if(vec, it, *it % 2); // remove odd numbers
+/// ```
+#define vec_erase_if(vec, it, pred)   RKI_VEC_ERASE_IF(vec, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -5056,6 +5569,9 @@ rklib_fun rk_forceinline void* rki_check_vec_push_u(void* self) {
   return self;
 }
 
+#define RKI_VEC_TRY_POP(self, out)                                                                 \
+  ((bool)(vec_count(self) ? (*(out) = (self)[--RKI_VEC_COUNT(self)], true) : false))
+
 rklib_fun rk_forceinline void* rki_check_vec_pop(void* self) {
   rk_assert(vec_count(self) && "Attempting to pop from zero-length vec");
   return self;
@@ -5067,14 +5583,30 @@ rklib_fun rk_forceinline void* rki_vec_pop_n(size_t elsize, void* self, size_t c
   return (char*)self + rk_mult(elsize, RKI_VEC_COUNT(self));
 }
 
-rklib_fun rk_forceinline void* rki_vec_check_front(void* self) {
+// Like the peek helpers, these take and return const void* so const element types pass through;
+// the accessor macros cast the result back to typeof(self), restoring the caller's constness.
+rklib_fun rk_forceinline const void* rki_vec_check_front(const void* self) {
   rk_assert(vec_count(self) && "Attempting to access front of zero-sized vec");
   return self;
 }
 
-rklib_fun rk_forceinline void* rki_vec_check_back(size_t elsize, void* self) {
+rklib_fun rk_forceinline const void* rki_vec_check_back(size_t elsize, const void* self) {
   rk_assert(vec_count(self) && "Attempting to access back of zero-sized vec");
-  return (char*)self + rk_mult(elsize, RKI_VEC_COUNT(self) - 1);
+  return (const char*)self + rk_mult(elsize, vec_count(self) - 1);
+}
+
+rklib_fun rk_forceinline const void* rki_vec_check_at(size_t elsize, const void* self, size_t idx) {
+  rk_assert(idx < vec_count(self) && "Access out of bounds of Vec.");
+  return (const char*)self + rk_mult(elsize, idx);
+}
+
+rklib_fun rk_forceinline const void* rki_vec_peek_at(size_t elsize, const void* self, size_t idx) {
+  return idx < vec_count(self) ? (const char*)self + rk_mult(elsize, idx) : rk_null;
+}
+
+rklib_fun rk_forceinline const void* rki_vec_peek_back(size_t elsize, const void* self) {
+  size_t count = vec_count(self);
+  return count ? (const char*)self + rk_mult(elsize, count - 1) : rk_null;
 }
 
 rklib_fun rk_forceinline size_t rki_vec_assert_insertbounds(void* self, size_t i) {
@@ -5112,19 +5644,22 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
   ((typeof(T)*)(void*)(rki_vec_init(cap, offsetof(RKI_VecHdr, data) + sizeof_n(T, cap),            \
                                     count RK_IFALLOC(, alloc))                                     \
                            ->data))
+// Invariant: a non-NULL Vec always has capacity >= 1, so growth by doubling never needs a zero
+// check. Constructors round a requested capacity of 0 up to 1 (keeping the allocator bound to the
+// Vec), and shrinking an empty Vec keeps one slot; only vec_release() returns a Vec to NULL.
+rklib_fun rk_const rk_forceinline size_t rki_vec_cap_min1(size_t cap) { return cap ? cap : 1; }
 #define RKI_VEC_NEW(T, cap, count, alloc)                                                          \
-  ((cap) ? RKI_VEC_NEW_NONZERO(T, cap, count, alloc) : rk_null)
+  RKI_VEC_NEW_NONZERO(T, rki_vec_cap_min1(cap), count, alloc)
 
 // initialises a Vec with positive cap (no cap 0 check) and assigns it to V
-#define RKI_VEC_INIT_ASSIGN(V, C, A) ((V) = RKI_VEC_NEW_NONZERO(*(V), (C), 0, (A)))
+#define RKI_VEC_INIT_ASSIGN_NONZERO(V, C, A) ((V) = RKI_VEC_NEW_NONZERO(*(V), (C), 0, (A)))
 
-#define RKI_VEC_INIT(T, C, A)        RKI_VEC_NEW(T, (C), 0, (A))
-#define RKI_VEC_INIT3(T, C, A)       RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_INIT(T, C, A))
-#define RKI_VEC_INIT2(T, C)          RKI_VEC_INIT(T, C, alloc_ctx)
+#define RKI_VEC_INIT(T, C, A)                RKI_VEC_NEW(T, C, 0, A)
+#define RKI_VEC_INIT3(T, C, A)               RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_INIT(T, C, A))
+#define RKI_VEC_INIT2(T, C)                  RKI_VEC_INIT(T, C, alloc_ctx)
 
 #define RKI_VEC_FROM(arr, count, alloc)                                                            \
-  ((count) ? rk_copy(RKI_VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count)) : rk_null)
-
+  rk_copy(RKI_VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count))
 #define RKI_VEC_FROM3(arr, count, alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_FROM(arr, count, alloc))
 #define RKI_VEC_FROM2(arr, count) RKI_VEC_FROM(arr, count, alloc_ctx)
@@ -5147,30 +5682,30 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
 #define RKI_VEC_RESERVE_1(V)                                                                       \
   ((V) ? (RKI_VEC_COUNT(V) == RKI_VEC_CAP(V) ? RKI_VEC_CHANGE_CAP(V, rk_mult(RKI_VEC_CAP(V), 2))   \
                                              : (V))                                                \
-       : RKI_VEC_INIT_ASSIGN(V, 1, alloc_ctx))
+       : RKI_VEC_INIT_ASSIGN_NONZERO(V, 1, alloc_ctx))
 
 #define RKI_VEC_RESERVE(V, C)                                                                      \
   ((V) ? ((C) > RKI_VEC_CAP(V) ? RKI_VEC_CHANGE_CAP(V, C) : (V))                                   \
-       : ((C) ? RKI_VEC_INIT_ASSIGN(V, C, alloc_ctx) : rk_null))
+       : ((C) ? RKI_VEC_INIT_ASSIGN_NONZERO(V, C, alloc_ctx) : rk_null))
 
 #define RKI_VEC_RESIZE(V, C) (RKI_VEC_RESERVE(V, C), (V) && (RKI_VEC_COUNT(V) = (C)))
 
+// Shrinking never releases: an empty Vec keeps one slot, preserving its allocator and the
+// capacity >= 1 invariant. stdc_bit_ceil(0) is 1, so SHRINK_TO_FIT needs no special case.
 #define RKI_VEC_SHRINK_TO_FIT_EXACT(V)                                                             \
-  ((V) && RKI_VEC_COUNT(V) < RKI_VEC_CAP(V)                                                        \
-   && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, RKI_VEC_COUNT(V))                                  \
-                        : (vec_release(V), (V) = rk_null)))
+  ((V) && rki_vec_cap_min1(RKI_VEC_COUNT(V)) < RKI_VEC_CAP(V)                                      \
+   && RKI_VEC_CHANGE_CAP(V, rki_vec_cap_min1(RKI_VEC_COUNT(V))))
 
 #define RKI_VEC_SHRINK_TO_FIT(V)                                                                   \
-  ((V) && (RKI_VEC_COUNT(V) ? stdc_bit_ceil(RKI_VEC_COUNT(V)) : 0) < RKI_VEC_CAP(V)                \
-   && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, stdc_bit_ceil(RKI_VEC_COUNT(V)))                   \
-                        : (vec_release(V), (V) = rk_null)))
+  ((V) && stdc_bit_ceil(RKI_VEC_COUNT(V)) < RKI_VEC_CAP(V)                                         \
+   && RKI_VEC_CHANGE_CAP(V, stdc_bit_ceil(RKI_VEC_COUNT(V))))
 
-#define RKI_VEC_PUSH_U(V, O)        ((V)[RKI_VEC_COUNT(rki_check_vec_push_u(V))++] = (O))
-#define RKI_VEC_PUSH(V, O)          (RKI_VEC_RESERVE_1(V), RKI_VEC_PUSH_U(V, O))
+#define RKI_VEC_PUSH_U(V, O)      ((V)[RKI_VEC_COUNT(rki_check_vec_push_u(V))++] = (O))
+#define RKI_VEC_PUSH(V, O)        (RKI_VEC_RESERVE_1(V), RKI_VEC_PUSH_U(V, O))
 
-#define RKI_VEC_PUSH_ARR_U(V, O, N) (rk_copy((V) + RKI_VEC_COUNT(V), O, N), RKI_VEC_COUNT(V) += (N))
-#define RKI_VEC_PUSH_ARR(V, O, N)                                                                  \
-  ((void)((N) && (RKI_VEC_RESERVE(V, vec_count(V) + (N)), RKI_VEC_PUSH_ARR_U(V, O, N), 1)))
+#define RKI_VEC_PUSH_N_U(V, O, N) (rk_copy((V) + RKI_VEC_COUNT(V), O, N), RKI_VEC_COUNT(V) += (N))
+#define RKI_VEC_PUSH_N(V, O, N)                                                                    \
+  ((void)((N) && (RKI_VEC_RESERVE(V, vec_count(V) + (N)), RKI_VEC_PUSH_N_U(V, O, N), 1)))
 
 rklib_fun rk_forceinline void rki_vec_insert_arr_at(size_t elsize, void* restrict v, size_t i,
                                                     const void* restrict arr, size_t n) {
@@ -5209,7 +5744,7 @@ rklib_fun rk_forceinline void rki_vec_insert_at_unordered(size_t elsize, void* r
    rki_vec_insert_at_unordered(sizeof(*(V)), V, rki_vec_assert_insertbounds(V, I),                 \
                                ((typeof (*(V))[1]){(O)})))
 
-rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
+rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t i, size_t n) {
   if (!n) { return; }
   char *dst = (char*)v + rk_mult(i, elsize), *src = dst + rk_mult(n, elsize);
   memmove(dst, src,
@@ -5217,21 +5752,43 @@ rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t 
                   elsize)); // NOLINT(clang-analyzer-security.ArrayBound)
 }
 #define RKI_VEC_ERASE_AT_N(V, I, N)                                                                \
-  RKI_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
+  rki_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
 #define RKI_VEC_ERASE_AT(V, I) RKI_VEC_ERASE_AT_N(V, I, 1)
 
 #define RKI_VEC_ASSIGN(V, O, N)                                                                    \
   (RKI_VEC_RESERVE(V, N), (V) && (RKI_VEC_COUNT(V) = (N), rk_copy(V, O, N)))
 
+#define RKI_VEC_FOREACH(vec, it)                                                                   \
+  for (typeof(*(vec))*it = (vec), *const rki_var_end = vec_end(it); it != rki_var_end; ++it)
+
+#define RKI_VEC_FOREACH_REVERSED(vec, it)                                                          \
+  for (typeof(*(vec))*const rki_var_begin = (vec), *it = vec_end(rki_var_begin);                   \
+       it != rki_var_begin && (--it, 1);)
+
+#define RKI_VEC_ERASE_IF(vec, it, pred)                                                            \
+  do {                                                                                             \
+    RKI_IGNWARN_MSC_BEG(4114)                                                                      \
+    typeof(vec) rki_var_vec = (vec);                                                               \
+    if (!vec_count(rki_var_vec)) { break; }                                                        \
+    typeof(*rki_var_vec)*rki_var_write = rki_var_vec, *const rki_var_end                           \
+                                                      = rki_var_write                              \
+                                                      + RKI_VEC_COUNT(rki_var_write);              \
+    for (typeof(*rki_var_vec)* rki_var_it = rki_var_vec; rki_var_it != rki_var_end;                \
+         ++rki_var_it) {                                                                           \
+      typeof(*rki_var_vec)* const it = rki_var_it;                                                 \
+      if (!(pred)) { *rki_var_write++ = *rki_var_it; }                                             \
+    }                                                                                              \
+    RKI_VEC_COUNT(rki_var_vec) = (size_t)(rki_var_write - rki_var_vec);                            \
+    RKI_IGNWARN_MSC_END()                                                                          \
+  } while (0)
+
 // msvc sizeof returns 0
 #define RKI_VEC_INIT_LIST_(T, arr, alloc)                                                          \
   memcpy(RKI_VEC_NEW_NONZERO(T, rk_COUNTOF(arr), rk_COUNTOF(arr), alloc), arr, sizeof(arr))
-
-#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RKI_ZINIT})
-
+#define RKI_VEC_CONTRAV(T, x) _Generic((x), T: x, Allocator: (T){RKI_ZINIT})
 #if RK_CUSTOM_ALLOCATORS
 # define RKI_VEC_INIT_LIST(T, ...)                                                                 \
-   _Generic(VA_FIRST(__VA_ARGS__),                                                                 \
+   _Generic((VA_FIRST(__VA_ARGS__)),                                                               \
        Allocator: RKI_VEC_INIT_LIST_(T, ((const T[]){VA_REST(__VA_ARGS__)}),                       \
                                      RKI_contrav(Allocator, VA_FIRST(__VA_ARGS__))),               \
        default: RKI_VEC_INIT_LIST_(                                                                \
@@ -5345,7 +5902,9 @@ RKI_HEADER_BEGIN
 /// @param cap      The initial capacity of the backing Vec (in elements)
 /// @param alloc    Optional allocator; defaults to `alloc_ctx`. See `vec_init()`.
 /// @return An initialised, empty `Heap(T)`
-/// @note A zero-initialized `Heap(T)` is also a valid, empty heap.
+/// @note Always allocates the backing Vec, so the allocator stays bound even for `cap == 0`
+/// (rounded up to 1). A zero-initialized `Heap(T)` is also a valid, empty heap; it performs no
+/// allocation and grows from `alloc_ctx`.
 #define heap_init(T, cap, ...)           ((Heap(T)){.data = vec_init(T, cap, ##__VA_ARGS__)})
 
 /// @brief `Heap(T) heap_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` - Constructs
@@ -5368,6 +5927,8 @@ RKI_HEADER_BEGIN
 
 /// @brief `void heap_release(Heap(T)* self)` - Frees the backing Vec and resets the Heap to an
 /// empty state.
+/// @note Releases the allocator binding too, like `vec_release()`: if used again, the Heap grows
+/// from the current `alloc_ctx`.
 #define heap_release(self)               vec_release((self)->data)
 
 /// @brief `size_t heap_count(const Heap(T)* self)` - Returns the number of elements in the Heap.
@@ -5420,6 +5981,16 @@ RKI_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Heap.
 #define heap_peek(T, self)               RKI_HEAP_PUB(T, peek)(self)
 
+/// @brief Returns the top element according to the heap's ordering as a const lvalue.
+/// @param T Element type.
+/// @pre The Heap is nonempty; use `heap_peek()` to check safely.
+/// @note Always const, even for a mutable Heap: writing the top in place would break the heap
+/// order. Use `heap_replace_top()` to change it.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Invalidated by any later mutation of the Heap.
+/// @see heap_peek
+#define heap_top(T, self)                (*RKI_HEAP_PUB(T, top_ptr)(self))
+
 /// @brief `void heap_push(T, Heap(T)* self, T value)` - Inserts `value` into the Heap.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
@@ -5429,7 +6000,8 @@ RKI_HEADER_BEGIN
 /// @brief `T heap_pop(T, Heap(T)* self)` - Removes and returns the minimum element.
 /// @param T Element type
 /// @return The (former) minimum element
-/// @attention Requires a nonempty Heap.
+/// @pre The Heap is nonempty; use `heap_try_pop()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define heap_pop(T, self)                RKI_HEAP_PUB(T, pop)(self)
 
 /// @brief `bool heap_try_pop(T, Heap(T)* self, T* out)` - Removes the minimum element and writes
@@ -5444,7 +6016,8 @@ RKI_HEADER_BEGIN
 /// @param T     Element type
 /// @param value Value to insert in place of the removed minimum. Evaluated once.
 /// @return The (former) minimum element
-/// @attention Requires a nonempty Heap.
+/// @pre The Heap is nonempty.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Equivalent to, but cheaper than, `heap_pop()` followed by `heap_push()`: it never shrinks
 /// or reallocates the backing Vec.
 #define heap_replace_top(T, self, value) RKI_HEAP_PUB(T, replace_top)(self, value)
@@ -5460,6 +6033,39 @@ RKI_HEADER_BEGIN
 /// @attention `arr[0..n)` must not overlap the Heap's own backing allocation, for the same reasons
 /// documented on `heap_assign()`.
 #define heap_extend(T, self, arr, n)     RKI_HEAP_PUB(T, extend)(self, arr, n)
+
+/// @brief Visits every element in backing-array order.
+///
+/// A Heap's only real contract is the heap invariant (min/max at the root, O(log n)
+/// push/pop/replace_top) -- the backing array's exact layout beyond that is an implementation
+/// detail of how elements landed there via sift-up/sift-down, not a property the caller can rely
+/// on. There is deliberately no `heap_foreach_reversed`: reversing an order that was never part of
+/// the contract (same reasoning as `pool_foreach` having no `_reversed`, and Dict/Set's
+/// "unspecified slot order" never getting one either) wouldn't add anything over calling this.
+/// @param self Pointer to the Heap. Evaluated once.
+/// @param it   Iterator name. Pointer to a const element.
+/// @note break stops traversal; continue advances to the next element.
+/// @note Do not modify the Heap during traversal.
+///
+/// Usage:
+/// ```c
+/// heap_foreach(&h, it) { printf("%d\n", *it); }
+/// ```
+#define heap_foreach(self, it)           vec_foreach((const typeof(*(self)->data)*)(self)->data, it)
+
+/// @brief Erases every element satisfying `pred`, then restores the heap invariant.
+/// @param T    Element type.
+/// @param self Pointer to the mutable Heap. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original element.
+/// @note The predicate must not structurally modify the Heap.
+/// @note Takes O(n) time and does not allocate.
+///
+/// Usage:
+/// ```c
+/// heap_erase_if(int, &h, it, *it % 2 == 0); // drop even values
+/// ```
+#define heap_erase_if(T, self, it, pred) RKI_HEAP_ERASE_IF(T, self, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -5484,6 +6090,10 @@ RKI_HEADER_BEGIN
   }                                                                                                \
   rklib_fun rk_pure Allocator RKI_HEAP_PUB(T, allocator)(const Heap(T) * self) {                   \
     return vec_allocator(self->data);                                                              \
+  }                                                                                                \
+  rklib_fun const T* RKI_HEAP_PUB(T, top_ptr)(const Heap(T) * self) {                              \
+    rk_assert(heap_count(self) && "Cannot access top of empty heap");                              \
+    return self->data;                                                                             \
   }                                                                                                \
   rklib_fun rk_pure const T* RKI_HEAP_PUB(T, peek)(const Heap(T) * self) {                         \
     return vec_count(self->data) ? &self->data[0] : rk_null;                                       \
@@ -5564,6 +6174,15 @@ RKI_HEADER_BEGIN
 #define RKI_HEAP_FROM4(T, arr, n, alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_HEAP_FROM(T, arr, n, alloc))
 #define RKI_HEAP_FROM3(T, arr, n) RKI_HEAP_FROM(T, arr, n, alloc_ctx)
+
+#define RKI_HEAP_ERASE_IF(T, self, it, pred)                                                       \
+  do {                                                                                             \
+    Heap(T)* const rki_var_heap = (self);                                                          \
+    if (!rki_var_heap) { break; }                                                                  \
+    const size_t rki_var_count = heap_count(rki_var_heap);                                         \
+    vec_erase_if(rki_var_heap->data, it, pred);                                                    \
+    if (heap_count(rki_var_heap) != rki_var_count) { RKI_HEAP_PRI(T, heapify)(rki_var_heap); }     \
+  } while (0)
 
 /// @endcond
 #pragma endregion implementation
@@ -5722,7 +6341,8 @@ RKI_HEADER_BEGIN
 /// `const Deque(T)* self`. Like `vec_front()`, requires a nonempty Deque.
 /// @param T Element type
 /// @return Lvalue for the first element
-/// @attention Requires a nonempty Deque; use `deque_peek_front()` to check safely.
+/// @pre The Deque is nonempty; use `deque_peek_front()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_front(T, self)                                                                       \
   (*_Generic((self),                                                                               \
@@ -5733,22 +6353,38 @@ RKI_HEADER_BEGIN
 /// `const Deque(T)* self`. Like `vec_back()`, requires a nonempty Deque.
 /// @param T Element type
 /// @return Lvalue for the last element
-/// @attention Requires a nonempty Deque; use `deque_peek_back()` to check safely.
+/// @pre The Deque is nonempty; use `deque_peek_back()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_back(T, self)                                                                        \
   (*_Generic((self),                                                                               \
        const Deque(T)*: RKI_DEQUE_PUB(T, back_const),                                              \
        default: RKI_DEQUE_PUB(T, back))(self))
 
+/// @brief Returns the element at the zero-based logical index (counting from the front) as an
+/// lvalue, mutable for `Deque(T)* self` and const for `const Deque(T)* self`.
+/// @param T     Element type
+/// @param index Zero-based logical index
+/// @pre `index < deque_count(self)`.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Invalidated by any later mutation of the Deque.
+/// @see deque_peek_at
+#define deque_at(T, self, index)                                                                   \
+  (*_Generic((self), const Deque(T)*: RKI_DEQUE_PUB(T, at_const), default: RKI_DEQUE_PUB(T, at))(  \
+      (self), (index)))
+
 /// @brief Returns a pointer to the element at the zero-based logical index (counting from the
 /// front): `T*` for `Deque(T)* self`, `const T*` for `const Deque(T)* self`.
 /// @param T     Element type
 /// @param index Zero-based logical index
-/// @return Pointer to the element, or `NULL` if `index` is out of bounds
+/// @return Pointer to the element, or `NULL` if `index` is out of bounds (including an empty
+/// Deque).
+/// @note Bounds are checked in both debug and release builds.
 /// @note Invalidated by any later mutation of the Deque.
-#define deque_at(T, self, index)                                                                   \
-  _Generic((self), const Deque(T)*: RKI_DEQUE_PUB(T, at_const), default: RKI_DEQUE_PUB(T, at))(    \
-      (self), (index))
+#define deque_peek_at(T, self, index)                                                              \
+  _Generic((self),                                                                                 \
+      const Deque(T)*: RKI_DEQUE_PUB(T, peek_at_const),                                            \
+      default: RKI_DEQUE_PUB(T, peek_at))((self), (index))
 
 /// @brief Returns a pointer to the first element: `T*` for `Deque(T)* self`, `const T*` for
 /// `const Deque(T)* self`.
@@ -5840,33 +6476,35 @@ RKI_HEADER_BEGIN
 /// @return `true` if an element was removed, `false` if the Deque was empty
 #define deque_try_pop_back(T, self, out)        RKI_DEQUE_PUB(T, try_pop_back)(self, out)
 
-/// @brief Visits every element of a Deque in front-to-back order.
-/// @param self The Deque to loop over (a pointer). Evaluated once.
-/// @param it   The name of the iterator (pointer to each element, const if `self` points to a
-///             const Deque)
-/// @note Do not push, pop, reserve, or shrink the Deque while looping in this fashion.
+/// @brief Visits every element in front-to-back order.
+/// @param self Pointer to the Deque. Evaluated once.
+/// @param it   Iterator name. Element constness follows self.
+/// @note break stops traversal; continue advances to the next element.
+/// @note Do not structurally modify the Deque during traversal.
 ///
 /// Usage:
 /// ```c
 /// deque_foreach(&q, it) { printf("%d\n", *it); }
 /// ```
-#define deque_foreach(self, it)                                                                    \
-  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
-    for (size_t RKI__i = 0; RKI__i < RKI__DEQUE->count; ++RKI__i)                                  \
-      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
-           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
-           RKI__once            = it;                                                              \
-           RKI__once; RKI__once = rk_null)
+#define deque_foreach(self, it)                 RKI_DEQUE_FOREACH(self, it)
 
-/// @brief Like `deque_foreach()`, visiting elements in back-to-front order. Iterator element
-/// constness follows the constness of the Deque pointed to by `self`.
-#define deque_foreach_reversed(self, it)                                                           \
-  for (typeof(self) RKI__DEQUE = (self); RKI__DEQUE; RKI__DEQUE = rk_null)                         \
-    for (size_t RKI__i = RKI__DEQUE->count; RKI__i-- > 0;)                                         \
-      for (typeof(RKI_DEQUE_ITER_PTR(RKI__DEQUE)) it                                               \
-           = &RKI__DEQUE->data[(RKI__DEQUE->head + RKI__i) & (RKI__DEQUE->cap - 1)],               \
-           RKI__once            = it;                                                              \
-           RKI__once; RKI__once = rk_null)
+/// @brief Like `deque_foreach()`, but iterates in back-to-front order. Same parameters and
+/// contract.
+#define deque_foreach_reversed(self, it)        RKI_DEQUE_FOREACH_REVERSED(self, it)
+
+/// @brief Erases every element satisfying `pred`, preserving the retained elements' relative
+/// order.
+/// @param self Pointer to a mutable Deque. Evaluated once.
+/// @param it   Iterator name. Access the current element through `*it`.
+/// @param pred Predicate expression, evaluated once per original element.
+/// @note The predicate must not structurally modify the Deque.
+/// @note Does not allocate or change capacity.
+///
+/// Usage:
+/// ```c
+/// deque_erase_if(&q, it, *it % 2 == 0); // remove even numbers
+/// ```
+#define deque_erase_if(self, it, pred)          RKI_DEQUE_ERASE_IF(self, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -5878,10 +6516,12 @@ RKI_HEADER_BEGIN
 #define RKI_DEQUE_PRI(K, FNAME) rki_deque_##K##_##FNAME
 
 // The member `data` is a mutable pointer even when the Deque is const; propagate the
-// container's constness explicitly when choosing an iterator pointer type.
+// container's constness explicitly when choosing an iterator pointer type. Constness is detected
+// through `count`, a member of a named type: matching on `const typeof(*(self))*` would spell
+// `const const Deque` for a const Deque (MSVC C4114).
 #define RKI_DEQUE_ITER_PTR(self)                                                                   \
-  _Generic((self),                                                                                 \
-      const typeof(*(self))*: (const typeof((self)->data[0])*)0,                                   \
+  _Generic(&(self)->count,                                                                         \
+      const size_t*: (const typeof((self)->data[0])*)0,                                            \
       default: (typeof((self)->data))0)
 #define RKI_DEQUE_DEFINE(T)                                                                        \
   RK_EXTERNC_BEG                                                                                   \
@@ -5945,38 +6585,46 @@ RKI_HEADER_BEGIN
     RKI_DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                   \
-    return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
+    rk_assert(i < self->count && "Access out of bounds of Deque.");                                \
+    return &self->data[(self->head + i) & (self->cap - 1)];                                        \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                 \
+    rk_assert(i < self->count && "Access out of bounds of Deque.");                                \
+    return &self->data[(self->head + i) & (self->cap - 1)];                                        \
+  }                                                                                                \
+  rklib_fun T* RKI_DEQUE_PUB(T, peek_at)(Deque(T) * self, size_t i) {                              \
+    return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
+  }                                                                                                \
+  rklib_fun const T* RKI_DEQUE_PUB(T, peek_at_const)(const Deque(T) * self, size_t i) {            \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                     \
-    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
+    return self->count ? &self->data[self->head] : rk_null;                                        \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                   \
-    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
+    return self->count ? &self->data[self->head] : rk_null;                                        \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                      \
-    return self->count ? RKI_DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
+    return self->count ? &self->data[(self->head + self->count - 1) & (self->cap - 1)] : rk_null;  \
   }                                                                                                \
-  rklib_fun T const* RKI_DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                    \
-    return self->count ? RKI_DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
+  rklib_fun const T* RKI_DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                    \
+    return self->count ? &self->data[(self->head + self->count - 1) & (self->cap - 1)] : rk_null;  \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, front)(Deque(T) * self) {                                          \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
+    return &self->data[self->head];                                                                \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, front_const)(const Deque(T) * self) {                        \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
+    return &self->data[self->head];                                                                \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, back)(Deque(T) * self) {                                           \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RKI_DEQUE_PUB(T, at)(self, self->count - 1);                                            \
+    return &self->data[(self->head + self->count - 1) & (self->cap - 1)];                          \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, back_const)(const Deque(T) * self) {                         \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RKI_DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
+    return &self->data[(self->head + self->count - 1) & (self->cap - 1)];                          \
   }                                                                                                \
   rklib_fun void RKI_DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                          \
     if (self->count == self->cap) {                                                                \
@@ -6046,14 +6694,62 @@ RKI_HEADER_BEGIN
   }                                                                                                \
   RK_EXTERNC_END
 
-#define RKI_DEQUE_INIT(T, cap, alloc)  RKI_DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
-#define RKI_DEQUE_INIT3(T, cap, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_INIT(T, cap, alloc))
-#define RKI_DEQUE_INIT2(T, cap)        RKI_DEQUE_INIT(T, cap, alloc_ctx)
+#define RKI_DEQUE_INIT3(T, cap, alloc)                                                             \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_PUB(T, init)(cap, alloc))
+#define RKI_DEQUE_INIT2(T, cap) RKI_DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc_ctx))
 
-#define RKI_DEQUE_FROM(T, arr, n, alloc) RKI_DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
 #define RKI_DEQUE_FROM4(T, arr, n, alloc)                                                          \
-  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_FROM(T, arr, n, alloc))
-#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_PUB(T, from)(arr, n, alloc))
+#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_PUB(T, from)(arr, n RK_IFALLOC(, alloc_ctx))
+
+#define RKI_DEQUE_FOREACH(self, it)                                                                \
+  for (struct {                                                                                    \
+         typeof(*(self))* deque;                                                                   \
+         size_t           idx, count;                                                              \
+       } rki_var_state = {(self), 0, 0};                                                           \
+       rki_var_state.deque && (rki_var_state.count = rki_var_state.deque->count, 1);               \
+       rki_var_state.deque = rk_null)                                                              \
+    for (typeof(*RKI_DEQUE_ITER_PTR(rki_var_state.deque))* it = rk_null;                           \
+         rki_var_state.idx < rki_var_state.count                                                   \
+         && (it = &rki_var_state.deque->data[(rki_var_state.deque->head + (rki_var_state.idx))     \
+                                             & (rki_var_state.deque->cap - 1)],                    \
+            1);                                                                                    \
+         ++rki_var_state.idx)
+
+#define RKI_DEQUE_FOREACH_REVERSED(self, it)                                                       \
+  for (struct {                                                                                    \
+         typeof(*(self))* deque;                                                                   \
+         size_t           idx, count;                                                              \
+       } rki_var_state = {(self), 0, 0};                                                           \
+       rki_var_state.deque && (rki_var_state.count = rki_var_state.deque->count, 1);               \
+       rki_var_state.deque = rk_null)                                                              \
+    for (typeof(*RKI_DEQUE_ITER_PTR(rki_var_state.deque))* it = rk_null;                           \
+         rki_var_state.idx < rki_var_state.count                                                   \
+         && (it = &rki_var_state.deque->data[(rki_var_state.deque->head                            \
+                                              + (rki_var_state.count - 1 - rki_var_state.idx))     \
+                                             & (rki_var_state.deque->cap - 1)],                    \
+            1);                                                                                    \
+         ++rki_var_state.idx)
+
+#define RKI_DEQUE_ERASE_IF(self, it, pred)                                                         \
+  do {                                                                                             \
+    typeof(self) const rki_var_deque = (self);                                                     \
+    if (!rki_var_deque || !rki_var_deque->count) { break; }                                        \
+    const size_t rki_var_count = rki_var_deque->count, rki_var_mask = rki_var_deque->cap - 1;      \
+    size_t       rki_var_write = 0;                                                                \
+    for (size_t rki_var_idx = 0; rki_var_idx < rki_var_count; ++rki_var_idx) {                     \
+      typeof(*rki_var_deque->data)* const it                                                       \
+          = &rki_var_deque->data[(rki_var_deque->head + rki_var_idx) & rki_var_mask];              \
+      if (!(pred)) {                                                                               \
+        if (rki_var_write != rki_var_idx) {                                                        \
+          rki_var_deque->data[(rki_var_deque->head + rki_var_write) & rki_var_mask] = *it;         \
+        }                                                                                          \
+        ++rki_var_write;                                                                           \
+      }                                                                                            \
+    }                                                                                              \
+    rki_var_deque->count = rki_var_write;                                                          \
+    if (!rki_var_write) { rki_var_deque->head = 0; }                                               \
+  } while (0)
 
 /// @endcond
 #pragma endregion implementation
@@ -6092,47 +6788,33 @@ RKI_HEADER_END
 /// @file rk_arenastack.h
 /// @version 1.0.0
 /// @defgroup rk_arenastack ArenaStack Allocator Interface
-/// @brief Dynamic stack of arena allocators for growable, stack-like memory management with stable
-/// allocation addresses.
-///
-/// The ArenaStack type manages a growable collection of fixed-size Arena allocators. It provides
-/// convenience macros and functions for allocating, reallocating, clearing, and rewinding memory
-/// from this stack of arenas.
-///
-/// Typical usage:
-///   - Create an ArenaStack with arenastack_init(), specifying arena size and an optional
-///     allocator.
-///   - Allocate typed memory blocks using arenastack_new() or arenastack_new_aligned().
-///   - Reclaim memory by rewinding with arenastack_rewind_to(), or by clearing all arenas via
-///     `arenastack_clear()`.
-///   - Release resources with arenastack_release().
-///
-/// Layout:
-///   - Internally stores a Vec of Arena objects and a pointer to the currently active arena for
-///     fast allocations.
-///   - Designed for fast, stack-like allocation patterns with occasional rewinds and bulk clears.
-///
-/// Notes:
-///   - Alignment arguments must be a power of two; undefined behaviour otherwise.
-///   - Only one active ArenaStack instance is expected per intended allocation pool.
-///
+/// @brief Growable collection of arenas for temporary allocations and bulk reuse.
+/// @details Stores a Vec of Arena objects and the index of the active arena. Growth allocates or
+/// reuses backing buffers without moving existing allocations; reallocation may move an allocation.
+/// Initialize with arenastack_init(), allocate with arenastack_allocate() or the typed macros,
+/// reclaim storage with arenastack_clear() or arenastack_rewind_to(), and release it with
+/// arenastack_release().
+/// @note Concurrent access involving allocation, resizing, clearing, rewinding, or release requires
+/// external synchronization. Independent stacks may be used independently, subject to their
+/// allocator's thread-safety requirements.
 /// @see rk_alloc.h
-/// @see rk_defs.h
 /// @see rk_arena.h
 /// @see rk_vec.h
 /// @{
-
 #ifndef RK_ARENASTACK_H
 #define RK_ARENASTACK_H
-/* inlined from include/rk_arenastack.h:37: #include "rk_arena.h" */
+/* inlined from include/rk_arenastack.h:20: #include "rk_arena.h" */
 /* skipped already-included: "include/rk_arena.h" */
-/* inlined from include/rk_arenastack.h:38: #include "rk_vec.h" */
+/* inlined from include/rk_arenastack.h:21: #include "rk_vec.h" */
 /* skipped already-included: "include/rk_vec.h" */
 RKI_HEADER_BEGIN
 
-/// @brief A dynamic stack of arenas used for memory allocation. Each arena is a fixed-size memory
-/// block managed by the Arena allocator. The ArenaStack tracks a vec of arenas and the current
-/// arena for allocation.
+/// @brief Owns arena backing buffers and a vector of arena descriptors, with an active arena index.
+/// @note ArenaStack pointer arguments must be non-null and refer to initialized objects. A
+/// zero-initialized stack supports lazy allocation and has no backing buffers initially.
+/// Copying this structure does not duplicate its owned resources; do not treat copies as
+/// independent owners. Allocator handles borrowing the stack require it to remain at the same
+/// address.
 typedef struct ArenaStack {
   size_t     arena_size;
   Vec(Arena) arenas;
@@ -6140,66 +6822,168 @@ typedef struct ArenaStack {
 } ArenaStack;
 
 /// @brief `ArenaStack arenastack_init(size_t arena_size, Allocator alloc = alloc_ctx)` -
-/// Initialises and returns a new ArenaStack with the desired capacity and allocator.
-/// @param arena_size  The desired size of each arena
-/// @param alloc       Optional allocator; defaults to `alloc_ctx`
-/// @return A new ArenaStack
-#define arenastack_init(arena_size, ...) RKI_OVERLOAD(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
+/// Initializes an owning stack and allocates its first arena.
+/// @param arena_size Minimum backing-buffer size for new arenas, rounded up to a power of two; zero
+/// selects one byte. The rounded size must be representable in size_t.
+/// @param alloc Backing allocator; defaults to alloc_ctx. Explicit selection requires custom
+/// allocators.
+/// @return An initialized ArenaStack owning its first buffer and descriptor vector.
+/// @note Larger requests can create larger arenas; this is not a fixed size for every arena.
+/// Allocation failures follow the backing allocator's failure policy.
+#define arenastack_init(arena_size, ...)                                                           \
+  RKI_OVERLOAD(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
-/// @brief Releases all arenas within the ArenaStack.
+/// @brief Releases every arena backing buffer and the descriptor vector, resetting the stack.
+/// @note Invalidates all allocations and marks. A zero-initialized stack is supported. A subsequent
+/// allocation lazily initializes the stack using alloc_ctx; the previous allocator is not retained.
 rklib_fun void              arenastack_release(ArenaStack* self);
 
-/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` was never
-/// initialized, or custom allocators are disabled.
+/// @brief Returns the backing allocator associated with the arena descriptor vector.
+/// @note Returns alloc_ctx for a zero-initialized stack or when custom allocators are disabled.
+/// This is the allocator used to obtain buffers, not an Allocator adapter allocating within this
+/// stack.
+/// @see arenastack_to_alloc
 rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
   return vec_allocator(self->arenas);
 }
 
-/// @brief Marks all Memory in the ArenaStack as reusable Clears all currently active arenas and
-/// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
-/// the current index are left unchanged until reused.
-/// @return `self`, for chaining.
+/// @brief Reclaims all allocations for reuse without releasing backing storage.
+/// @return self, for chaining.
+/// @note Clears arenas through the active index and resets that index to zero. Later arenas are
+/// retained and cleared when reused. Invalidates previous allocations and marks; does not clear
+/// their bytes. A zero-initialized stack is supported.
 rklib_fun ArenaStack*       arenastack_clear(ArenaStack* self);
 
-/// @brief Returns the current position of the active arena as an opaque marker. Pass to
-/// `arenastack_rewind_to` to restore the ArenaStack to this state.
-/// @note Returns a null marker if `self` was never initialized.
+/// @brief Saves the active arena's cursor for arenastack_rewind_to().
+/// @return A marker for the current position, or a null-position marker for a zero-initialized
+/// stack.
+/// @note Does not allocate or keep allocations alive. A null-position mark denotes the stack's
+/// starting position: rewinding to it clears the stack, even if it has since been lazily
+/// initialized.
 rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
   return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
 }
-/// @brief Rewinds the ArenaStack to a specific mark returned by `arenastack_mark()`, marking every
-/// allocation in every Arena of the Stack as free until the mark is reached.
-/// @return `self`, for chaining.
+/// @brief Reclaims allocations made after a saved position, retaining backing buffers for reuse.
+/// @param self Stack from which the mark was obtained.
+/// @param mark A mark from arenastack_mark() on this stack, still valid for its current state and
+/// not beyond its current allocation position. A null-position mark (from a zero-initialized
+/// stack) rewinds to the start, equivalent to arenastack_clear().
+/// @return self, for chaining.
+/// @note Invalidates allocations and marks in the discarded region. Rewinding to an empty later
+/// arena may make the preceding arena active. Foreign or invalidated non-null marks are
+/// unsupported.
 rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
-/// `nbytes` bytes with the given alignment from the ArenaStack, growing into a new arena if
-/// necessary. Prefer `arenastack_new` for typed allocations.
-/// @param nbytes Number of bytes to allocate
-/// @param align  Desired alignment; must be a power of two
-/// @param self   ArenaStack to allocate from
-/// @return Pointer to the allocated memory
+/// aligned storage, reusing or adding an arena if necessary.
+/// @param nbytes Payload size in bytes; may be zero. The size plus align - 1, and its required
+/// power-of-two backing-buffer size, must be representable in size_t.
+/// @param align Required alignment; must be a nonzero power of two.
+/// @param self Initialized or zero-initialized stack to allocate from.
+/// @return A non-null aligned pointer on success; failures follow the applicable allocator/arena
+/// failure policy rather than returning a normal null failure result.
+/// @note A zero-initialized stack is lazily initialized using alloc_ctx. A zero-size request
+/// returns an aligned cursor position and consumes only alignment padding; it may initialize or
+/// grow the stack. The result may be an end pointer and must not be dereferenced for a zero-size
+/// request.
+/// @note Existing allocation addresses remain stable when backing buffers or the descriptor vector
+/// grow. Unlike generic alloc_allocate(), this direct API does not normalize zero-size requests to
+/// NULL; such a zero-size position must not be passed to alloc_deallocate()/alloc_reallocate().
+/// @see arenastack_new
+/// @see arenastack_to_alloc
 rklib_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
 
-/// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Create a new allocation
-/// in the arena for a given type T and count.
-/// @param  T           The type to allocate
-/// @param  count       Number of elements of type T to allocate
-/// @param  arena_stack Pointer to the ArenaStack to allocate from
-/// @return Pointer to the allocated memory
+/// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Allocates raw storage for
+/// count elements with the type's required alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation and backing-size requirements
+/// of arenastack_allocate() must be representable.
+/// @param arena_stack Stack to allocate from.
+/// @return A typed pointer to the allocated storage.
+/// @note Does not invoke C++ constructors. Zero count follows arenastack_allocate() semantics.
+/// @see arenastack_allocate
 #define arenastack_new(T, count, arena_stack) RKI_ARENASTACK_NEW(T, count, arena_stack)
 
 /// @brief `T* arenastack_new_aligned(T, size_t count, size_t align, ArenaStack* arena_stack)` -
-/// Create a new, allocation in the ArenaStack for a given type T and count with a given alignment.
-/// @param T           The type to allocate
-/// @param count       Number of elements of type T to allocate
-/// @param align       The desired alignment (must be a power of two)
-/// @param arena_stack Pointer to the ArenaStack to allocate from
-/// @return Pointer to the allocated memory.
-/// @note If alignment is not a power of two, behaviour is undefined
+/// Like arenastack_new(), with explicitly requested alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. Byte-size and backing-size calculations must be
+/// representable.
+/// @param align A nonzero power of two, at least the alignment required by T.
+/// @param arena_stack Stack to allocate from.
+/// @return A typed pointer to the allocated raw storage.
+/// @see arenastack_new
+/// @see arenastack_allocate
 #define arenastack_new_aligned(T, count, align, arena_stack)                                       \
   RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)
 
+/// @brief `void* arenastack_try_resize_top(size_t old_size, size_t new_size, ArenaStack* self)` -
+/// Resizes the active arena's top allocation without moving its start, like
+/// arena_try_resize_top().
+/// @param old_size Current payload size of the active arena's top allocation in bytes; may be zero
+/// for a valid zero-size position at the active cursor.
+/// @param new_size Desired payload size in bytes; may be zero.
+/// @param self Stack owning the top allocation or zero-size position. For a zero-initialized or
+/// released stack, `old_size` must be zero and the request fails, including when `new_size` is
+/// zero.
+/// @return The unchanged start pointer on success, including when `new_size` is zero; `NULL` if
+/// the requested size does not fit in the active arena.
+/// @note Failure leaves the stack unchanged. Never moves data, adds an arena, or invokes failure
+/// handlers. A zero new size reclaims the payload but not preceding alignment padding; the
+/// returned pointer then denotes only a zero-size position and must not be dereferenced.
+/// @note Only the active arena's top can be resized. An allocation that ends an earlier arena is
+/// not the stack's top, even if it was the most recent allocation before the stack grew.
+/// @note Operates on the implicit top allocation, so `old_size` correctly describing it is a
+/// precondition, not a checked failure. To resize a specific allocation that may not be on top,
+/// use arenastack_try_resize() or arenastack_try_extend().
+/// @see arenastack_try_resize
+rklib_fun void* arenastack_try_resize_top(size_t old_size, size_t new_size, ArenaStack* self);
+
+/// @brief `void* arenastack_try_resize(void* ptr, size_t old_size, size_t new_size,
+/// ArenaStack* self)` - Attempts to resize a specific allocation in place without moving it, like
+/// arena_try_resize(); it can grow or shrink.
+/// @param ptr Non-null pointer to an allocation or zero-size position owned by this stack; it need
+/// not be the top allocation.
+/// @param old_size Current payload size in bytes; must match the allocation.
+/// @param new_size Desired payload size in bytes; may be zero.
+/// @param self Stack owning the allocation.
+/// @return `ptr` on success, including when `new_size` is zero. `NULL` if `ptr` is not the active
+/// arena's top allocation (including the top of an earlier arena), the requested size does not
+/// fit in the active arena, or the stack is zero-initialized or released.
+/// @note Failure leaves the stack unchanged; a non-top allocation is an ordinary failure, not a
+/// contract violation. Ownership and a correct `old_size` remain preconditions. Never moves data
+/// or adds an arena. Preserves the retained bytes. A zero new size reclaims the payload but not
+/// preceding alignment padding; the returned pointer then denotes only a zero-size position and
+/// must not be dereferenced.
+/// @see arenastack_try_extend
+/// @see arenastack_try_resize_top
+rklib_fun void* arenastack_try_resize(void* ptr, size_t old_size, size_t new_size,
+                                      ArenaStack* self);
+
+/// @brief `T* arenastack_try_extend(T* ptr, size_t old_count, size_t new_count,
+/// ArenaStack* arena_stack)` - Typed arenastack_try_resize() using element counts; despite the
+/// name, it can also shrink.
+/// @param ptr Non-null pointer to an allocation or zero-size position owned by this stack; it need
+/// not be the top allocation.
+/// @param old_count Current payload element count; must match the allocation.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param arena_stack Stack owning the allocation.
+/// @return `ptr` on success, cast to the same pointer type, including when `new_count` is zero.
+/// `NULL` under the same conditions as arenastack_try_resize(), including a non-top `ptr`.
+/// @note Inherits arenastack_try_resize() semantics. Does not construct or destroy C++ objects.
+/// @see arenastack_try_resize
+#define arenastack_try_extend(ptr, old_count, new_count, arena_stack)                              \
+  ((typeof(ptr))arenastack_try_resize((ptr), sizeof_n(*(ptr), old_count),                          \
+                                      sizeof_n(*(ptr), new_count), (arena_stack)))
+
+/// @brief Internal allocation callback for the ArenaStack allocator adapter.
+/// @note Generic alloc_* wrappers normalize zero-size and null-pointer cases before dispatch:
+/// allocation callbacks receive positive sizes; reallocation/deallocation callbacks receive valid
+/// non-null existing allocations with matching sizes and alignment, and reallocation receives a
+/// positive new size. Allocation and reallocation callbacks must return valid storage or handle
+/// failure locally. The allocation callback also serves arenastack_allocate(), whose direct
+/// zero-size contract is broader.
 rklib_fun alloc_allocation_f   rki_arenastack_allocate;
 rklib_fun alloc_reallocation_f rki_arenastack_reallocate;
 rklib_fun alloc_deallocation_f rki_arenastack_deallocate;
@@ -6207,6 +6991,20 @@ static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = rki_are
                                                             .realloc_f = rki_arenastack_reallocate,
                                                             .dealloc_f = rki_arenastack_deallocate};
 
+/// @brief Returns an Allocator handle borrowing the ArenaStack as its context.
+/// @param self Initialized or zero-initialized stack; must remain at the same address while used.
+/// @return An adapter allocating within the stack, not its backing allocator.
+/// @note Only useful with custom allocators enabled: otherwise alloc_* wrappers accept no explicit
+/// allocator and alloc_ctx cannot be replaced, so the handle cannot be passed anywhere.
+/// @note Generic alloc_* wrappers return NULL for zero-size allocation, deallocate and return NULL
+/// for zero-size reallocation, route null-input reallocation to allocation, and ignore null
+/// deallocation. These cases are normalized before callback dispatch.
+/// @note Only the active arena's top allocation can reclaim payload storage on deallocation or
+/// resize. Other deallocations and shrinks reclaim no storage. Growth may allocate and copy,
+/// retaining the old storage until bulk reclamation. Preceding alignment padding is not reclaimed
+/// by deallocation.
+/// @note Clearing, rewinding, or releasing must not discard storage still used through this handle.
+/// @see arenastack_allocator
 static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
@@ -6218,11 +7016,11 @@ static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
 /// @cond INTERNAL
 
 #define RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)                                   \
-  ((typeof(T)*)(alloc_log_new, rk_assert_valid_align(T, align),                                    \
+  ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
                 arenastack_allocate(sizeof_n(T, count), align, arena_stack)))
 
 #define RKI_ARENASTACK_NEW(T, count, arena_stack)                                                  \
-  ((typeof(T)*)(alloc_log_new, arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
+  ((typeof(T)*)(alloc_log_new(), arenastack_allocate(sizeof_n(T, count), alignof(T), arena_stack)))
 
 rklib_fun void arenastack_release(ArenaStack* self) {
   RK_IFALLOC(Allocator alloc = vec_allocator(self->arenas);)
@@ -6241,7 +7039,8 @@ rklib_fun ArenaStack* arenastack_clear(ArenaStack* self) {
 
 rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
   const unsigned char* ptr = mark.pos;
-  if rk_unlikely (!ptr) { return self; }
+  // A null mark was taken before lazy initialization, i.e. at the starting position.
+  if rk_unlikely (!ptr) { return arenastack_clear(self); }
   for (size_t i = self->cur + 1; i-- > 0;) {
     Arena* arena = &self->arenas[i];
     if (ptr == arena->cur || rk_ptr_in_range(ptr, arena->beg, arena->cur)) {
@@ -6254,6 +7053,28 @@ rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark 
   rk_assert(0 && "Pointer was not allocated by this stack");
   unreachable();
 }
+// The end-position check alone is not enough here: when the active arena is empty and its buffer
+// directly follows the previous arena's buffer, a top allocation of the previous arena also ends at
+// the active cursor. Require the allocation to start inside the active arena as well; a zero-size
+// position may equal the cursor.
+rklib_fun rk_pure bool rki_arenastack_is_active_top(const Arena* arena, const void* ptr,
+                                                    size_t size) {
+  return (uptr)ptr >= (uptr)arena->beg && arena_is_top_allocation(arena, ptr, size);
+}
+
+rklib_fun rk_alloc_size(2) void* arenastack_try_resize_top(size_t old_size, size_t new_size,
+                                                           ArenaStack* self) {
+  if rk_unlikely (!self->arena_size) { return rk_null; }
+  return arena_try_resize_top(old_size, new_size, &self->arenas[self->cur]);
+}
+
+rklib_fun rk_alloc_size(3) void* arenastack_try_resize(void* ptr, size_t old_size, size_t new_size,
+                                                       ArenaStack* self) {
+  if (!self->arena_size || !rki_arenastack_is_active_top(&self->arenas[self->cur], ptr, old_size)) {
+    return rk_null;
+  }
+  return arenastack_try_resize_top(old_size, new_size, self);
+}
 
 rklib_fun ArenaStack rki_arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);
@@ -6265,10 +7086,9 @@ rklib_fun ArenaStack rki_arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc
                      (unsigned char*)alloc_allocate(cap, align_max RK_IFALLOC(, alloc)), cap)),
       .cur = 0};
 }
-#define RKI_ARENASTACK_INIT(cap, alloc) rki_arenastack_init(cap RK_IFALLOC(, alloc))
-#define RKI_ARENASTACK_INIT2(cap, _alloc)                                                          \
-  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ARENASTACK_INIT(cap, alloc))
-#define RKI_ARENASTACK_INIT1(cap) RKI_ARENASTACK_INIT(cap, alloc_ctx)
+#define RKI_ARENASTACK_INIT2(cap, alloc)                                                           \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_arenastack_init(cap, alloc))
+#define RKI_ARENASTACK_INIT1(cap) rki_arenastack_init(cap RK_IFALLOC(, alloc_ctx))
 
 #define RKI_ARENA_ALLOC_INIT(_SIZE, _ALIGN, _ALLOC)                                                \
   arena_init((unsigned char*)alloc_allocate(_SIZE, _ALIGN RK_IFALLOC(, _ALLOC)), _SIZE)
@@ -6300,27 +7120,32 @@ rklib_fun rk_alloc_alignsize(2, 1) void* rki_arenastack_allocate(size_t nbytes, 
   return arena_allocate(nbytes, align, &self->arenas[self->cur]);
 }
 
-rklib_fun void rki_arenastack_deallocate(void* ptr, size_t old_size, size_t align, void* ctx) {
-  ArenaStack* self = (ArenaStack*)ctx;
-  rki_arena_deallocate(ptr, old_size, align, &self->arenas[self->cur]);
+rklib_fun void rki_arenastack_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
+                                         void* ctx) {
+  ArenaStack* self  = (ArenaStack*)ctx;
+  Arena*      arena = &self->arenas[self->cur];
+  if (rki_arenastack_is_active_top(arena, ptr, old_size)) {
+    (void)arena_try_resize_top(old_size, 0, arena);
+  }
 }
 
 rklib_fun rk_alloc_alignsize(4, 3) void* rki_arenastack_reallocate(void* ptr, size_t old_size,
                                                                    size_t new_size, size_t align,
                                                                    void* ctx) {
   rk_assert_align_pow2(align);
-  ArenaStack* self = (ArenaStack*)ctx;
-  if (!old_size) { return arenastack_allocate(new_size, align, self); }
-  if ((arena_is_top_allocation(&self->arenas[self->cur], ptr, old_size)
-       && arena_try_resize_top(old_size, new_size, &self->arenas[self->cur]))
+  ArenaStack* self  = (ArenaStack*)ctx;
+  Arena*      arena = &self->arenas[self->cur];
+
+  if ((rki_arenastack_is_active_top(arena, ptr, old_size)
+       && arena_try_resize_top(old_size, new_size, arena))
       || new_size <= old_size) {
     return ptr;
   }
+
   void* res = arenastack_allocate(new_size, align, self);
-  rk_memcpy(res, ptr, rk_MIN(old_size, new_size));
+  rk_memcpy(res, ptr, old_size);
   return res;
 }
-
 rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size_t align,
                                                              ArenaStack* self) {
   return rki_arenastack_allocate(nbytes, align, self);
@@ -6441,25 +7266,77 @@ typedef struct Str {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns the string data ([const] char*) or any Stringlike.
-#define str_dat(strlike)        RKI_STR_DAT(strlike)
+#define str_dat(strlike)      RKI_STR_DAT(strlike)
 
 /// @brief `size_t str_len(strlike)` - Returns the length of any Stringlike.
-#define str_len(strlike)        RKI_STR_LEN(strlike)
+#define str_len(strlike)      RKI_STR_LEN(strlike)
 
 /// @brief `bool str_is_empty(strlike)` - Returns if stringlike is empty.
-#define str_is_empty(strlike)   ((bool)(str_len(strlike) == 0))
+#define str_is_empty(strlike) ((bool)(str_len(strlike) == 0))
 
-/// @brief Returns an lvalue reference to the first character of a Stringlike.
-/// @param strlike the Stringlike, by value
-/// @return Lvalue reference to the first character in strlike
-/// @note behaviour undefined for empty strings
-#define str_front(strlike)      (*RKI_STR_QCHARPTR(strlike, rki_str_front_ptr(strv_from(strlike))))
+/// @brief Returns a pointer to the first character of any Stringlike, for iterating together with
+/// str_end().
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*. `NULL` for an
+/// unallocated Str or a `(Strv){NULL, 0}`, in which case str_end() is also `NULL`.
+/// @note Same as str_dat(). Unlike str_front(), valid for an empty string: `[str_begin, str_end)`
+/// is then an empty range.
+/// @note Invalidated by any operation that reallocates a Str.
+/// @see str_end
+#define str_begin(strlike)    str_dat(strlike)
 
-/// @brief Returns an lvalue reference to the last character of a string.
-/// @param strlike the Stringlike, by value
-/// @return Lvalue reference to the last character in strlike
-/// @note behaviour undefined for empty strings
-#define str_back(strlike)       (*RKI_STR_QCHARPTR(strlike, rki_str_back_ptr(strv_from(strlike))))
+/// @brief Returns a pointer one past the last character of any Stringlike, so that
+/// `[str_begin(s), str_end(s))` covers exactly `str_len(s)` characters.
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*. For a non-null
+/// null-terminated string this is the terminating null; it must not be dereferenced as an element.
+/// `NULL` for an unallocated Str or a `(Strv){NULL, 0}`, matching str_begin().
+/// @note For `char*` and `const char*` arguments the length is computed with `strlen()`, so this is
+/// O(n); Str and Strv store their length.
+/// @note Invalidated by any operation that reallocates a Str.
+/// @see str_begin
+#define str_end(strlike)      RKI_STR_QCHARPTR(strlike, rki_str_end(strv_from(strlike)))
+
+/// @brief Returns the first character as an lvalue, mutable for Str or char*, const for Strv or
+/// const char*.
+/// @param strlike A Stringlike, by value.
+/// @pre The string is nonempty.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+#define str_front(strlike)    (*RKI_STR_QCHARPTR(strlike, rki_str_front_ptr(strv_from(strlike))))
+
+/// @brief Returns the last character as an lvalue, mutable for Str or char*, const for Strv or
+/// const char*.
+/// @param strlike A Stringlike, by value.
+/// @pre The string is nonempty.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+#define str_back(strlike)     (*RKI_STR_QCHARPTR(strlike, rki_str_back_ptr(strv_from(strlike))))
+
+/// @brief Returns the character at zero-based index `idx` as an lvalue, mutable for Str or char*,
+/// const for Strv or const char*.
+/// @param strlike A Stringlike, by value.
+/// @param idx Zero-based byte index; the terminating null is not an element.
+/// @pre `idx < str_len(strlike)`.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @see str_peek_at
+#define str_at(strlike, idx)  (*RKI_STR_QCHARPTR(strlike, rki_str_at_ptr(strv_from(strlike), idx)))
+
+/// @brief Returns a pointer to the first character, or `NULL` if the string is empty.
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*.
+#define str_peek_front(strlike) RKI_STR_QCHARPTR(strlike, rki_str_peek_front(strv_from(strlike)))
+
+/// @brief Returns a pointer to the last character, or `NULL` if the string is empty.
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*.
+#define str_peek_back(strlike)  RKI_STR_QCHARPTR(strlike, rki_str_peek_back(strv_from(strlike)))
+
+/// @brief Returns a pointer to the character at zero-based index `idx`, or `NULL` if out of bounds.
+/// @param strlike A Stringlike, by value.
+/// @param idx Zero-based byte index; the terminating null is not an element.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*.
+/// @note Bounds are checked in both debug and release builds.
+#define str_peek_at(strlike, idx)                                                                  \
+  RKI_STR_QCHARPTR(strlike, rki_str_peek_at(strv_from(strlike), idx))
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Lifetime/Ownership
@@ -6470,7 +7347,7 @@ typedef struct Str {
 /// @param init_cap size_t The initial capacity of the string (in elements)
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx`
 /// @return A `Str` object with the given capacity
-#define str_init(init_cap, ...) RKI_OVERLOAD(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
+#define str_init(init_cap, ...)       RKI_OVERLOAD(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
 
 /// @brief `Str str_from(Strlike strlike, Allocator alloc = alloc_ctx)` - Constructs a Str from a
 /// Stringlike object, copying the data.
@@ -6479,7 +7356,7 @@ typedef struct Str {
 /// this defaults to the Allocator of the cloned Strlike if it is a Str object, or alloc_ctx
 /// otherwise.
 /// @return A `Str` object with the copied string data
-#define str_from(strlike, ...)  RKI_OVERLOAD(RKI_STR_FROM, strlike, ##__VA_ARGS__)
+#define str_from(strlike, ...)        RKI_OVERLOAD(RKI_STR_FROM, strlike, ##__VA_ARGS__)
 
 /// @brief `Str str_from_literal(STRING_LITERAL, Allocator alloc = alloc_ctx)`
 /// - Construct a Str from a string literal.
@@ -6637,16 +7514,30 @@ rklib_fun Str* str_cat_fmt(Str* self, const char* fmt, ...);
 #define str_insert_at_mayalias(self, idx, strlike) RKI_STR_INSERT_AT_MAYALIAS(self, idx, strlike)
 
 /// @brief Pops the last character off the Str, decreasing its length and null-terminating it.
-/// @note Returns the `\0` if the Str is empty.
+/// @return The popped character.
+/// @pre The Str is nonempty; use `str_try_pop()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 rklib_fun char str_pop(Str* restrict self) {
-  if (self->len == 0) { return '\0'; }
+  rk_assert(self->len && "Attempted to pop from an empty Str");
   char tmp                    = self->str[--self->len];
   return self->str[self->len] = '\0', tmp;
 }
 
-/// @brief Pops the last n character off the Str, decreasing its length and null-terminating it.
-/// @note no-op for size 0 strings. Popping more characters than the length of the Str is asserted
-/// in debug builds.
+/// @brief Removes the last character and writes it to `*out`, if the Str is nonempty, keeping the
+/// Str null-terminated.
+/// @param out Destination for the removed character. Left untouched if the Str is empty or
+/// unallocated.
+/// @return `true` if a character was removed, `false` if the Str was empty or unallocated.
+/// @note Unlike a sentinel return value, this distinguishes popping an embedded `'\0'` from an
+/// empty Str.
+rklib_fun bool str_try_pop(Str* restrict self, char* restrict out) {
+  if (!self->len) { return false; }
+  return *out = str_pop(self), true;
+}
+
+/// @brief Pops the last n characters off the Str, decreasing its length and null-terminating it.
+/// @pre `n <= str_len(*self)`. Popping zero characters is a no-op, even for an unallocated Str.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 rklib_fun void str_pop_n(Str* restrict self, size_t n) {
   if (!n) { return; }
   rk_assert(n <= self->len && "Attempted to pop more than Str length");
@@ -6666,10 +7557,25 @@ rklib_fun Str* str_erase_at(Str* restrict self, size_t idx);
 /// @attention Supplying an out-of-range index or count is undefined
 rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 
-/// @brief Convenience Macro to erase all elements in `self` that satisfy a predicate.
-/// @param self        Str* The Str to loop over
-/// @param it          The name of the iterator (access via *it)
-/// @param pred        The predicate (an expression)
+/// @brief Visits every character in index order.
+/// @param self Pointer to the Str. Evaluated once.
+/// @param it   Iterator name (a pointer to a character; access via `*it`).
+/// @note break stops traversal; continue advances to the next character.
+///
+/// Usage:
+/// ```c
+/// str_foreach(&str, c) { putchar(*c); }
+/// ```
+#define str_foreach(self, it)          RKI_STR_FOREACH(self, it)
+
+/// @brief Like `str_foreach()`, but iterates in reverse index order. Same parameters and contract.
+#define str_foreach_reversed(self, it) RKI_STR_FOREACH_REVERSED(self, it)
+
+/// @brief Erases every character satisfying `pred`.
+/// @param self Pointer to a mutable Str. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original character.
+/// @note The predicate must not structurally modify the Str.
 ///
 /// Usage:
 /// ```c
@@ -6677,20 +7583,7 @@ rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 /// str_erase_if(&str, c, (*c == 'o'));
 /// printf("%s\n", str.str); // prints "hell"
 /// ```
-#define str_erase_if(self, it, pred)                                                               \
-  do {                                                                                             \
-    Str* RKI_STR = self;                                                                           \
-    if (!RKI_STR->str) { break; }                                                                  \
-    char*             RKI_WRITE = RKI_STR->str;                                                    \
-    const char* const RKI_READ  = RKI_STR->str;                                                    \
-    for (const char *RKI_IT = RKI_READ, *const RKI_END = RKI_READ + RKI_STR->len;                  \
-         RKI_IT < RKI_END; ++RKI_IT) {                                                             \
-      const char* const it = RKI_IT;                                                               \
-      if (!(pred)) { *RKI_WRITE++ = *RKI_IT; }                                                     \
-    }                                                                                              \
-    RKI_STR->len               = (size_t)(RKI_WRITE - RKI_STR->str);                               \
-    RKI_STR->str[RKI_STR->len] = '\0';                                                             \
-  } while (0)
+#define str_erase_if(self, it, pred)   RKI_STR_ERASE_IF(self, it, pred)
 
 /// @brief Replaces all instances of `oldc` in `self` with `newc`.
 rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc);
@@ -6843,14 +7736,14 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// @cond INTERNAL
 
 #define RKI_STR_DAT(_S)                                                                            \
-  _Generic(_S,                                                                                     \
+  _Generic((_S),                                                                                   \
       Str: (char*)RKI_contrav(Str, _S).str,                                                        \
       Strv: (const char*)RKI_contrav(Strv, _S).str,                                                \
       char*: (char*)RKI_contrav_p(char*, _S),                                                      \
       const char*: (const char*)RKI_contrav_p(const char*, _S))
 
 #define RKI_STR_LEN(_S)                                                                            \
-  ((size_t)_Generic(_S,                                                                            \
+  ((size_t)_Generic((_S),                                                                          \
        Str: RKI_contrav(Str, _S).len,                                                              \
        Strv: RKI_contrav(Strv, _S).len,                                                            \
        char*: strlen(RKI_contrav_p(char*, _S)),                                                    \
@@ -6860,10 +7753,47 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 
 // conditionally cast away const (const is default)
 #define RKI_STR_QCHARPTR(_S, expr)                                                                 \
-  _Generic(_S, Str: (char*)(expr), Strv: expr, char*: (char*)(expr), const char*: expr)
+  _Generic((_S), Str: (char*)(expr), Strv: expr, char*: (char*)(expr), const char*: expr)
+
+#define RKI_STR_ITER_PTR(self)                                                                     \
+  _Generic((self),                                                                                 \
+      Str*: (char*)0,                                                                              \
+      const Str*: (const char*)0,                                                                  \
+      Strv*: (const char*)0,                                                                       \
+      const Strv*: (const char*)0)
+
+#define RKI_STR_FOREACH(self, it)                                                                  \
+  for (typeof(*(self))* rki_var_str = (self); rki_var_str; rki_var_str = rk_null)                  \
+    for (typeof(*RKI_STR_ITER_PTR(rki_var_str))*it = str_begin(*rki_var_str), *const rki_var_end   \
+                                                                              = str_end(           \
+                                                                                  *rki_var_str);   \
+         it != rki_var_end; ++it)
+
+#define RKI_STR_FOREACH_REVERSED(self, it)                                                         \
+  for (typeof(*(self))* rki_var_str = (self); rki_var_str; rki_var_str = rk_null)                  \
+    for (typeof(*RKI_STR_ITER_PTR(rki_var_str))*it = str_end(*rki_var_str), *const rki_var_begin   \
+                                                                            = str_begin(           \
+                                                                                *rki_var_str);     \
+         it != rki_var_begin && (--it, 1);)
+
+#define RKI_STR_ERASE_IF(self, it, pred)                                                           \
+  do {                                                                                             \
+    Str* const rki_var_str = (self);                                                               \
+    if (!rki_var_str->str) { break; }                                                              \
+    const char* const rki_var_read  = rki_var_str->str;                                            \
+    char*             rki_var_write = rki_var_str->str;                                            \
+    for (const char *rki_var_it = rki_var_read, *const rki_var_end                                 \
+                                                = rki_var_read + rki_var_str->len;                 \
+         rki_var_it < rki_var_end; ++rki_var_it) {                                                 \
+      const char* const it = rki_var_it;                                                           \
+      if (!(pred)) { *rki_var_write++ = *rki_var_it; }                                             \
+    }                                                                                              \
+    rki_var_str->len = (size_t)(rki_var_write - rki_var_read);                                     \
+    *rki_var_write   = '\0';                                                                       \
+  } while (0)
 
 #define RKI_STRV_FROM(_S)                                                                          \
-  _Generic(_S,                                                                                     \
+  _Generic((_S),                                                                                   \
       Str: RKI_contrav(Str, _S).v,                                                                 \
       Strv: RKI_contrav(Strv, _S),                                                                 \
       char*: strv_from_cstr(RKI_contrav_p(char*, _S)),                                             \
@@ -6871,7 +7801,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 
 // only to satisfy _Generic when the type cannot be int or char
 #define RKI_STRV_FROM_FALLBACK(_S)                                                                 \
-  _Generic(_S,                                                                                     \
+  _Generic((_S),                                                                                   \
       Str: RKI_contrav(Str, _S).v,                                                                 \
       Strv: RKI_contrav(Strv, _S),                                                                 \
       char*: strv_from_cstr(RKI_contrav_p(char*, _S)),                                             \
@@ -6880,8 +7810,8 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
       char: (Strv){rk_null, 0})
 
 #define RKI_ISCHARLITLIKE(C, _if, _else)                                                           \
-  rk_static_if(_Generic(C, char: 1, int: 1, default: 0), _if, _else)
-#define RKI_GETCHARLITLIKE(_S) _Generic(_S, char: _S, int: _S, default: 0)
+  rk_static_if(_Generic((C), char: 1, int: 1, default: 0), _if, _else)
+#define RKI_GETCHARLITLIKE(_S) _Generic((_S), char: _S, int: _S, default: 0)
 
 #define RKI_STR_INSERT_AT(self, idx, strlike)                                                      \
   RKI_ISCHARLITLIKE(strlike, str_insert_at_char(self, idx, RKI_GETCHARLITLIKE(strlike)),           \
@@ -7041,15 +7971,31 @@ rklib_fun void rki_str_change_cap(Str* restrict self, size_t new_cap) {
 rklib_fun void rki_str_ensure_cap(Str* restrict self, size_t new_cap) {
   if (new_cap > self->cap) { rki_str_change_cap(self, stdc_bit_ceil(new_cap)); }
 }
+rklib_fun rk_const const char* rki_str_end(Strv sv) { return sv.str ? sv.str + sv.len : rk_null; }
 
-rklib_fun rk_const const char* rki_str_front_ptr(Strv sv) {
+rklib_fun rk_const const char* rki_str_peek_front(Strv sv) { return sv.len ? sv.str : rk_null; }
+rklib_fun rk_const const char* rki_str_peek_back(Strv sv) {
+  return sv.len ? sv.str + sv.len - 1 : rk_null;
+}
+rklib_fun rk_const const char* rki_str_peek_at(Strv sv, size_t idx) {
+  return idx < sv.len ? sv.str + idx : rk_null;
+}
+
+// Not rk_const: the asserts are side effects, and a const call whose result is discarded (e.g.
+// `(void)str_at(s, i)`) may be removed entirely, silently skipping the bounds check.
+rklib_fun const char* rki_str_front_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access first element of empty string");
   return sv.str;
 }
 
-rklib_fun rk_const const char* rki_str_back_ptr(Strv sv) {
+rklib_fun const char* rki_str_back_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access last element of empty string");
   return sv.str + sv.len - 1;
+}
+
+rklib_fun const char* rki_str_at_ptr(Strv sv, size_t idx) {
+  rk_assert(idx < sv.len && "Access out of bounds of string");
+  return sv.str + idx;
 }
 
 rklib_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
@@ -7063,7 +8009,7 @@ rklib_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
 #define RKI_STR_FROM2(_S, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(str_from_strv(strv_from(_S), alloc))
 #define RKI_STR_FROM1(_S)                                                                          \
   str_from_strv(strv_from(_S) RK_IFALLOC(                                                          \
-      , _Generic(_S, Str: RKI_contrav(Str, _S).alloc, default: alloc_ctx)))
+      , _Generic((_S), Str: rki_allocator_of(RKI_contrav(Str, _S).alloc), default: alloc_ctx)))
 
 rklib_fun Str rki_str_join_strv_n(Strv* svs, size_t count, Strv sep RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);
@@ -7139,7 +8085,7 @@ rklib_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
   if (!sv.len) { return self; }
   size_t new_len = sv.len + self->len;
   if (new_len + 1 > self->cap) {
-    uptr sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
+    uptr sbeg = (uptr)self->str, send = sbeg + self->cap, cbeg = (uptr)sv.str;
     rki_str_ensure_cap(self, new_len + 1);
     if (cbeg >= sbeg && cbeg < send) {
       // offset of the char* into the str mem since a Str is not a
@@ -7147,7 +8093,7 @@ rklib_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
       sv.str = self->str + (cbeg - sbeg);
     }
   }
-  memcpy(self->str + self->len, sv.str, sv.len);
+  memmove(self->str + self->len, sv.str, sv.len);
   self->str[self->len = new_len] = '\0';
   return self;
 }
@@ -7168,7 +8114,7 @@ rklib_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv 
   rk_assert(idx <= self->len && "Attempted to insert out of Str bounds");
   if (!sv.len) { return self; }
   if (idx == self->len) { return str_cat_strv_mayalias(self, sv); }
-  uptr   sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
+  uptr   sbeg = (uptr)self->str, send = sbeg + self->cap, cbeg = (uptr)sv.str;
   bool   alias = cbeg >= sbeg && cbeg < send;
   size_t new_len;
   if (alias) {
@@ -7432,95 +8378,112 @@ RKI_HEADER_BEGIN
 /// this macro defines either a dynamic pool (`Pool(T)`) or a static/fixed pool (`Pool(T, C)`).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
-#define POOL_DEFINE(T, ...)     RKI_STATOVERLOAD(RKI_POOL_DEFINE, T, ##__VA_ARGS__)
+#define POOL_DEFINE(T, ...)           RKI_STATOVERLOAD(RKI_POOL_DEFINE, T, ##__VA_ARGS__)
 
 /// @brief Alias for the pool type (dynamic or static).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
 /// @note Static Pools take a second capacity parameter
-#define Pool(T, ...)            RKI_STATOVERLOAD__(RKI_POOL, T, ##__VA_ARGS__)
-#define StaticPool(T, CAP)      Pool_##CAP##_##T
-#define DynPool(T)              Pool_##T
+#define Pool(T, ...)                  RKI_STATOVERLOAD__(RKI_POOL, T, ##__VA_ARGS__)
+#define StaticPool(T, CAP)            Pool_##CAP##_##T
+#define DynPool(T)                    Pool_##T
 
-/// @brief `Pool(T)* pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
+/// @brief `Pool(T) pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
 /// pool with given capacity.
 /// @param T Element type
 /// @param cap Desired capacity
 /// @param alloc Optional allocator
 /// @return Initialized pool struct
-#define pool_init(T, _cap, ...) RKI_OVERLOAD(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
+#define pool_init(T, _cap, ...)       RKI_OVERLOAD(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
 
 /// @brief Compile-time zero-initializer for a `Pool(T, C)` (`StaticPool`). Suitable for global and
 /// static variables. No memory is allocated.
 /// @note Named after `StaticPool`, the type it initializes — not to be confused with the (removed)
 /// `_init_static` convention other containers used for static-storage-duration-safe initializers.
-#define staticpool_init         {RKI_ZINIT}
+#define staticpool_init               {RKI_ZINIT}
 
 /// @brief `void pool_release(Pool(T, ...)* self)` - Releases the associated resources of the pool
 /// (if the pool is dynamic) and resets its members. For static pools, this resets the allocation
 /// bitset but does not modify the underlying element storage.
-#define pool_release(self)      ((void)RKI_POOL_RELEASE(self))
+#define pool_release(self)            ((void)RKI_POOL_RELEASE(self))
 
 /// @brief `size_t pool_cap(Pool(T, ...)* self)` - Returns the total capacity of the pool.
-#define pool_cap(self)          ((size_t)RKI_POOL_CAP(self))
+#define pool_cap(self)                ((size_t)RKI_POOL_CAP(self))
 
 /// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns the Allocator the (dynamic) pool was
 /// constructed with, or `alloc_ctx` if the pool was never initialized or custom allocators are
 /// disabled.
-#define pool_allocator(self)    RKI_allocatorof(self)
+#define pool_allocator(self)          RKI_allocatorof(self)
 
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
-#define pool_used(self)         ((size_t)RKI_POOL_USED(self))
+#define pool_used(self)               ((size_t)RKI_POOL_USED(self))
+#define pool_count(self)              pool_used(self) /// @brief Alias for `pool_used`
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
-#define pool_remaining(self)    ((size_t)RKI_POOL_REMAINING(self))
+#define pool_remaining(self)          ((size_t)RKI_POOL_REMAINING(self))
 
 /// @brief Returns `true` iff the pool is empty.
-#define pool_is_empty(self)     ((bool)(pool_used(self) == 0))
+#define pool_is_empty(self)           ((bool)(pool_used(self) == 0))
 
 /// @brief Returns `true` iff the pool is full.
-#define pool_is_full(self)      ((bool)(pool_remaining(self) == 0))
+#define pool_is_full(self)            ((bool)(pool_remaining(self) == 0))
 
 /// @brief `Pool(T)* pool_clear(Pool(T)* self)` - Marks all elements in the pool as reusable.
 /// @return `self`, for chaining
-#define pool_clear(self)        ((typeof(self))RKI_POOL_CLEAR(self))
+#define pool_clear(self)              ((typeof(self))RKI_POOL_CLEAR(self))
 
 /// @brief `T* pool_new(Pool(T)* self)` - Allocates a new element in the pool.
 /// @return Pointer to the newly allocated element
-#define pool_new(self)          ((RKI_POOL_T(self)*)RKI_POOL_NEW(self))
+#define pool_new(self)                ((RKI_POOL_T(self)*)RKI_POOL_NEW(self))
 
 /// @brief `T* pool_try_new(Pool(T)* self)` - Like `pool_new()`, but returns `NULL` if full instead
 /// of running `RK_POOL_FAIL()`.
-#define pool_try_new(self)      ((RKI_POOL_T(self)*)RKI_POOL_TRY_NEW(self))
+#define pool_try_new(self)            ((RKI_POOL_T(self)*)RKI_POOL_TRY_NEW(self))
 
 /// @brief `T* pool_put(Pool(T)* self, T el)` - Allocates a new element and stores a copy of the
 /// value.
 /// @return Pointer to the inserted element
-#define pool_put(self, el)      ((RKI_POOL_T(self)*)RKI_POOL_PUT(self, el))
+#define pool_put(self, el)            ((RKI_POOL_T(self)*)RKI_POOL_PUT(self, el))
 
 /// @brief `T* pool_try_put(Pool(T)* self, T el)` - Like `pool_put()`, but returns `NULL` if full
 /// instead of running `RK_POOL_FAIL()`.
-#define pool_try_put(self, el)  ((RKI_POOL_T(self)*)RKI_POOL_TRY_PUT(self, el))
+#define pool_try_put(self, el)        ((RKI_POOL_T(self)*)RKI_POOL_TRY_PUT(self, el))
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.
-#define pool_delete(self, ptr)  ((void)RKI_POOL_DELETE(self, ptr))
+#define pool_delete(self, ptr)        ((void)RKI_POOL_DELETE(self, ptr))
 
-/// @brief `pool_foreach(Pool(T)* self, it)` - Iterates over all allocated elements in the pool.
+/// @brief Visits every allocated element in the pool.
+/// @param self Pointer to the Pool. Evaluated once.
+/// @param it   Iterator name (a pointer to an element; access via `*it`).
+/// @note Elements are const when accessed through a pointer to a const Pool.
+/// @note break stops traversal; continue advances to the next allocated element.
+/// @note There is deliberately no `pool_foreach_reversed`: unlike Vec/Deque/Str (positional
+/// sequences) or the trees (sorted by key), a Pool's iteration order is just the ascending bitset
+/// index of whichever slots the first-fit allocator happened to occupy -- an implementation
+/// artifact, not a property of the data a caller can rely on (the same reason Dict/Set's
+/// "unspecified slot order" never got one either).
 ///
-/// Example:
+/// Usage:
 /// ```c
 /// pool_foreach(&my_pool, elem) {
 ///     printf("%d\n", *elem);
 /// }
 /// ```
-#define pool_foreach(self, it)                                                                     \
-  for (typeof(self) RKI__pool = (self); RKI__pool; RKI__pool = rk_null)                            \
-    for (size_t RKI__cap = pool_cap(RKI__pool), RKI__i = (size_t)-1;                               \
-         (RKI__i = bitset_find_next_set(RKI__pool->data, RKI__cap, RKI__i)) != (size_t)-1;)        \
-      for (RKI_POOL_T(RKI__pool)*const it = RKI_POOL_ELS(RKI__pool) + RKI__i, *RKI__once = it;     \
-           RKI__once; RKI__once = 0)
+#define pool_foreach(self, it)        RKI_POOL_FOREACH(self, it)
+
+/// @brief Erases every allocated element satisfying `pred`.
+/// @param self Pointer to a mutable Pool. Evaluated once.
+/// @param it   Iterator name (access via `*it`).
+/// @param pred Predicate expression, evaluated once per original allocated element.
+/// @note The predicate must not structurally modify the Pool.
+///
+/// Usage:
+/// ```c
+/// pool_erase_if(&my_pool, it, *it % 2 == 0); // delete even values
+/// ```
+#define pool_erase_if(self, it, pred) RKI_POOL_ERASE_IF(self, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -7533,9 +8496,8 @@ RKI_HEADER_BEGIN
   typedef struct StaticPool(T, C) {                                                                \
     bitset(C) data;                                                                                \
     union {                                                                                        \
-      T els[C];                                                                                    \
-      T RKI_POOL_ELS[C];                 /* only for _Generic, never read */                       \
-      union { char cap, els[1]; } _pool; /* only for _Generic, never read */                       \
+      T els[C], rki_els_dummy[C];                 /* only for _Generic, never read */              \
+      union { unsigned char cap, els[1]; } _pool; /* only for _Generic, never read */              \
     };                                                                                             \
   } StaticPool(T, C)
 
@@ -7543,11 +8505,11 @@ RKI_HEADER_BEGIN
 typedef struct RKI_DynPool {
   RK_IFALLOC(Allocator alloc;)
   bitset data;
+  size_t cap;
   union {
-    size_t cap;
-    char   _[1]; /* to make the two types layout compatible for c++*/
+    void* els;
+    char  rki_els_dummy[1];
   };
-  void* els;
 } RKI_DynPool;
 
 #define RKI_POOL_DEFINE1(T)                                                                        \
@@ -7557,14 +8519,13 @@ typedef struct RKI_DynPool {
       struct {                                                                                     \
         RK_IFALLOC(Allocator alloc;)                                                               \
         bitset data;                                                                               \
+        size_t cap;                                                                                \
         union {                                                                                    \
-          size_t cap;             /* only for _Generic, never read */                              \
-          char   RKI_POOL_ELS[1]; /* only for _Generic, never read */                              \
+          T*   els;              /*type marker, never accessed directly during runtime */          \
+          char rki_els_dummy[1]; /*unselected _Generic branch countof */                           \
         };                                                                                         \
-        T* els;                                                                                    \
       };                                                                                           \
     };                                                                                             \
-    static_assert(sizeof(T*) == sizeof(void*) && alignof(T*) == alignof(void*));                   \
   } DynPool(T)
 
 #define RKI_POOL1        DynPool
@@ -7585,29 +8546,39 @@ rklib_fun rk_forceinline void* rki_dpool_init(size_t elsize, size_t elalign, RKI
   return self;
 }
 #define RKI_DPOOL_INIT(T, _cap, _alloc)                                                            \
-  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RKI_ZINIT}),       \
+  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RKI_ZINIT}),      \
                               _cap RK_IFALLOC(, _alloc))))
 #define RKI_DPOOL_INIT3(T, _cap, _alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DPOOL_INIT(T, _cap, _alloc))
 #define RKI_DPOOL_INIT2(T, _cap) RKI_DPOOL_INIT(T, _cap, alloc_ctx)
 
-#define RKI_POOL_CAP(self)                                                                         \
-  RKI_POOL_DISPATCH(self, ((void)(self), rk_COUNTOF((self)->RKI_POOL_ELS)),                        \
-                    (size_t)(self)->_pool.cap)
+rklib_fun rk_forceinline void rki_dpool_release(size_t elsize, size_t elalign, RKI_DynPool* self) {
+  if (!self->cap) { return; }
+  alloc_deallocate(self->els, rk_mult(elsize, self->cap), elalign RK_IFALLOC(, self->alloc));
+  alloc_delete(self->data, bitset_words(self->cap) RK_IFALLOC(, self->alloc));
+  self->cap = 0, self->data = rk_null, self->els = rk_null;
+}
+
+#define RKI_POOL_RELEASE(self)                                                                     \
+  RKI_POOL_DISPATCH(self, (void)bitset_clear_all((self)->data, RKI_SPOOL_CAP(self)),               \
+                    rki_dpool_release(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self),                   \
+                                      (RKI_DynPool*)&((self)->_pool)))
+
+#define RKI_SPOOL_CAP(self) rk_COUNTOF((self)->rki_els_dummy)
+#define RKI_POOL_CAP(self)  RKI_POOL_DISPATCH(self, RKI_SPOOL_CAP(self), (size_t)(self)->_pool.cap)
 
 rklib_fun rk_pure rk_forceinline size_t rki_dpool_used(const RKI_DynPool* self) {
   return bitset_count_ones(self->data, self->cap);
 }
-
 #define RKI_POOL_USED(self)                                                                        \
-  RKI_POOL_DISPATCH(self, bitset_count_ones((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),       \
+  RKI_POOL_DISPATCH(self, bitset_count_ones((self)->data, RKI_SPOOL_CAP(self)),                    \
                     rki_dpool_used((RKI_DynPool*)&((self)->_pool)))
 
 rklib_fun rk_pure rk_forceinline size_t rki_dpool_remaining(const RKI_DynPool* self) {
   return bitset_count_zeros(self->data, self->cap);
 }
 #define RKI_POOL_REMAINING(self)                                                                   \
-  RKI_POOL_DISPATCH(self, bitset_count_zeros((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),      \
+  RKI_POOL_DISPATCH(self, bitset_count_zeros((self)->data, RKI_SPOOL_CAP(self)),                   \
                     rki_dpool_remaining((RKI_DynPool*)&((self)->_pool)))
 
 rklib_fun rk_forceinline void* rki_dpool_clear(RKI_DynPool* self) {
@@ -7615,36 +8586,35 @@ rklib_fun rk_forceinline void* rki_dpool_clear(RKI_DynPool* self) {
   return self;
 }
 #define RKI_POOL_CLEAR(self)                                                                       \
-  RKI_POOL_DISPATCH(self, bitset_clear_all((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),        \
+  RKI_POOL_DISPATCH(self, bitset_clear_all((self)->data, RKI_SPOOL_CAP(self)),                     \
                     rki_dpool_clear((RKI_DynPool*)&((self)->_pool)))
 
-rklib_fun rk_forceinline void rki_spool_delete(size_t elsize, size_t align, size_t cap, void* self,
+rklib_fun rk_forceinline void rki_spool_delete(size_t elsize, size_t cap, size_t offset, void* self,
                                                void* ptr) {
-  bitset_clear((bitset)self, cap,
-               (size_t)((size_t)((char*)ptr - ((char*)self + rk_align_up(bitset_bytes(cap), align)))
-                        / elsize));
+  bitset_clear((bitset)self, cap, (size_t)((size_t)((char*)ptr - ((char*)self + offset)) / elsize));
 }
 rklib_fun rk_forceinline void rki_dpool_delete(size_t elsize, RKI_DynPool* self, void* ptr) {
   bitset_clear(self->data, self->cap, (size_t)((size_t)((char*)ptr - (char*)self->els) / elsize));
 }
 #define RKI_POOL_DELETE(self, ptr)                                                                 \
   RKI_POOL_DISPATCH(self,                                                                          \
-                    rki_spool_delete(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),              \
-                                     rk_COUNTOF((self)->RKI_POOL_ELS), self, ptr),                 \
-                    rki_dpool_delete(sizeof(*(self)->els), (RKI_DynPool*)&((self)->_pool), ptr))
+                    rki_spool_delete(RKI_POOL_SIZE(self), RKI_SPOOL_CAP(self),                     \
+                                     offsetof(typeof(*(self)), els), self, ptr),                   \
+                    rki_dpool_delete(RKI_POOL_SIZE(self), (RKI_DynPool*)&((self)->_pool), ptr))
 
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_try_new(size_t elsize,
-                                                                          size_t align, size_t cap,
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_try_new(size_t         elsize,
+                                                                          size_t elalign rk_unused,
+                                                                          size_t cap, size_t offset,
                                                                           void* self) {
   size_t free_slot = bitset_first_trailing_zero((bitset)self, cap);
   if (!free_slot) { return rk_null; }
   bitset_set((bitset)self, cap, free_slot - 1);
-  return (char*)self + rk_align_up(bitset_bytes(cap), align) + elsize * (free_slot - 1);
+  return (char*)self + offset + elsize * (free_slot - 1);
 }
 
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_try_new(size_t       elsize,
-                                                                          size_t align rk_unused,
-                                                                          RKI_DynPool* self) {
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_try_new(size_t         elsize,
+                                                                          size_t elalign rk_unused,
+                                                                          RKI_DynPool*   self) {
   if (!self->cap) { return rk_null; }
   size_t free_slot = bitset_first_trailing_zero(self->data, self->cap);
   if (!free_slot) { return rk_null; }
@@ -7654,100 +8624,130 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_try_new(size_t
 
 #define RKI_POOL_TRY_NEW(self)                                                                     \
   RKI_POOL_DISPATCH(self,                                                                          \
-                    rki_spool_try_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
-                                      rk_COUNTOF((self)->RKI_POOL_ELS), self),                     \
-                    rki_dpool_try_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                    rki_spool_try_new(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self),                   \
+                                      RKI_SPOOL_CAP(self), offsetof(typeof(*(self)), els), self),  \
+                    rki_dpool_try_new(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self),                   \
                                       (RKI_DynPool*)&((self)->_pool)))
 
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_new(size_t elsize, size_t align,
-                                                                      size_t cap, void* self) {
-  void* res = rki_spool_try_new(elsize, align, cap, self);
-  RK_POOL_FAIL(res, self, rk_null, align, elsize);
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_new(size_t elsize, size_t elalign,
+                                                                      size_t cap, size_t offset,
+                                                                      void* self) {
+  void* res = rki_spool_try_new(elsize, elalign, cap, offset, self);
+  RK_POOL_FAIL(res, self, rk_null, elalign, elsize);
   return res;
 }
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_new(size_t elsize, size_t align,
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_new(size_t elsize, size_t elalign,
                                                                       RKI_DynPool* self) {
-  void* res = rki_dpool_try_new(elsize, align, self);
-  RK_POOL_FAIL(res, self, rk_null, align, elsize);
+  void* res = rki_dpool_try_new(elsize, elalign, self);
+  RK_POOL_FAIL(res, self, rk_null, elalign, elsize);
   return res;
 }
 
 #define RKI_POOL_NEW(self)                                                                         \
-  RKI_POOL_DISPATCH(self,                                                                          \
-                    rki_spool_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
-                                  rk_COUNTOF((self)->RKI_POOL_ELS), self),                         \
-                    rki_dpool_new(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
-                                  (RKI_DynPool*)&((self)->_pool)))
+  RKI_POOL_DISPATCH(                                                                               \
+      self,                                                                                        \
+      rki_spool_new(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self), RKI_SPOOL_CAP(self),                \
+                    offsetof(typeof(*(self)), els), self),                                         \
+      rki_dpool_new(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self), (RKI_DynPool*)&((self)->_pool)))
 
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_try_put(size_t elsize,
-                                                                          size_t align, size_t cap,
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_try_put(size_t         elsize,
+                                                                          size_t elalign rk_unused,
+                                                                          size_t cap, size_t offset,
                                                                           void* restrict self,
                                                                           void* restrict obj) {
   bitset data      = (bitset)self;
   size_t free_slot = bitset_first_trailing_zero(data, cap);
   if (!free_slot) { return rk_null; }
   bitset_set(data, cap, free_slot - 1);
-  void* ptr = (char*)self + rk_align_up(bitset_bytes(cap), align) + elsize * (free_slot - 1);
+  void* ptr = (char*)self + offset + elsize * (free_slot - 1);
   rk_memcpy(ptr, obj, elsize);
   return ptr;
 }
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_put(size_t elsize, size_t align,
-                                                                      size_t cap,
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_spool_put(size_t elsize, size_t elalign,
+                                                                      size_t cap, size_t offset,
                                                                       void* restrict self,
                                                                       void* restrict obj) {
-  void* res = rki_spool_try_put(elsize, align, cap, self, obj);
-  RK_POOL_FAIL(res, self, rk_null, align, elsize);
+  void* res = rki_spool_try_put(elsize, elalign, cap, offset, self, obj);
+  RK_POOL_FAIL(res, self, rk_null, elalign, elsize);
   return res;
 }
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_try_put(
-    size_t elsize, size_t align rk_unused, RKI_DynPool* restrict self, void* restrict obj) {
+    size_t elsize, size_t elalign rk_unused, RKI_DynPool* restrict self, void* restrict obj) {
   if (!self->cap) { return rk_null; }
   size_t free_slot = bitset_first_trailing_zero(self->data, self->cap);
   if (!free_slot) { return rk_null; }
   bitset_set(self->data, self->cap, free_slot - 1);
   return rk_memcpy((char*)self->els + elsize * (free_slot - 1), obj, elsize);
 }
-rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t elsize, size_t align,
+rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t elsize, size_t elalign,
                                                                       RKI_DynPool* restrict self,
                                                                       void* restrict obj) {
-  void* res = rki_dpool_try_put(elsize, align, self, obj);
-  RK_POOL_FAIL(res, self, rk_null, align, elsize);
+  void* res = rki_dpool_try_put(elsize, elalign, self, obj);
+  RK_POOL_FAIL(res, self, rk_null, elalign, elsize);
   return res;
 }
 #define RKI_POOL_TRY_PUT(self, el)                                                                 \
   RKI_POOL_DISPATCH(self,                                                                          \
-                    rki_spool_try_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
-                                      rk_COUNTOF((self)->RKI_POOL_ELS), self,                      \
+                    rki_spool_try_put(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self),                   \
+                                      RKI_SPOOL_CAP(self), offsetof(typeof(*(self)), els), self,   \
                                       (RKI_POOL_T(self)[1]){el}),                                  \
-                    rki_dpool_try_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
+                    rki_dpool_try_put(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self),                   \
                                       (RKI_DynPool*)&((self)->_pool), (RKI_POOL_T(self)[1]){el}))
 
 #define RKI_POOL_PUT(self, el)                                                                     \
   RKI_POOL_DISPATCH(self,                                                                          \
-                    rki_spool_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
-                                  rk_COUNTOF((self)->RKI_POOL_ELS), self,                          \
+                    rki_spool_put(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self), RKI_SPOOL_CAP(self),  \
+                                  offsetof(typeof(*(self)), els), self,                            \
                                   (RKI_POOL_T(self)[1]){el}),                                      \
-                    rki_dpool_put(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),                 \
+                    rki_dpool_put(RKI_POOL_SIZE(self), RKI_POOL_ALIGN(self),                       \
                                   (RKI_DynPool*)&((self)->_pool), (RKI_POOL_T(self)[1]){el}))
 
-rklib_fun rk_forceinline void rki_dpool_release(size_t elsize, size_t align, RKI_DynPool* self) {
-  if (!self->cap) { return; }
-  alloc_deallocate(self->els, rk_mult(elsize, self->cap), align RK_IFALLOC(, self->alloc));
-  alloc_delete(self->data, bitset_words(self->cap) RK_IFALLOC(, self->alloc));
-  self->cap = 0, self->data = rk_null, self->els = rk_null;
-}
-
-#define RKI_POOL_RELEASE(self)                                                                     \
-  RKI_POOL_DISPATCH(self, (void)bitset_clear_all((self)->data, rk_COUNTOF((self)->RKI_POOL_ELS)),  \
-                    rki_dpool_release(sizeof(*(self)->els), alignof(RKI_POOL_T(self)),             \
-                                      (RKI_DynPool*)&((self)->_pool)))
-
+#define RKI_POOL_SIZE(self)  sizeof(*(self)->els)
+#define RKI_POOL_ALIGN(self) alignof(RKI_POOL_T(self))
+// Constness is detected through `_pool.cap`, a member of a named type (unsigned char for static
+// pools, size_t for dynamic ones): matching on `const typeof(*(self))*` would spell
+// `const const Pool` for a const Pool (MSVC C4114), as for the Dict/Deque/tree helpers.
+#define RKI_POOL_ITER_PTR(self)                                                                    \
+  RKI_IGNWARN_MSC(4114, _Generic(&(self)->_pool.cap,                                               \
+                      const unsigned char*: (const RKI_POOL_T(self)*)0,                            \
+                      const size_t*: (const RKI_POOL_T(self)*)0,                                   \
+                      default: (RKI_POOL_T(self)*)0))
 /// to prevent inactive union member access in c++
 #define RKI_POOL_ELS(self)                                                                         \
-  RKI_POOL_DISPATCH(self, (self)->els, (RKI_POOL_T(self)*)(self)->_pool.els)
+  RKI_POOL_DISPATCH(self, (self)->els, (typeof(RKI_POOL_ITER_PTR(self)))(self)->_pool.els)
 
 #define RKI_STATOVERLOAD__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 #define RKI_STATOVERLOAD(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+
+// A single real loop: `it` is the loop variable itself, and each re-check of the condition
+// (whether reached normally or via `continue`) advances to the next set bit. `break` therefore
+// exits this loop directly, same as it would for a plain array loop -- unlike the old
+// three-nested-loop version this replaced, where the innermost loop existed only to declare `it`
+// once per index and always terminated after a single pass regardless of the body, so `break` only
+// ever exited that already-terminating inner loop and silently behaved like `continue`.
+#define RKI_POOL_FOREACH(self, it)                                                                 \
+  for (struct {                                                                                    \
+         typeof(*(self))* pool;                                                                    \
+         RKI_BitsetIter   bits;                                                                    \
+         size_t           idx;                                                                     \
+       } rki_var_state = {(self), {rk_null, 0, 0, 0}, 0};                                          \
+       rki_var_state.pool                                                                          \
+       && (rki_var_state.bits.bits = rki_var_state.pool->data,                                     \
+          rki_var_state.bits.count = pool_cap(rki_var_state.pool), 1);                             \
+       rki_var_state.pool = rk_null)                                                               \
+    for (typeof(RKI_POOL_ITER_PTR(rki_var_state.pool)) it = rk_null;                               \
+         (rki_var_state.idx = rki_bitset_iter_next(&rki_var_state.bits)) != BITSET_NPOS            \
+         && (it = RKI_POOL_ELS(rki_var_state.pool) + rki_var_state.idx, (void)it, 1);)
+
+#define RKI_POOL_ERASE_IF(self, it, pred)                                                          \
+  do {                                                                                             \
+    typeof(self) const rki_var_pool = (self);                                                      \
+    RKI_POOL_FOREACH(rki_var_pool, rki_var_cursor) {                                               \
+      RKI_POOL_T(rki_var_pool)* const it = rki_var_cursor;                                         \
+      (void)it;                                                                                    \
+      if (pred) { pool_delete(rki_var_pool, it); }                                                 \
+    }                                                                                              \
+  } while (0)
 
 /// @endcond
 #pragma endregion implementation
@@ -7784,7 +8784,7 @@ RKI_HEADER_END
 /* BEGIN INLINE: include/rk_dict.h */
 // SPDX-License-Identifier: MIT
 /// @file rk_dict.h
-/// @version 1.0.0
+/// @version 1.0.1
 /// @defgroup rk_dict Hash Table (Dict) and Set Interfaces
 /// @brief Header-only, type-generic open-addressing hash table and hash set, sharing a single
 /// implementation via linear probing with fingerprint-accelerated lookup.
@@ -7865,12 +8865,41 @@ RKI_HEADER_END
 /// - `0x80`: empty — slot has never been used; probe chains stop here.
 /// - `0xFE`: deleted (tombstone) — slot was occupied then removed; probe chains continue through
 ///   it.
-/// - `0x00–0x7F`: occupied — value is the 7-bit fingerprint (top 7 bits of the hash). Fingerprints
-///   let the probe loop skip non-matching slots without a full key comparison.
+/// - `0x00–0x7F`: occupied — the top 7 bits of the hash, converted to u64.
+/// Fingerprints skip non-matching slots without a full key comparison. For best
+/// performance, supply a well-distributed 64-bit hash including its high bits.
 ///
-/// @note On insert, if `(count + ndeleted + 1) * RKI_DICT_LOAD_DEN > cap * RKI_DICT_LOAD_NUM`, the
-/// table doubles in capacity (when live entries are dense) or rehashes to the same capacity to
-/// flush accumulated tombstones.
+/// @note Before inserting a new key, rehash if the prospective live+tombstone
+/// load exceeds RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN. Grow when live entries
+/// require more slots; otherwise compact at the same capacity.
+///
+/// @par Load-factor configuration
+/// Define RK_DICT_LOAD_NUM and RK_DICT_LOAD_DEN before inclusion to select the
+/// maximum live+tombstone load (default 3/4). Require positive integers with
+/// numerator < denominator <= 65535. Every translation unit must use the same setting.
+///
+/// @par Contracts and pointer validity
+/// Keys must use single-token type names (typedef multi-token types first).
+/// Equality must be an equivalence relation; equal keys must have equal hashes.
+/// Hash/comparison callbacks must be side-effect-free and must not modify the table.
+/// Stored keys, including referenced data used by hashing/comparison, must remain unchanged.
+/// Stored objects are shallow copies: removal, clear, and release do not destroy pointees.
+/// Key/value types must support the raw allocation and assignment model of rk_alloc.h;
+/// this is not a general-purpose container for C++ objects requiring construction/destruction.
+/// A zero-initialized table is valid and allocates lazily on insertion or positive reserve.
+/// A non-null table pointer is required, except foreach/erase_if accept a null table.
+///
+/// Lookup and operations on existing keys do not rehash. Updating an existing value
+/// preserves its address and the stored key representative. Inserting a new key can
+/// rehash and invalidate every element pointer. reserve/shrink_to_fit invalidate all
+/// element pointers when they rehash; clear/assign/release invalidate all old entries.
+/// Removal invalidates only the removed entry; retained entries keep their addresses.
+/// reserve(n) guarantees room for n live entries without automatic rehash during subsequent
+/// insertions, provided no intervening removals or other structural operations occur.
+///
+/// Allocation failure is handled by the allocator, which must succeed or not return.
+/// Impossible capacities/allocation-size overflow terminate via abort(), including in
+/// release builds. Optional output pointers and assign input must not overlap table storage.
 ///
 /// @see rk_alloc.h
 /// @see rk_defs.h
@@ -7878,8 +8907,13 @@ RKI_HEADER_END
 
 #ifndef RK_DICT_H
 #define RK_DICT_H
-/* inlined from include/rk_dict.h:97: #include "rk_alloc.h" */
+/* inlined from include/rk_dict.h:126: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
+#include <stdint.h>
+#include <stdlib.h>
+#ifdef __cplusplus
+# include <type_traits>
+#endif
 RKI_HEADER_BEGIN
 
 /// @brief Define a dict type and functions for a given key/value pair.
@@ -7901,7 +8935,8 @@ RKI_HEADER_BEGIN
 /// to create a Dict.
 /// @param K           Name of the key Type
 /// @param V           Name of the value Type
-/// @param init_cap    size_t Initial Capacity of the Hash table
+/// @param cap Initial slot count, rounded up to a power of two (minimum 16).
+/// Use reserve() to request a live-element capacity instead.
 /// @param allocator   Optional allocator; defaults to `alloc_ctx`
 ///
 /// Usage:
@@ -7921,7 +8956,7 @@ RKI_HEADER_BEGIN
 #define dict_count(self)                       ((size_t)((self)->count))
 
 /// @brief `size_t dict_cap(Dict(K, V)* self)` - Returns the current slot capacity of the Dict.
-/// Always a power of two.
+/// Zero when unallocated; otherwise a power of two.
 #define dict_cap(self)                         ((size_t)((self)->cap))
 
 /// @brief `Allocator dict_allocator(Dict(K, V)* self)` - Returns the Allocator the Dict was
@@ -7935,7 +8970,7 @@ RKI_HEADER_BEGIN
 
 /// @brief `float dict_load_factor(Dict(K, V)* self)` - Returns the current load factor (live
 /// entries / capacity). Rehash is triggered when the combined live-and-tombstone load exceeds
-/// `RKI_DICT_LOAD_NUM / RKI_DICT_LOAD_DEN`.
+/// `RK_DICT_LOAD_NUM / RK_DICT_LOAD_DEN`.
 #define dict_load_factor(self)                 ((float)rki_ds_load_factor(&(self)->hdr))
 
 /// @brief `Dict(K, V)* dict_clear(K, V, Dict(K, V)* self)` - Marks all slots in the Dict as free,
@@ -7948,29 +8983,56 @@ RKI_HEADER_BEGIN
 /// @return `self`, for chaining.
 /// @note `n` counts live entries, not table slots — the underlying table capacity (see
 /// `dict_cap`) is sized up to account for the load factor
-/// (`RKI_DICT_LOAD_NUM`/`RKI_DICT_LOAD_DEN`).
+/// (`RK_DICT_LOAD_NUM`/`RK_DICT_LOAD_DEN`).
 #define dict_reserve(K, V, self, n)            RKI_DICT_PUB(K, V, reserve)(self, n)
 
 /// @brief `Dict(K, V)* dict_shrink_to_fit(K, V, Dict(K, V)* self)` - Rehashes the Dict down to the
 /// smallest table capacity that still keeps its live entries under the load factor threshold
-/// (`RKI_DICT_LOAD_NUM`/`RKI_DICT_LOAD_DEN`), also clearing any accumulated tombstones.
+/// (`RK_DICT_LOAD_NUM`/`RK_DICT_LOAD_DEN`), also clearing any accumulated tombstones.
 /// @return `self`, for chaining.
-/// @note Frees the table entirely if the Dict is empty. A no-op if already at or below the target
-/// capacity.
+/// @note Frees the table entirely if empty. A no-op only if capacity already equals
+/// the target and there are no tombstones.
 #define dict_shrink_to_fit(K, V, self)         RKI_DICT_PUB(K, V, shrink_to_fit)(self)
 
 /// @brief `Dict(K, V)* dict_assign(K, V, Dict(K, V)* self, const K* keys, const V* vals, size_t n)`
 /// - Replaces the Dict's contents with `n` key-value pairs from the parallel `keys`/`vals` arrays,
 /// reusing the existing table (growing it if necessary) rather than allocating a new one.
+/// @note Input arrays must not overlap the table object or any of its allocations.
+/// Duplicate keys retain the first key representative and the last value.
 /// @return `self`, for chaining.
 #define dict_assign(K, V, self, keys, vals, n) RKI_DICT_PUB(K, V, assign)(self, keys, vals, n)
 
 /// @brief Retrieves the value for `key`, or `NULL` if absent. Returns `V*` for a mutable Dict
 /// and `const V*` for a const Dict.
-#define dict_get(K, V, self, key)                                                                  \
-  _Generic((self),                                                                                 \
-      const Dict(K, V)*: RKI_DICT_PUB(K, V, get_const),                                            \
-      default: RKI_DICT_PUB(K, V, get))((self), (key))
+/// @see dict_at
+#ifdef __cplusplus
+# define dict_get(K, V, self, key)                                                                 \
+   ((typename std::conditional<std::is_const<typeof(*(self))>::value, const V*, V*>::type)         \
+        RKI_DICT_PUB(K, V, get_const)(self, key))
+#else
+# define dict_get(K, V, self, key)                                                                 \
+   _Generic((self),                                                                                \
+       const Dict(K, V)*: RKI_DICT_PUB(K, V, get_const),                                           \
+       Dict(K, V)*: RKI_DICT_PUB(K, V, get))((self), (key))
+#endif
+
+/// @brief Returns the value for `key` as an lvalue, mutable for a mutable Dict and const for a
+/// const Dict.
+/// @pre `key` is present; use `dict_get()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Never inserts, unlike `dict_get_or_add()`. Invalidated by any insertion that rehashes,
+/// and by removal of `key`.
+/// @see dict_get
+#ifdef __cplusplus
+# define dict_at(K, V, self, key)                                                                  \
+   (*(typename std::conditional<std::is_const<typeof(*(self))>::value, const V*, V*>::type)        \
+         RKI_DICT_PUB(K, V, at_const)(self, key))
+#else
+# define dict_at(K, V, self, key)                                                                  \
+   (*_Generic((self),                                                                              \
+        const Dict(K, V)*: RKI_DICT_PUB(K, V, at_const),                                           \
+        Dict(K, V)*: RKI_DICT_PUB(K, V, at))((self), (key)))
+#endif
 
 /// @brief `bool dict_contains(K, V, const Dict(K, V)* self, K key)` - Checks whether the given key
 /// is present in the Dict.
@@ -7993,14 +9055,16 @@ RKI_HEADER_BEGIN
 /// key is absent. Resizes the Dict if necessary.
 /// @param default_value Value to insert if `key` is absent.
 /// @param inserted_out Optional output set to `true` if a new entry was inserted or `false` if the
-/// key already existed. May be `NULL` if this information is not needed.
+/// key already existed. May be `NULL`; otherwise must be disjoint from the table
+/// and its allocations.
 /// @return Pointer to the value associated with `key`; never `NULL`.
 #define dict_get_or_add(K, V, self, key, default_value, inserted_out)                              \
   RKI_DICT_PUB(K, V, get_or_add)(self, key, default_value, inserted_out)
 
 /// @brief `bool dict_extract(K, V, Dict(K, V)* self, K key, V* out_ptr)` - Removes a key from the
 /// Dict and stores the value in `out_ptr`.
-/// @param out_ptr Non-null pointer; where the removed value should be written if found.
+/// @param out_ptr Non-null output pointer, disjoint from the table and its allocations.
+/// Written only if the key is found.
 /// @return `true` if key was found and removed, `false` otherwise
 #define dict_extract(K, V, self, key, out_ptr) RKI_DICT_PUB(K, V, extract)(self, key, out_ptr)
 
@@ -8009,11 +9073,13 @@ RKI_HEADER_BEGIN
 /// @return `true` if the value was found and removed, `false` otherwise
 #define dict_remove(K, V, self, key)           RKI_DICT_PUB(K, V, remove)(self, key)
 
-/// @brief Iterates over all key-value pairs in the Dict, skipping empty slots.
-/// @param self     Pointer to the Dict to iterate over
-/// @param _key     Chosen name for each key pointer (`const K*`)
-/// @param _val     Chosen name for each value pointer (`V*` for a mutable Dict, `const V*` for a
-///                 const Dict)
+/// @brief Visits every live key-value pair in unspecified slot order.
+/// @param self Pointer to the Dict. Evaluated once.
+/// @param _key Name of the key pointer (const K*).
+/// @param _val Name of the value pointer (V*, or const V* for a const Dict).
+/// @note break stops traversal; continue advances to the next live entry.
+/// @note Reassigning iterator pointers does not change traversal.
+/// @note Do not structurally modify the Dict during traversal.
 ///
 /// Usage:
 /// ```c
@@ -8021,60 +9087,47 @@ RKI_HEADER_BEGIN
 ///     printf("key: %d, value: %s\n", *k, *v);
 /// }
 /// ```
-/// @warning Adding or removing values via this macro leads to incorrect iteration.
-/// @note Iteration skips empty slots in the underlying storage.
-#define dict_foreach(self, _key, _val)                                                             \
-  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
-    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
-      for (const typeof(*(RKI__dict->keys))*const _key                                             \
-           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->keys[RKI__i])   \
-                                                                    : rk_null,                     \
-           *RKI_ONCE          = _key;                                                              \
-           RKI_ONCE; RKI_ONCE = 0)                                                                 \
-        for (typeof(*RKI_DICT_VALUE_PTR(RKI__dict))*const _val       = &(RKI__dict->vals[RKI__i]), \
-                                                          *RKI_ONCE1 = _val;                       \
-             RKI_ONCE1; RKI_ONCE1                                    = 0)
+#define dict_foreach(self, _key, _val)         RKI_DICT_FOREACH(self, _key, _val)
 
-/// @brief Iterates over all keys in the Dict, skipping empty and deleted slots.
-/// @param self  Pointer to the Dict to iterate over
-/// @param _key  Chosen name of the key pointer (`const K*`) for each iteration
+/// @brief Visits every live key in unspecified slot order.
+/// @param self Pointer to the Dict or Set. Evaluated once.
+/// @param _key Name of the key pointer (const K*).
+/// @note break stops traversal; continue advances to the next live entry.
+/// @note Reassigning the iterator pointer does not change traversal.
+/// @note Do not structurally modify the table during traversal.
 ///
 /// Usage:
 /// ```c
-/// dict_foreach_key(&mydict, k) {
-///     printf("key: %d\n", *k);
-/// }
+/// dict_foreach_key(&mydict, k) { printf("key: %d\n", *k); }
 /// ```
-/// @warning Adding or removing values during iteration leads to incorrect behaviour.
-#define dict_foreach_key(self, _key)                                                               \
-  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
-    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
-      for (const typeof(*(RKI__dict->keys))*const _key                                             \
-           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->keys[RKI__i])   \
-                                                                    : rk_null,                     \
-           *RKI_ONCE          = _key;                                                              \
-           RKI_ONCE; RKI_ONCE = 0)
+#define dict_foreach_key(self, _key)           RKI_DICT_FOREACH_KEY(self, _key)
 
-/// @brief Iterates over all values in the Dict, skipping empty and deleted slots.
-/// @param self  Pointer to the Dict to iterate over
-/// @param _val  Chosen name of the value pointer (`V*` for a mutable Dict, `const V*` for a const
-///              Dict) for each iteration
+/// @brief Visits every live value in unspecified slot order.
+/// @param self Pointer to the Dict. Evaluated once.
+/// @param _val Name of the value pointer (V*, or const V* for a const Dict).
+/// @note break stops traversal; continue advances to the next live entry.
+/// @note Reassigning the iterator pointer does not change traversal.
+/// @note Do not structurally modify the Dict during traversal.
 ///
 /// Usage:
 /// ```c
-/// dict_foreach_val(&mydict, v) {
-///     printf("value: %s\n", *v);
-/// }
+/// dict_foreach_val(&mydict, v) { printf("value: %s\n", *v); }
 /// ```
-/// @warning Adding or removing values during iteration leads to incorrect behaviour.
-#define dict_foreach_val(self, _val)                                                               \
-  for (typeof(self) RKI__dict = (self); RKI__dict; RKI__dict = rk_null)                            \
-    for (size_t RKI__c = RKI__dict->cap, RKI__i = 0; RKI__i < RKI__c; ++RKI__i)                    \
-      for (typeof(*RKI_DICT_VALUE_PTR(RKI__dict))*const _val                                       \
-           = !RKI_DS_SLOT_EMPTY_OR_DELETED(RKI__dict->data[RKI__i]) ? &(RKI__dict->vals[RKI__i])   \
-                                                                    : rk_null,                     \
-           *RKI_ONCE          = _val;                                                              \
-           RKI_ONCE; RKI_ONCE = 0)
+#define dict_foreach_val(self, _val)           RKI_DICT_FOREACH_VAL(self, _val)
+
+/// @brief Erases live entries satisfying pred, without rehashing or changing capacity.
+/// @param self Pointer to a mutable Dict. Evaluated once.
+/// @param _key Name of the read-only key pointer.
+/// @param _val Name of the read-only value pointer.
+/// @param pred Predicate expression, evaluated once per original live entry.
+/// @note The predicate must not structurally modify the Dict.
+/// @note Removed slots become tombstones; retained entries keep their addresses.
+///
+/// Usage:
+/// ```c
+/// dict_erase_if(&mydict, k, v, *v == 0);
+/// ```
+#define dict_erase_if(self, _key, _val, pred)  RKI_DICT_ERASE_IF(self, _key, _val, pred)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name Set Interface
@@ -8085,14 +9138,15 @@ RKI_HEADER_BEGIN
 /// @param hash_f Hash function (`hash_t hash_f(key_t key)`)
 /// @param cmp_f  Comparison function (`bool cmp_f(key_t a, key_t b)`)
 /// @attention `cmp_f` must return 0/false if the two elements are equal
-#define SET_DEFINE(key_t, hash_f, cmp_f) RKI_SET_DEF(key_t, hash_f, cmp_f)
+#define SET_DEFINE(key_t, hash_f, cmp_f)       RKI_SET_DEF(key_t, hash_f, cmp_f)
 
 /// @brief Generates a type-specific set struct name.
-#define Set(K)                           Set_##K
+#define Set(K)                                 Set_##K
 
 /// @brief `Set(K) set_init(K, size_t cap, Allocator alloc = alloc_ctx)` - Creates a Set.
 /// @param K           Name of the key Type
-/// @param init_cap    size_t Initial Capacity of the Hash table
+/// @param cap Initial slot count, rounded up to a power of two (minimum 16).
+/// Use reserve() to request a live-element capacity instead.
 /// @param allocator   Optional allocator; defaults to `alloc_ctx`
 ///
 /// Usage:
@@ -8102,124 +9156,262 @@ RKI_HEADER_BEGIN
 /// Set(int) tab = set_init(int, 10, alloc);
 /// ```
 /// @return An initialised Set
-#define set_init(K, cap, ...)            RKI_OVERLOAD(RKI_SET_INIT, K, cap, ##__VA_ARGS__)
+#define set_init(K, cap, ...)                  RKI_OVERLOAD(RKI_SET_INIT, K, cap, ##__VA_ARGS__)
 
 /// @brief `void set_release(K, Set(K)* self)` - Frees the underlying memory of the Set.
-#define set_release(K, self)             RKI_SET_PUB(K, release)(self)
+#define set_release(K, self)                   RKI_SET_PUB(K, release)(self)
 
 /// @brief `size_t set_count(Set(K)* self)` - Returns the number of live keys in the Set.
-#define set_count(self)                  ((size_t)((self)->count))
+#define set_count(self)                        ((size_t)((self)->count))
 
 /// @brief `size_t set_cap(Set(K)* self)` - Returns the current slot capacity of the Set. Always a
-/// power of two.
-#define set_cap(self)                    ((size_t)((self)->cap))
+/// power of two when nonzero; zero when unallocated.
+#define set_cap(self)                          ((size_t)((self)->cap))
 
 /// @brief `Allocator set_allocator(Set(K)* self)` - Returns the Allocator the Set was constructed
 /// with, or `alloc_ctx` if the Set was never initialized or custom allocators are disabled.
-#define set_allocator(self)              RKI_allocatorof(self)
+#define set_allocator(self)                    RKI_allocatorof(self)
 
 /// @brief `bool set_is_empty(Set(K)* self)` - Returns `true` iff the set contains no elements.
-#define set_is_empty(self)               ((bool)(set_count(self) == 0))
+#define set_is_empty(self)                     ((bool)(set_count(self) == 0))
 
 /// @brief `float set_load_factor(Set(K)* self)` - Returns the current load factor (live entries /
 /// capacity). See `dict_load_factor()`.
-#define set_load_factor(self)            ((float)rki_ds_load_factor(&(self)->hdr))
+#define set_load_factor(self)                  ((float)rki_ds_load_factor(&(self)->hdr))
 
 /// @brief `Set(K)* set_clear(K, Set(K)* self)` - Marks all slots in the Set as free, allowing reuse
 /// of its memory.
 /// @return `self`, for chaining.
-#define set_clear(K, self)               RKI_SET_PUB(K, clear)(self)
+#define set_clear(K, self)                     RKI_SET_PUB(K, clear)(self)
 
 /// @brief `Set(K)* set_reserve(K, Set(K)* self, size_t n)` - Reserves and rehashes the Set so that
 /// it can hold at least `n` live entries without triggering another automatic rehash. See
 /// `dict_reserve()`.
 /// @return `self`, for chaining.
-#define set_reserve(K, self, n)          RKI_SET_PUB(K, reserve)(self, n)
+#define set_reserve(K, self, n)                RKI_SET_PUB(K, reserve)(self, n)
 
 /// @brief `Set(K)* set_shrink_to_fit(K, Set(K)* self)` - Rehashes the Set down to the smallest
 /// table capacity that still keeps its live entries under the load factor threshold. See
 /// `dict_shrink_to_fit()`.
 /// @return `self`, for chaining.
-#define set_shrink_to_fit(K, self)       RKI_SET_PUB(K, shrink_to_fit)(self)
+#define set_shrink_to_fit(K, self)             RKI_SET_PUB(K, shrink_to_fit)(self)
 
 /// @brief `Set(K)* set_assign(K, Set(K)* self, const K* keys, size_t n)` - Replaces the Set's
 /// contents with `n` keys from `keys`, reusing the existing table (growing it if necessary) rather
 /// than allocating a new one.
+/// @note Input must not overlap the table object or any of its allocations.
+/// Duplicate keys retain the first key representative.
 /// @return `self`, for chaining.
-#define set_assign(K, self, keys, n)     RKI_SET_PUB(K, assign)(self, keys, n)
+#define set_assign(K, self, keys, n)           RKI_SET_PUB(K, assign)(self, keys, n)
 
 /// @brief `bool set_contains(K, const Set(K)* self, K key)`
 /// - Checks whether the given key is present in the Set.
 /// @return `true` if `self` contains the key, `false` otherwise
-#define set_contains(K, self, key)       RKI_SET_PUB(K, contains)(self, key)
+#define set_contains(K, self, key)             RKI_SET_PUB(K, contains)(self, key)
 
 /// @brief `bool set_add(K, Set(K)* self, K key)` - Ensures a key is present in a set; resizes the
 /// Set if necessary.
 /// @return `true` if the key was inserted, `false` if it was already present.
-#define set_add(K, self, key)            RKI_SET_PUB(K, add)(self, key)
+#define set_add(K, self, key)                  RKI_SET_PUB(K, add)(self, key)
+
+/// @brief `const K* set_get(K, const Set(K)* self, K key)` - Retrieves the stored
+/// key representative, or NULL if absent. The returned key must not be modified.
+/// @see set_at
+#define set_get(K, self, key)                  RKI_SET_PUB(K, get)(self, key)
+
+/// @brief `const K set_at(K, const Set(K)* self, K key)` - Returns the stored key representative
+/// for `key` as a const lvalue. Always const: modifying a stored key would break its hash slot.
+/// @pre `key` is present; use `set_get()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @see set_get
+#define set_at(K, self, key)                   (*RKI_SET_PUB(K, at)(self, key))
+
+/// @brief `bool set_extract(K, Set(K)* self, K key, K* out_ptr)` - Removes a key
+/// and copies its stored representative to out_ptr. Returns whether it was found.
+/// @param out_ptr Non-null output pointer disjoint from table storage; unchanged on absence.
+#define set_extract(K, self, key, out_ptr)     RKI_SET_PUB(K, extract)(self, key, out_ptr)
 
 /// @brief `bool set_remove(K, Set(K)* self, K key)` - Removes a key from the Set if it is present.
-/// @return `true` if the value was found and removed, `false` otherwise
-#define set_remove(K, self, key)         RKI_SET_PUB(K, remove)(self, key)
+/// @return `true` if the key was found and removed, `false` otherwise
+#define set_remove(K, self, key)               RKI_SET_PUB(K, remove)(self, key)
 
-/// @brief Iterates over all keys in the Set, skipping empty slots.
-/// @param self     Pointer to the Set to iterate over
-/// @param key      Chosen name of the key pointer that will point to each key
+/// @brief Visits every live key in unspecified slot order.
+/// @param self Pointer to the Set. Evaluated once.
+/// @param key Name of the read-only key pointer.
+/// @note break stops traversal; continue advances to the next live key.
+/// @note Do not structurally modify the Set during traversal.
 ///
 /// Usage:
 /// ```c
-/// set_foreach(&myset, k) {
-///     printf("key: %d\n", *k);
-/// }
+/// set_foreach(&myset, k) { printf("key: %d\n", *k); }
 /// ```
-/// @warning Adding or removing keys via this macro leads to incorrect iteration.
-/// @note Iteration skips empty slots in the underlying storage.
-#define set_foreach(self, key)           dict_foreach_key(self, key)
+#define set_foreach(self, key)                 dict_foreach_key(self, key)
+
+/// @brief Erases live keys satisfying pred, without rehashing or changing capacity.
+/// @param self Pointer to a mutable Set. Evaluated once.
+/// @param key Name of the read-only key pointer.
+/// @param pred Predicate expression, evaluated once per original live key.
+/// @note The predicate must not structurally modify the Set.
+/// @note Removed slots become tombstones; retained keys keep their addresses.
+///
+/// Usage:
+/// ```c
+/// set_erase_if(&myset, k, *k % 2 != 0);
+/// ```
+#define set_erase_if(self, key, pred)          RKI_SET_ERASE_IF(self, key, pred)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
-#define RKI_DICT_LOAD_NUM                3
-#define RKI_DICT_LOAD_DEN                4
+/// Configure before inclusion. Both must be positive integers, numerator < denominator,
+/// and denominator <= 65535. The default maximum load is 3/4.
+#ifndef RK_DICT_LOAD_NUM
+# define RK_DICT_LOAD_NUM 3
+#endif
+#ifndef RK_DICT_LOAD_DEN
+# define RK_DICT_LOAD_DEN 4
+#endif
+#if RK_DICT_LOAD_NUM <= 0 || RK_DICT_LOAD_NUM >= RK_DICT_LOAD_DEN || RK_DICT_LOAD_DEN > 65535
+# error "Require 0 < RK_DICT_LOAD_NUM < RK_DICT_LOAD_DEN <= 65535"
+#endif
 
 // `vals` remains a mutable pointer when the Dict object is const. Propagate the
 // container's constness to the pointers exposed during iteration.
-#define RKI_DICT_VALUE_PTR(self)                                                                   \
-  _Generic((self),                                                                                 \
-      const typeof(*(self))*: (const typeof((self)->vals[0])*)0,                                   \
-      default: (typeof((self)->vals))0)
+// The C version detects constness through `count`, a member of a named type: matching on
+// `const typeof(*(self))*` would spell `const const Dict` for a const Dict (MSVC C4114).
+#ifdef __cplusplus
+# define RKI_DICT_VALUE_PTR(self)                                                                  \
+   ((typename std::conditional<std::is_const<typeof(*(self))>::value,                              \
+                               const typeof((self)->vals[0])*, typeof((self)->vals)>::type)0)
+#else
+# define RKI_DICT_VALUE_PTR(self)                                                                  \
+   _Generic(&(self)->count,                                                                        \
+       const size_t*: (const typeof((self)->vals[0])*)0,                                           \
+       default: (typeof((self)->vals))0)
+#endif
 
 typedef struct RKI_ds_header { size_t cap, count, ndeleted; } RKI_ds_header;
 
-// Probe result packed into a single size_t: bits[1:0] = flags, bits[N:2] = slot index. bit 0: found
-// — key exists at the returned slot. bit 1: tombstone — insert slot was a deleted slot (only
-// meaningful when !found).
-typedef size_t RKI_hashprobe_t;
-#define RKI_PROBE_MAKE(found, tomb, idx)                                                           \
-  (((size_t)(idx) << 2) | ((size_t)(tomb) << 1) | (size_t)(found))
-#define RKI_PROBE_FOUND(r)     ((r) & 1u)
-#define RKI_PROBE_TOMBSTONE(r) ((r) & 2u)
-#define RKI_PROBE_IDX(r)       ((r) >> 2)
+// Explicit fields avoid truncating large slot indices.
+typedef struct RKI_hashprobe_t {
+  size_t idx;
+  bool   found, tombstone;
+} RKI_hashprobe_t;
+rklib_fun RKI_hashprobe_t rki_ds_probe_result(bool found, bool tombstone, size_t idx) {
+  RKI_hashprobe_t r = {idx, found, tombstone};
+  return r;
+}
+#define RKI_PROBE_MAKE(found, tomb, idx) rki_ds_probe_result((found), (tomb), (idx))
+#define RKI_PROBE_FOUND(r)               ((r).found)
+#define RKI_PROBE_TOMBSTONE(r)           ((r).tombstone)
+#define RKI_PROBE_IDX(r)                 ((r).idx)
 
 #define RKI_IGNORE(...)
-#define RKI_EXPAND(...)                      __VA_ARGS__
+#define RKI_EXPAND(...)                 __VA_ARGS__
 
 /// @brief Sentinel value returned by internal index lookups when the key is not present.
-#define RK_DS_NOTIN                          ((size_t)-1)
+#define RK_DS_NOTIN                     ((size_t)-1)
 
 // internal helper macros
-#define RKI_DS_HOME(MASK, hash)              ((size_t)(hash) & (MASK))
-#define RKI_DS_NEXT(MASK, i)                 (((i) + 1) & (MASK))
+#define RKI_DS_HOME(MASK, hash)         ((size_t)(hash) & (MASK))
+#define RKI_DS_NEXT(MASK, i)            (((i) + 1) & (MASK))
 // The shift always yields a 7-bit value (0-127), which always fits in u8 --
 // every call site assigns straight into a u8, so the cast belongs here once
 // rather than at each site.
-#define RKI_DS_FP(hash)                      ((u8)((hash) >> (bitsof(hash) - 7)))
+#define RKI_DS_FP(hash)                 ((u8)((hash) >> (bitsof(hash) - 7)))
 
-#define RKI_DS_SLOT_EMPTY                    ((u8)0x80)
-#define RKI_DS_SLOT_DELETED                  ((u8)0xFE)
-#define RKI_DS_SLOT_EMPTY_OR_DELETED(x)      ((x) & 0x80)
+#define RKI_DS_SLOT_EMPTY               ((u8)0x80)
+#define RKI_DS_SLOT_DELETED             ((u8)0xFE)
+#define RKI_DS_SLOT_EMPTY_OR_DELETED(x) ((x) & 0x80)
+
+// Capture the table once and snapshot capacity for traversal.
+#define RKI_DS_FOREACH_STATE(self)                                                                 \
+  for (struct {                                                                                    \
+         typeof(*(self))* table;                                                                   \
+         size_t           idx, cap;                                                                \
+         int              completed;                                                               \
+       } rki_var_state = {(self), 0, 0, 0};                                                        \
+       rki_var_state.table && (rki_var_state.cap = rki_var_state.table->cap, 1);                   \
+       rki_var_state.table = rk_null)
+
+// Inclusive search: cap is the sentinel and is safe for cap == 0, data == NULL.
+rklib_fun rk_pure size_t rki_ds_next_live(const u8* data, size_t cap, size_t idx) {
+  while (idx < cap && RKI_DS_SLOT_EMPTY_OR_DELETED(data[idx])) { ++idx; }
+  return idx;
+}
+
+#define RKI_DICT_FOREACH(self, _key, _val)                                                         \
+  RKI_DS_FOREACH_STATE(self)                                                                       \
+  for (const typeof(*rki_var_state.table->keys)* _key = rk_null;                                   \
+       (rki_var_state.idx                                                                          \
+        = rki_ds_next_live(rki_var_state.table->data, rki_var_state.cap, rki_var_state.idx))       \
+           < rki_var_state.cap                                                                     \
+       && (_key                   = &rki_var_state.table->keys[rki_var_state.idx], (void)_key,     \
+          rki_var_state.completed = 0, 1);                                                         \
+       rki_var_state.idx = rki_var_state.completed ? rki_var_state.idx + 1 : rki_var_state.cap)    \
+    for (typeof(*RKI_DICT_VALUE_PTR(rki_var_state.table))* _val                                    \
+         = &rki_var_state.table->vals[rki_var_state.idx];                                          \
+         ((void)_val, !rki_var_state.completed); rki_var_state.completed = 1)
+
+#define RKI_DICT_FOREACH_KEY(self, _key)                                                           \
+  RKI_DS_FOREACH_STATE(self)                                                                       \
+  for (const typeof(*rki_var_state.table->keys)* _key = rk_null;                                   \
+       (rki_var_state.idx                                                                          \
+        = rki_ds_next_live(rki_var_state.table->data, rki_var_state.cap, rki_var_state.idx))       \
+           < rki_var_state.cap                                                                     \
+       && (_key = &rki_var_state.table->keys[rki_var_state.idx], (void)_key, 1);                   \
+       ++rki_var_state.idx)
+
+#define RKI_DICT_FOREACH_VAL(self, _val)                                                           \
+  RKI_DS_FOREACH_STATE(self)                                                                       \
+  for (typeof(*RKI_DICT_VALUE_PTR(rki_var_state.table))* _val = rk_null;                           \
+       (rki_var_state.idx                                                                          \
+        = rki_ds_next_live(rki_var_state.table->data, rki_var_state.cap, rki_var_state.idx))       \
+           < rki_var_state.cap                                                                     \
+       && (_val = &rki_var_state.table->vals[rki_var_state.idx], (void)_val, 1);                   \
+       ++rki_var_state.idx)
+
+#define RKI_DICT_ERASE_IF(self, _key, _val, pred)                                                  \
+  do {                                                                                             \
+    typeof(*(self))* const rki_var_dict = (self);                                                  \
+    if (!rki_var_dict) { break; }                                                                  \
+    const size_t rki_var_cap = rki_var_dict->cap;                                                  \
+    for (size_t rki_var_idx = 0;                                                                   \
+         (rki_var_idx = rki_ds_next_live(rki_var_dict->data, rki_var_cap, rki_var_idx))            \
+         < rki_var_cap;                                                                            \
+         ++rki_var_idx) {                                                                          \
+      const typeof(*rki_var_dict->keys)* const _key = &rki_var_dict->keys[rki_var_idx];            \
+      const typeof(*rki_var_dict->vals)* const _val = &rki_var_dict->vals[rki_var_idx];            \
+      (void)_key;                                                                                  \
+      (void)_val;                                                                                  \
+      if (pred) {                                                                                  \
+        rki_var_dict->data[rki_var_idx] = RKI_DS_SLOT_DELETED;                                     \
+        --rki_var_dict->count;                                                                     \
+        ++rki_var_dict->ndeleted;                                                                  \
+      }                                                                                            \
+    }                                                                                              \
+  } while (0)
+
+#define RKI_SET_ERASE_IF(self, key, pred)                                                          \
+  do {                                                                                             \
+    typeof(*(self))* const rki_var_set = (self);                                                   \
+    if (!rki_var_set) { break; }                                                                   \
+    const size_t rki_var_cap = rki_var_set->cap;                                                   \
+    for (size_t rki_var_idx = 0;                                                                   \
+         (rki_var_idx = rki_ds_next_live(rki_var_set->data, rki_var_cap, rki_var_idx))             \
+         < rki_var_cap;                                                                            \
+         ++rki_var_idx) {                                                                          \
+      const typeof(*rki_var_set->keys)* const key = &rki_var_set->keys[rki_var_idx];               \
+      (void)key;                                                                                   \
+      if (pred) {                                                                                  \
+        rki_var_set->data[rki_var_idx] = RKI_DS_SLOT_DELETED;                                      \
+        --rki_var_set->count;                                                                      \
+        ++rki_var_set->ndeleted;                                                                   \
+      }                                                                                            \
+    }                                                                                              \
+  } while (0)
 
 #define RKI_DICT_PUB(K, V, FNAME)            dict_##K##_##V##_##FNAME
 #define RKI_DICT_PRI(K, V, FNAME)            rki_dict_##K##_##V##_##FNAME
@@ -8246,242 +9438,302 @@ typedef size_t RKI_hashprobe_t;
 #define RKI_SET_DEF(key_t, hash_f, cmp_f)                                                          \
   RKI_DS_DEF(key_t, , hash_f, cmp_f, RKI_IGNORE, RKI_EXPAND, RKI_SET, RKI_SET_PUB_I, RKI_SET_PRI_I)
 
-#define RKI_DS_DEF(K, V, hash_f, cmp_f, IF_DICT, IF_SET, DSTYPE, PUBF, PRIF)                         \
-  RK_EXTERNC_BEG                                                                                     \
-  typedef struct DSTYPE(K, V) {                                                                      \
-    union {                                                                                          \
-      RKI_ds_header hdr;                                                                             \
-      struct { size_t cap, count, ndeleted; };                                                       \
-    };                                                                                               \
-    u8* data;                                                                                        \
-    K*  keys;                                                                                        \
-    IF_DICT(V* vals;)                                                                                \
-    RK_IFALLOC(Allocator alloc;)                                                                     \
-  } DSTYPE(K, V);                                                                                    \
-  rklib_fun rk_pure size_t    PUBF(K, V, count)(const DSTYPE(K, V) * self) { return self->count; }   \
-  rklib_fun rk_pure size_t    PUBF(K, V, cap)(const DSTYPE(K, V) * self) { return self->cap; }       \
-  rklib_fun rk_pure Allocator PUBF(K, V, allocator)(const DSTYPE(K, V) * self) {                     \
-    return RKI_allocatorof(self);                                                                    \
-  }                                                                                                  \
-  rklib_fun rk_pure bool  PUBF(K, V, is_empty)(const DSTYPE(K, V) * self) { return !self->count; }   \
-  rklib_fun rk_pure float PUBF(K, V, load_factor)(const DSTYPE(K, V) * self) {                       \
-    return rki_ds_load_factor(&self->hdr);                                                           \
-  }                                                                                                  \
-  rklib_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {                \
-    RKI_assert_allocator_valid(alloc);                                                               \
-    cap = stdc_bit_ceil(rk_MAX(16u, cap));                                                           \
-    return (DSTYPE(K, V)){.hdr  = {.cap = cap, .count = 0, .ndeleted = 0},                           \
-                          .data = (u8*)memset(alloc_allocate(cap, align_max RK_IFALLOC(, alloc)),    \
-                                              RKI_DS_SLOT_EMPTY, cap),                               \
-                          .keys = alloc_new(K, cap RK_IFALLOC(, alloc)),                             \
-                          IF_DICT(.vals = alloc_new(V, cap RK_IFALLOC(, alloc)), )                   \
-                              RK_IFALLOC(.alloc = alloc)};                                           \
-  }                                                                                                  \
-  rklib_fun void PUBF(K, V, release)(DSTYPE(K, V) * self) {                                          \
-    if rk_unlikely (!self->cap) { return; }                                                          \
-    alloc_deallocate(self->data, self->cap, align_max RK_IFALLOC(, self->alloc));                    \
-    self->data = rk_null;                                                                            \
-    alloc_delete(self->keys, self->cap RK_IFALLOC(, self->alloc));                                   \
-    self->keys = rk_null;                                                                            \
-    IF_DICT(alloc_delete(self->vals, self->cap RK_IFALLOC(, self->alloc)), self->vals = rk_null;)    \
-    self->cap = self->count = self->ndeleted = 0;                                                    \
-  }                                                                                                  \
-  rklib_fun void PRIF(K, V, grow)(DSTYPE(K, V) * self, size_t new_cap) {                             \
-    const DSTYPE(K, V) old_self = *self;                                                             \
-    DSTYPE(K, V)                                                                                     \
-    new_self                                                                                         \
-        = {.hdr  = {.cap = new_cap, .count = old_self.count, .ndeleted = 0},                         \
-           .data = (u8*)memset(alloc_allocate(new_cap, align_max RK_IFALLOC(, old_self.alloc)),      \
-                               RKI_DS_SLOT_EMPTY, new_cap),                                          \
-           .keys = alloc_new(K, new_cap RK_IFALLOC(, old_self.alloc)),                               \
-           IF_DICT(.vals = alloc_new(V, new_cap RK_IFALLOC(, old_self.alloc)), )                     \
-               RK_IFALLOC(.alloc = old_self.alloc)};                                                 \
-    const size_t mask = new_self.cap - 1;                                                            \
-    for (size_t oldcap = old_self.cap, i = 0; i < oldcap; ++i) {                                     \
-      if (RKI_DS_SLOT_EMPTY_OR_DELETED(old_self.data[i])) { continue; }                              \
-      K      key  = old_self.keys[i];                                                                \
-      u64    hash = (u64)hash_f(key);                                                                \
-      size_t j    = RKI_DS_HOME(mask, hash);                                                         \
-      for (; new_self.data[j] != RKI_DS_SLOT_EMPTY; j = RKI_DS_NEXT(mask, j));                       \
-      new_self.data[j] = RKI_DS_FP(hash);                                                            \
-      new_self.keys[j] = key;                                                                        \
-      IF_DICT(new_self.vals[j] = old_self.vals[i];)                                                  \
-    }                                                                                                \
-    PUBF(K, V, release)(self);                                                                       \
-    *self = new_self;                                                                                \
-  }                                                                                                  \
-  rklib_fun void PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                       \
-    if (!self->cap) {                                                                                \
-      RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
-      *self = PUBF(K, V, init)(16u RK_IFALLOC(, self->alloc));                                       \
-    };                                                                                               \
-    if (rki_ds_needs_rehash(&self->hdr)) {                                                           \
-      PRIF(K, V, grow)(self,                                                                         \
-                       (rk_mult(self->count, 2) > self->cap) ? rk_mult(self->cap, 2) : self->cap);   \
-    }                                                                                                \
-  }                                                                                                  \
-  rklib_fun rk_pure RKI_hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,    \
-                                                        u64 hash) {                                  \
-    u8           fp   = RKI_DS_FP(hash);                                                             \
-    const size_t mask = self->cap - 1;                                                               \
-    size_t       i = RKI_DS_HOME(mask, hash), fd = RK_DS_NOTIN;                                      \
-    u8* const restrict data = self->data;                                                            \
-    K* const restrict keys  = self->keys;                                                            \
-    for (; data[i] != RKI_DS_SLOT_EMPTY; i = RKI_DS_NEXT(mask, i)) {                                 \
-      if (data[i] == RKI_DS_SLOT_DELETED) {                                                          \
-        if (fd == RK_DS_NOTIN) { fd = i; }                                                           \
-      } else if (data[i] == fp && !cmp_f(key, keys[i])) {                                            \
-        return RKI_PROBE_MAKE(1, 0, i);                                                              \
-      }                                                                                              \
-    }                                                                                                \
-    return (fd != RK_DS_NOTIN) ? RKI_PROBE_MAKE(0, 1, fd) : RKI_PROBE_MAKE(0, 0, i);                 \
-  }                                                                                                  \
-  rklib_fun rk_pure bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {            \
-    if rk_unlikely (!self->cap) { return false; }                                                    \
-    return RKI_PROBE_FOUND(PRIF(K, V, probe_f)(self, key, (u64)hash_f(key)));                        \
-  }                                                                                                  \
-  rklib_fun DSTYPE(K, V) * PUBF(K, V, clear)(DSTYPE(K, V)* restrict self) {                          \
-    rk_memset(self->data, RKI_DS_SLOT_EMPTY, self->cap);                                             \
-    self->count = self->ndeleted = 0;                                                                \
-    return self;                                                                                     \
-  }                                                                                                  \
-  rklib_fun DSTYPE(K, V) * PUBF(K, V, reserve)(DSTYPE(K, V)* restrict self, size_t n) {              \
-    if (!n) { return self; }                                                                         \
-    size_t cap = stdc_bit_ceil(                                                                      \
-        rk_MAX(16u, (n * RKI_DICT_LOAD_DEN + RKI_DICT_LOAD_NUM - 1) / RKI_DICT_LOAD_NUM));           \
-    if (!self->cap) {                                                                                \
-      RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                               \
-      *self = PUBF(K, V, init)(cap RK_IFALLOC(, self->alloc));                                       \
-    } else if (cap > self->cap) {                                                                    \
-      PRIF(K, V, grow)(self, cap);                                                                   \
-    }                                                                                                \
-    return self;                                                                                     \
-  }                                                                                                  \
-  rklib_fun DSTYPE(K, V) * PUBF(K, V, shrink_to_fit)(DSTYPE(K, V)* restrict self) {                  \
-    if (!self->count) {                                                                              \
-      PUBF(K, V, release)(self);                                                                     \
-      return self;                                                                                   \
-    }                                                                                                \
-    size_t target = stdc_bit_ceil(rk_MAX(                                                            \
-        16u, (self->count * RKI_DICT_LOAD_DEN + RKI_DICT_LOAD_NUM - 1) / RKI_DICT_LOAD_NUM));        \
-    if (target < self->cap) { PRIF(K, V, grow)(self, target); }                                      \
-    return self;                                                                                     \
-  }                                                                                                  \
-  IF_DICT(                                                                                         \
-      rklib_fun void PRIF(K, V, insert_f)(DSTYPE(K, V)* restrict self, K key, V val, u8 fp,        \
-                                           bool used_tombstone, size_t i) {                        \
-        ++self->count;                                                                             \
-        if (used_tombstone) { --self->ndeleted; }                                                  \
-        self->data[i] = fp;                                                                        \
-        self->keys[i] = key;                                                                       \
-        self->vals[i] = val;                                                                       \
-      } /*                                                           */                            \
-      rklib_fun bool PUBF(K, V, set)(DSTYPE(K, V)* restrict self, K key, V val) {                  \
-        PRIF(K, V, ensure_cap)(self);                                                              \
-        u64             hash = (u64)hash_f(key);                                                   \
-        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RKI_PROBE_FOUND(r)) {                                                                 \
-          PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash), RKI_PROBE_TOMBSTONE(r),            \
-                               RKI_PROBE_IDX(r));                                                  \
-        } else {                                                                                   \
-          self->vals[RKI_PROBE_IDX(r)] = val;                                                      \
-        }                                                                                          \
-        return !RKI_PROBE_FOUND(r);                                                                \
-      } /*                                                           */                            \
-      rklib_fun V* PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key, V val) {                    \
-        PRIF(K, V, ensure_cap)(self);                                                              \
-        u64             hash = (u64)hash_f(key);                                                   \
-        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RKI_PROBE_FOUND(r)) {                                                                 \
-          PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash), RKI_PROBE_TOMBSTONE(r),            \
-                               RKI_PROBE_IDX(r));                                                  \
-          return &self->vals[RKI_PROBE_IDX(r)];                                                    \
-        }                                                                                          \
-        return rk_null;                                                                            \
-      } /*                                                           */                            \
-      rklib_fun V* PUBF(K, V, get_or_add)(DSTYPE(K, V)* restrict self, K key, V val,               \
-                                           bool* restrict inserted_out) {                          \
-        PRIF(K, V, ensure_cap)(self);                                                              \
-        u64             hash = (u64)hash_f(key);                                                   \
-        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RKI_PROBE_FOUND(r)) {                                                                 \
-          PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash), RKI_PROBE_TOMBSTONE(r),            \
-                               RKI_PROBE_IDX(r));                                                  \
-          if(inserted_out){ *inserted_out = true; }                                                \
-        } else {                                                                                   \
-          if(inserted_out){ *inserted_out = false; }                                               \
-        }                                                                                          \
-        return &self->vals[RKI_PROBE_IDX(r)];                                                      \
-      } /*                                                           */                            \
-      rklib_fun rk_pure const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) { \
-        if rk_unlikely (!self->cap) { return rk_null; }                                            \
-        RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
-        return RKI_PROBE_FOUND(r) ? &self->vals[RKI_PROBE_IDX(r)] : rk_null;                       \
-      } /*                                                           */                            \
-      rklib_fun rk_pure V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                   \
-        return (V*)PUBF(K, V, get_const)(self, key);                                               \
-      } /*                                                           */                            \
-      rklib_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V * out_ptr) {        \
-        rk_assert_ptr_nonnull(out_ptr);                                                            \
-        if rk_unlikely (!self->cap) { return false; }                                              \
-        RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
-        if (!RKI_PROBE_FOUND(r)) { return false; }                                                 \
-        --self->count;                                                                             \
-        ++self->ndeleted;                                                                          \
-        self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                        \
-        *out_ptr                     = self->vals[RKI_PROBE_IDX(r)];                               \
-        return true;                                                                               \
-      } /*                                                           */                            \
-      rklib_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                      \
-        V _;                                                                                       \
-        return PUBF(K, V, extract)(self, key, &_);                                                 \
-      } /*                                                           */                            \
-      rklib_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,      \
-                                                    const V* vals, size_t n) {                     \
-        PUBF(K, V, clear)(self);                                                                   \
-        for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                \
-        return self;                                                                               \
-      }) \
-  IF_SET(                                                                                          \
-      rklib_fun bool PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key) {                         \
-        PRIF(K, V, ensure_cap)(self);                                                              \
-        u64             hash = (u64)hash_f(key);                                                   \
-        RKI_hashprobe_t r    = PRIF(K, V, probe_f)(self, key, hash);                               \
-        if (!RKI_PROBE_FOUND(r)) {                                                                 \
-          ++self->count;                                                                           \
-          if (RKI_PROBE_TOMBSTONE(r)) { --self->ndeleted; }                                        \
-          self->data[RKI_PROBE_IDX(r)] = RKI_DS_FP(hash);                                          \
-          self->keys[RKI_PROBE_IDX(r)] = key;                                                      \
-          return true;                                                                             \
-        }                                                                                          \
-        return false;                                                                              \
-      } /*                                                           */                            \
-      rklib_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                      \
-        if rk_unlikely (!self->cap) { return false; }                                              \
-        RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, (u64)hash_f(key));                      \
-        if (!RKI_PROBE_FOUND(r)) { return false; }                                                 \
-        --self->count;                                                                             \
-        ++self->ndeleted;                                                                          \
-        self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                        \
-        return true;                                                                               \
-      } /*                                                           */                            \
-      rklib_fun DSTYPE(K, V) * PUBF(K, V, assign)(DSTYPE(K, V)* restrict self, const K* keys,      \
-                                                    size_t n) {                                    \
-        PUBF(K, V, clear)(self);                                                                   \
-        for (size_t i = 0; i < n; ++i) { PUBF(K, V, add)(self, keys[i]); }                         \
-        return self;                                                                               \
-      }) \
-  RK_EXTERNC_END
-
+// The quotient product cannot exceed cap; the remainder product is widened to u64.
+rklib_fun rk_pure size_t rki_ds_load_limit(size_t cap) {
+  return (cap / RK_DICT_LOAD_DEN) * RK_DICT_LOAD_NUM
+       + (size_t)(((u64)(cap % RK_DICT_LOAD_DEN) * RK_DICT_LOAD_NUM) / RK_DICT_LOAD_DEN);
+}
+rklib_fun size_t rki_ds_round_cap(size_t requested) {
+  size_t cap = 16;
+  while (cap < requested) {
+    if (cap > SIZE_MAX / 2) { abort(); }
+    cap *= 2;
+  }
+  return cap;
+}
+rklib_fun size_t rki_ds_cap_for_count(size_t n) {
+  size_t cap = 16;
+  while (rki_ds_load_limit(cap) < n) {
+    if (cap > SIZE_MAX / 2) { abort(); }
+    cap *= 2;
+  }
+  return cap;
+}
+rklib_fun void rki_ds_check_array_size(size_t cap, size_t element_size) {
+  if (cap > SIZE_MAX / element_size) { abort(); }
+}
 rklib_fun rk_pure float rki_ds_load_factor(const RKI_ds_header* hdr) {
   return hdr->cap ? (float)hdr->count / (float)hdr->cap : 0.0f;
 }
 rklib_fun rk_pure bool rki_ds_needs_rehash(const RKI_ds_header* hdr) {
-  return (hdr->count + hdr->ndeleted + 1) * RKI_DICT_LOAD_DEN > hdr->cap * RKI_DICT_LOAD_NUM;
-} // todo fix docs for custom load factor
+  // Invariant: count + ndeleted <= cap, so the sum does not overflow.
+  return hdr->count + hdr->ndeleted >= rki_ds_load_limit(hdr->cap);
+}
+
+#define RKI_DS_DEF(K, V, hash_f, cmp_f, IF_DICT, IF_SET, DSTYPE, PUBF, PRIF)                        \
+  RK_EXTERNC_BEG                                                                                    \
+  typedef struct DSTYPE(K, V) {                                                                     \
+    union {                                                                                         \
+      RKI_ds_header hdr;                                                                            \
+      struct { size_t cap, count, ndeleted; };                                                      \
+    };                                                                                              \
+    u8* data;                                                                                       \
+    K*  keys;                                                                                       \
+    IF_DICT(V* vals;)                                                                               \
+    RK_IFALLOC(Allocator alloc;)                                                                    \
+  } DSTYPE(K, V);                                                                                   \
+  rklib_fun rk_pure u64  PRIF(K, V, hash_key)(K rki_var_key) { return (u64)hash_f(rki_var_key); }   \
+  rklib_fun rk_pure bool PRIF(K, V, keys_equal)(K rki_var_a, K rki_var_b) {                         \
+    return !cmp_f(rki_var_a, rki_var_b);                                                            \
+  }                                                                                                 \
+  rklib_fun rk_pure size_t    PUBF(K, V, count)(const DSTYPE(K, V) * self) { return self->count; }  \
+  rklib_fun rk_pure size_t    PUBF(K, V, cap)(const DSTYPE(K, V) * self) { return self->cap; }      \
+  rklib_fun rk_pure Allocator PUBF(K, V, allocator)(const DSTYPE(K, V) * self) {                    \
+    return RKI_allocatorof(self);                                                                   \
+  }                                                                                                 \
+  rklib_fun rk_pure bool  PUBF(K, V, is_empty)(const DSTYPE(K, V) * self) { return !self->count; }  \
+  rklib_fun rk_pure float PUBF(K, V, load_factor)(const DSTYPE(K, V) * self) {                      \
+    return rki_ds_load_factor(&self->hdr);                                                          \
+  }                                                                                                 \
+  rklib_fun DSTYPE(K, V) PUBF(K, V, init)(size_t cap RK_IFALLOC(, Allocator alloc)) {               \
+    RKI_assert_allocator_valid(alloc);                                                              \
+    cap = rki_ds_round_cap(cap);                                                                    \
+    rki_ds_check_array_size(cap, sizeof(K));                                                        \
+    IF_DICT(rki_ds_check_array_size(cap, sizeof(V));)                                               \
+    DSTYPE(K, V)                                                                                    \
+    result      = {{{cap, 0, 0}}, rk_null, rk_null IF_DICT(, rk_null) RK_IFALLOC(, alloc)};         \
+    result.data = (u8*)alloc_allocate(cap, align_max RK_IFALLOC(, alloc));                          \
+    if (!result.data) { abort(); }                                                                  \
+    rk_memset(result.data, RKI_DS_SLOT_EMPTY, cap);                                                 \
+    result.keys = alloc_new(K, cap RK_IFALLOC(, alloc));                                            \
+    if (!result.keys) { abort(); }                                                                  \
+    IF_DICT(result.vals = alloc_new(V, cap RK_IFALLOC(, alloc)); if (!result.vals) { abort(); })    \
+    return result;                                                                                  \
+  }                                                                                                 \
+  rklib_fun void PUBF(K, V, release)(DSTYPE(K, V) * self) {                                         \
+    if (!self->cap) { return; }                                                                     \
+    alloc_deallocate(self->data, self->cap, align_max RK_IFALLOC(, self->alloc));                   \
+    alloc_delete(self->keys, self->cap RK_IFALLOC(, self->alloc));                                  \
+    IF_DICT(alloc_delete(self->vals, self->cap RK_IFALLOC(, self->alloc)); self->vals = rk_null;)   \
+    self->data = rk_null;                                                                           \
+    self->keys = rk_null;                                                                           \
+    self->cap = self->count = self->ndeleted = 0;                                                   \
+  }                                                                                                 \
+  rklib_fun void PRIF(K, V, grow)(DSTYPE(K, V) * self, size_t new_cap) {                            \
+    const DSTYPE(K, V) old_self = *self;                                                            \
+    DSTYPE(K, V) new_self       = PUBF(K, V, init)(new_cap RK_IFALLOC(, old_self.alloc));           \
+    new_self.count              = old_self.count;                                                   \
+    const size_t mask           = new_self.cap - 1;                                                 \
+    for (size_t i = 0; i < old_self.cap; ++i) {                                                     \
+      if (RKI_DS_SLOT_EMPTY_OR_DELETED(old_self.data[i])) { continue; }                             \
+      K      key  = old_self.keys[i];                                                               \
+      u64    hash = PRIF(K, V, hash_key)(key);                                                      \
+      size_t j    = RKI_DS_HOME(mask, hash);                                                        \
+      while (new_self.data[j] != RKI_DS_SLOT_EMPTY) { j = RKI_DS_NEXT(mask, j); }                   \
+      new_self.data[j] = RKI_DS_FP(hash);                                                           \
+      new_self.keys[j] = key;                                                                       \
+      IF_DICT(new_self.vals[j] = old_self.vals[i];)                                                 \
+    }                                                                                               \
+    PUBF(K, V, release)(self);                                                                      \
+    *self = new_self;                                                                               \
+  }                                                                                                 \
+  rklib_fun bool PRIF(K, V, ensure_cap)(DSTYPE(K, V) * self) {                                      \
+    if (!self->cap) {                                                                               \
+      RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                              \
+      *self = PUBF(K, V, init)(rki_ds_cap_for_count(1) RK_IFALLOC(, self->alloc));                  \
+      return true;                                                                                  \
+    }                                                                                               \
+    if (!rki_ds_needs_rehash(&self->hdr)) { return false; }                                         \
+    size_t target = rki_ds_cap_for_count(self->count + 1);                                          \
+    PRIF(K, V, grow)(self, target > self->cap ? target : self->cap);                                \
+    return true;                                                                                    \
+  }                                                                                                 \
+  rklib_fun rk_pure RKI_hashprobe_t PRIF(K, V, probe_f)(const DSTYPE(K, V)* restrict self, K key,   \
+                                                        u64 hash) {                                 \
+    if (!self->cap) { return RKI_PROBE_MAKE(false, false, 0); }                                     \
+    const u8     fp   = RKI_DS_FP(hash);                                                            \
+    const size_t mask = self->cap - 1;                                                              \
+    size_t       i = RKI_DS_HOME(mask, hash), fd = RK_DS_NOTIN;                                     \
+    const u8* const restrict data = self->data;                                                     \
+    const K* const restrict keys  = self->keys;                                                     \
+    for (; data[i] != RKI_DS_SLOT_EMPTY; i = RKI_DS_NEXT(mask, i)) {                                \
+      if (data[i] == RKI_DS_SLOT_DELETED) {                                                         \
+        if (fd == RK_DS_NOTIN) { fd = i; }                                                          \
+      } else if (data[i] == fp && PRIF(K, V, keys_equal)(key, keys[i])) {                           \
+        return RKI_PROBE_MAKE(true, false, i);                                                      \
+      }                                                                                             \
+    }                                                                                               \
+    return fd != RK_DS_NOTIN ? RKI_PROBE_MAKE(false, true, fd) : RKI_PROBE_MAKE(false, false, i);   \
+  }                                                                                                 \
+  rklib_fun RKI_hashprobe_t PRIF(K, V, prepare_insert)(DSTYPE(K, V) * self, K key, u64 hash) {      \
+    RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, hash);                                       \
+    if (!RKI_PROBE_FOUND(r) && PRIF(K, V, ensure_cap)(self)) {                                      \
+      r = PRIF(K, V, probe_f)(self, key, hash);                                                     \
+    }                                                                                               \
+    return r;                                                                                       \
+  }                                                                                                 \
+  rklib_fun rk_pure bool PUBF(K, V, contains)(const DSTYPE(K, V)* restrict self, K key) {           \
+    return RKI_PROBE_FOUND(PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key)));              \
+  }                                                                                                 \
+  rklib_fun DSTYPE(K, V) * PUBF(K, V, clear)(DSTYPE(K, V)* restrict self) {                         \
+    rk_memset(self->data, RKI_DS_SLOT_EMPTY, self->cap);                                            \
+    self->count = self->ndeleted = 0;                                                               \
+    return self;                                                                                    \
+  }                                                                                                 \
+  rklib_fun DSTYPE(K, V) * PUBF(K, V, reserve)(DSTYPE(K, V)* restrict self, size_t n) {             \
+    if (!n) { return self; }                                                                        \
+    size_t requested = n > self->count ? n : self->count;                                           \
+    size_t cap       = rki_ds_cap_for_count(requested);                                             \
+    if (!self->cap) {                                                                               \
+      RK_IFALLOC(RKI_set_alloc_fallback(self->alloc);)                                              \
+      *self = PUBF(K, V, init)(cap RK_IFALLOC(, self->alloc));                                      \
+    } else if (cap > self->cap) {                                                                   \
+      PRIF(K, V, grow)(self, cap);                                                                  \
+    } else if (self->ndeleted > rki_ds_load_limit(self->cap) - requested) {                         \
+      PRIF(K, V, grow)(self, self->cap);                                                            \
+    }                                                                                               \
+    return self;                                                                                    \
+  }                                                                                                 \
+  rklib_fun DSTYPE(K, V) * PUBF(K, V, shrink_to_fit)(DSTYPE(K, V)* restrict self) {                 \
+    if (!self->count) {                                                                             \
+      PUBF(K, V, release)(self);                                                                    \
+      return self;                                                                                  \
+    }                                                                                               \
+    size_t target = rki_ds_cap_for_count(self->count);                                              \
+    if (target < self->cap || self->ndeleted) { PRIF(K, V, grow)(self, target); }                   \
+    return self;                                                                                    \
+  }                                                                                                 \
+  IF_DICT(                                                                                        \
+    rklib_fun void PRIF(K, V, insert_f)(DSTYPE(K, V)* restrict self, K key, V val,                \
+                                       u8 fp, bool used_tombstone, size_t i) {                    \
+      ++self->count;                                                                              \
+      if (used_tombstone) { --self->ndeleted; }                                                   \
+      self->data[i] = fp;                                                                         \
+      self->keys[i] = key;                                                                        \
+      self->vals[i] = val;                                                                        \
+    }                                                                                             \
+    rklib_fun bool PUBF(K, V, set)(DSTYPE(K, V)* restrict self, K key, V val) {                   \
+      u64 hash = PRIF(K, V, hash_key)(key);                                                       \
+      RKI_hashprobe_t r = PRIF(K, V, prepare_insert)(self, key, hash);                            \
+      if (RKI_PROBE_FOUND(r)) { self->vals[RKI_PROBE_IDX(r)] = val; }                             \
+      else { PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash),                                \
+                                  RKI_PROBE_TOMBSTONE(r), RKI_PROBE_IDX(r)); }                    \
+      return !RKI_PROBE_FOUND(r);                                                                 \
+    }                                                                                             \
+    rklib_fun V* PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key, V val) {                     \
+      u64 hash = PRIF(K, V, hash_key)(key);                                                       \
+      RKI_hashprobe_t r = PRIF(K, V, prepare_insert)(self, key, hash);                            \
+      if (RKI_PROBE_FOUND(r)) { return rk_null; }                                                 \
+      PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash),                                       \
+                           RKI_PROBE_TOMBSTONE(r), RKI_PROBE_IDX(r));                             \
+      return &self->vals[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
+    rklib_fun V* PUBF(K, V, get_or_add)(DSTYPE(K, V)* restrict self, K key, V val,                \
+                                      bool* restrict inserted_out) {                              \
+      u64 hash = PRIF(K, V, hash_key)(key);                                                       \
+      RKI_hashprobe_t r = PRIF(K, V, prepare_insert)(self, key, hash);                            \
+      if (!RKI_PROBE_FOUND(r)) {                                                                  \
+        PRIF(K, V, insert_f)(self, key, val, RKI_DS_FP(hash),                                     \
+                             RKI_PROBE_TOMBSTONE(r), RKI_PROBE_IDX(r));                           \
+      }                                                                                           \
+      if (inserted_out) { *inserted_out = !RKI_PROBE_FOUND(r); }                                  \
+      return &self->vals[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
+    rklib_fun rk_pure const V* PUBF(K, V, get_const)(const DSTYPE(K, V)* restrict self, K key) {  \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      return RKI_PROBE_FOUND(r) ? &self->vals[RKI_PROBE_IDX(r)] : rk_null;                        \
+    }                                                                                             \
+    rklib_fun rk_pure V* PUBF(K, V, get)(DSTYPE(K, V)* restrict self, K key) {                    \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      return RKI_PROBE_FOUND(r) ? &self->vals[RKI_PROBE_IDX(r)] : rk_null;                        \
+    }                                                                                             \
+    /* Not rk_pure: the assert must survive a discarded result, e.g. `(void)dict_at(...)`. */     \
+    rklib_fun const V* PUBF(K, V, at_const)(const DSTYPE(K, V)* restrict self, K key) {           \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      rk_assert(RKI_PROBE_FOUND(r) && "Key not present in Dict");                                 \
+      return &self->vals[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
+    rklib_fun V* PUBF(K, V, at)(DSTYPE(K, V)* restrict self, K key) {                             \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      rk_assert(RKI_PROBE_FOUND(r) && "Key not present in Dict");                                 \
+      return &self->vals[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
+    rklib_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V* out_ptr) {          \
+      rk_assert_ptr_nonnull(out_ptr);                                                             \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      if (!RKI_PROBE_FOUND(r)) { return false; }                                                  \
+      *out_ptr = self->vals[RKI_PROBE_IDX(r)];                                                    \
+      --self->count;                                                                              \
+      ++self->ndeleted;                                                                           \
+      self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                         \
+      return true;                                                                                \
+    }                                                                                             \
+    rklib_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                       \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      if (!RKI_PROBE_FOUND(r)) { return false; }                                                  \
+      --self->count;                                                                              \
+      ++self->ndeleted;                                                                           \
+      self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                         \
+      return true;                                                                                \
+    }                                                                                             \
+    rklib_fun DSTYPE(K, V)* PUBF(K, V, assign)(DSTYPE(K, V)* restrict self,                       \
+                                             const K* keys, const V* vals, size_t n) {            \
+      PUBF(K, V, clear)(self);                                                                    \
+      PUBF(K, V, reserve)(self, n);                                                               \
+      for (size_t i = 0; i < n; ++i) { PUBF(K, V, set)(self, keys[i], vals[i]); }                 \
+      return self;                                                                                \
+    }                                                                                             \
+  ) \
+  IF_SET(                                                                                         \
+    rklib_fun bool PUBF(K, V, add)(DSTYPE(K, V)* restrict self, K key) {                          \
+      u64 hash = PRIF(K, V, hash_key)(key);                                                       \
+      RKI_hashprobe_t r = PRIF(K, V, prepare_insert)(self, key, hash);                            \
+      if (RKI_PROBE_FOUND(r)) { return false; }                                                   \
+      ++self->count;                                                                              \
+      if (RKI_PROBE_TOMBSTONE(r)) { --self->ndeleted; }                                           \
+      self->data[RKI_PROBE_IDX(r)] = RKI_DS_FP(hash);                                             \
+      self->keys[RKI_PROBE_IDX(r)] = key;                                                         \
+      return true;                                                                                \
+    }                                                                                             \
+    rklib_fun rk_pure const K* PUBF(K, V, get)(const DSTYPE(K, V)* restrict self, K key) {        \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      return RKI_PROBE_FOUND(r) ? &self->keys[RKI_PROBE_IDX(r)] : rk_null;                        \
+    }                                                                                             \
+    /* Not rk_pure: the assert must survive a discarded result, e.g. `(void)set_at(...)`. */      \
+    rklib_fun const K* PUBF(K, V, at)(const DSTYPE(K, V)* restrict self, K key) {                 \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      rk_assert(RKI_PROBE_FOUND(r) && "Key not present in Set");                                  \
+      return &self->keys[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
+    rklib_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, K* out_ptr) {          \
+      rk_assert_ptr_nonnull(out_ptr);                                                             \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      if (!RKI_PROBE_FOUND(r)) { return false; }                                                  \
+      *out_ptr = self->keys[RKI_PROBE_IDX(r)];                                                    \
+      --self->count;                                                                              \
+      ++self->ndeleted;                                                                           \
+      self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                         \
+      return true;                                                                                \
+    }                                                                                             \
+    rklib_fun bool PUBF(K, V, remove)(DSTYPE(K, V)* restrict self, K key) {                       \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      if (!RKI_PROBE_FOUND(r)) { return false; }                                                  \
+      --self->count;                                                                              \
+      ++self->ndeleted;                                                                           \
+      self->data[RKI_PROBE_IDX(r)] = RKI_DS_SLOT_DELETED;                                         \
+      return true;                                                                                \
+    }                                                                                             \
+    rklib_fun DSTYPE(K, V)* PUBF(K, V, assign)(DSTYPE(K, V)* restrict self,                       \
+                                             const K* keys, size_t n) {                           \
+      PUBF(K, V, clear)(self);                                                                    \
+      PUBF(K, V, reserve)(self, n);                                                               \
+      for (size_t i = 0; i < n; ++i) { PUBF(K, V, add)(self, keys[i]); }                          \
+      return self;                                                                                \
+    }                                                                                             \
+  ) \
+  RK_EXTERNC_END
 
 /// @endcond
-#pragma endregion implementation
 RKI_HEADER_END
 /// @}
 #endif // RK_DICT_H
