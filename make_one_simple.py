@@ -14,8 +14,7 @@ Marked implementation sections are appended at the bottom in dependency order.
 Headers must already separate public declarations from their function bodies.
 Sections use `#pragma region implementation` / `#pragma endregion implementation`,
 or (when no region is present) `/// @cond INTERNAL` / `/// @endcond`.
-The foundation header rk_defs.h stays intact. RK_IFALLOC remains early because
-public tree types need it. This tool does not evaluate conditional compilation;
+RK_IFALLOC remains early because public tree types need it. This tool does not evaluate conditional compilation;
 it preserves the original section's activation using a temporary macro.
 
 Resolution strategy for quoted includes:
@@ -72,7 +71,7 @@ def implementation_span(lines: list[str]) -> tuple[int, int] | None:
         raise ValueError(
             "Expected one balanced implementation section per header")
     span = starts[0], ends[0] + 1
-    # The section must not cut across an enclosing preprocessor conditional.
+# The section must not cut across an enclosing preprocessor conditional.
     depth = 0
     continued = False
     for line in lines[span[0]:span[1]]:
@@ -162,11 +161,11 @@ def resolve_quoted_include(
     """
     candidates = []
 
-    # Start from including file's directory, then walk upward.
+# Start from including file's directory, then walk upward.
     for base in parent_chain(including_file):
         candidates.append(base / include_name)
 
-    # Also search from root file's directory upward.
+# Also search from root file's directory upward.
     for base in parent_chain(root_file):
         candidates.append(base / include_name)
 
@@ -219,7 +218,7 @@ def flatten_file(
     lines = text.splitlines(keepends=True)
     if lines and not lines[-1].endswith('\n'):
         lines[-1] += '\n'
-    keep_implementations = keep_implementations or {'rk_defs.h'}
+    keep_implementations = keep_implementations or set()
     span = None
     if deferred is not None and resolved.name not in keep_implementations:
         span = implementation_span(lines)
@@ -232,8 +231,8 @@ def flatten_file(
                 raise ValueError(
                     f"Move quoted includes before the implementation section: {shown}")
 
-            # TreeNode/base declarations need this allocator configuration macro
-            # immediately. Keep just this prerequisite early, not allocator bodies.
+# TreeNode/base declarations need this allocator configuration macro
+# immediately. Keep just this prerequisite early, not allocator bodies.
             if resolved.name == 'rk_alloc.h':
                 matches = [line for line in body if re.match(
                     r'^\s*#\s*define\s+RK_IFALLOC\(', line)]
@@ -245,8 +244,8 @@ def flatten_file(
                                matches[0], '#else\n', matches[1], '#endif\n'])
                     body = [line for line in body if line not in matches]
 
-            # This flag is set inside the original guard and conditional branch.
-            # Do not reopen #ifndef HEADER_H: that guard is already defined later.
+# This flag is set inside the original guard and conditional branch.
+# Do not reopen #ifndef HEADER_H: that guard is already defined later.
             digest = hashlib.sha256(shown.encode(
                 'utf-8')).hexdigest()[:16].upper()
             flag = f'RKI_AMALG_IMPL_{digest}'
@@ -262,7 +261,7 @@ def flatten_file(
                         out.append(event[1])
                     advance_scope(replay_scopes, line)
                 continued = line.rstrip().endswith('\\')
-            # Preserve the scopes that remain open after the original section.
+# Preserve the scopes that remain open after the original section.
             original_scopes = scopes.copy()
             scopes = replay_scopes.copy()
             deferred.append(''.join([
@@ -279,8 +278,8 @@ def flatten_file(
 
         line = lines[line_no]
         line_no += 1
-        # Macro replacement lists can contain scope tokens. They are not scopes
-        # entered while reading the header, so ignore continuation lines.
+# Macro replacement lists can contain scope tokens. They are not scopes
+# entered while reading the header, so ignore continuation lines.
         if line_no == 1 or not lines[line_no - 2].rstrip().endswith('\\'):
             advance_scope(scopes, line)
         if not keep_pragma_once and PRAGMA_ONCE_RE.match(line):
@@ -329,7 +328,7 @@ def main() -> int:
     )
     parser.add_argument(
         '--keep-implementation', action='append', default=[], metavar='HEADER',
-        help='Keep a foundation header intact (rk_defs.h is always kept intact)',
+        help='Keep the implementation section of this header in place',
     )
     parser.add_argument(
         '--no-defer-implementations', action='store_true',
@@ -350,7 +349,7 @@ def main() -> int:
             visited=set(),
             keep_pragma_once=args.keep_pragma_once,
             deferred=deferred,
-            keep_implementations={'rk_defs.h', *args.keep_implementation},
+            keep_implementations=set(args.keep_implementation),
         )
         if deferred:
             flattened += '\n/* Deferred implementation sections (dependency order). */\n'
