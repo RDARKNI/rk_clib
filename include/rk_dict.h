@@ -467,14 +467,16 @@ RKI_HEADER_BEGIN
 
 // `vals` remains a mutable pointer when the Dict object is const. Propagate the
 // container's constness to the pointers exposed during iteration.
+// The C version detects constness through `count`, a member of a named type: matching on
+// `const typeof(*(self))*` would spell `const const Dict` for a const Dict (MSVC C4114).
 #ifdef __cplusplus
 # define RKI_DICT_VALUE_PTR(self)                                                                  \
    ((typename std::conditional<std::is_const<typeof(*(self))>::value,                              \
                                const typeof((self)->vals[0])*, typeof((self)->vals)>::type)0)
 #else
 # define RKI_DICT_VALUE_PTR(self)                                                                  \
-   _Generic((self),                                                                                \
-       const typeof(*(self))*: (const typeof((self)->vals[0])*)0,                                  \
+   _Generic(&(self)->count,                                                                        \
+       const size_t*: (const typeof((self)->vals[0])*)0,                                           \
        default: (typeof((self)->vals))0)
 #endif
 

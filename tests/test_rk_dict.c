@@ -1066,6 +1066,31 @@ triax_test(set, assign_replaces_contents_and_dedups) {
 /// @name Misc
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+typedef struct ContainerofProbe {
+  int    a;
+  double member;
+  char   c;
+} ContainerofProbe;
+
+// containerof() recovers the enclosing object and propagates the member pointer's constness. The
+// const case also exercises the MSVC C4114 suppression for the doubled qualifier.
+triax_test(containerof, mutable_and_const) {
+  ContainerofProbe        obj = {1, 2.0, 'x'};
+  double*                 mp  = &obj.member;
+  const double*           cp  = &obj.member;
+  ContainerofProbe*       m   = containerof(mp, ContainerofProbe, member);
+  const ContainerofProbe* c   = containerof(cp, ContainerofProbe, member);
+  static_assert(_Generic(containerof(mp, ContainerofProbe, member), ContainerofProbe*: 1,
+                         default: 0),
+                "mutable member pointer must yield a mutable container pointer");
+  static_assert(_Generic(containerof(cp, ContainerofProbe, member), const ContainerofProbe*: 1,
+                         default: 0),
+                "const member pointer must yield a const container pointer");
+  triax_expect_eq(m, &obj);
+  triax_expect_eq(c, &obj);
+  triax_expect_eq(c->c, 'x');
+}
+
 triax_test(arrdup, t0) {
   int  src[5] = {1, 2, 3, 4, 5};
   int* dst    = rk_arrdup(src, 5);

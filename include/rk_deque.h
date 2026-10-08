@@ -279,10 +279,12 @@ RKI_HEADER_BEGIN
 #define RKI_DEQUE_PRI(K, FNAME) rki_deque_##K##_##FNAME
 
 // The member `data` is a mutable pointer even when the Deque is const; propagate the
-// container's constness explicitly when choosing an iterator pointer type.
+// container's constness explicitly when choosing an iterator pointer type. Constness is detected
+// through `count`, a member of a named type: matching on `const typeof(*(self))*` would spell
+// `const const Deque` for a const Deque (MSVC C4114).
 #define RKI_DEQUE_ITER_PTR(self)                                                                   \
-  _Generic((self),                                                                                 \
-      const typeof(*(self))*: (const typeof((self)->data[0])*)0,                                   \
+  _Generic(&(self)->count,                                                                         \
+      const size_t*: (const typeof((self)->data[0])*)0,                                            \
       default: (typeof((self)->data))0)
 #define RKI_DEQUE_DEFINE(T)                                                                        \
   RK_EXTERNC_BEG                                                                                   \

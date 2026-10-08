@@ -299,6 +299,30 @@ triax_test(deque, foreach_and_reversed) {
   deque_release(int, &q);
 }
 
+// Iterating a const Deque yields const element pointers; a mutable Deque yields mutable ones.
+triax_test(deque, foreach_const_deque_yields_const_pointers) {
+  Deque(int) q = deque_init(int, 0);
+  deque_push_back(int, &q, 1);
+  deque_push_back(int, &q, 2);
+  const Deque(int)* cq  = &q;
+  int               sum = 0;
+  deque_foreach(cq, it) {
+    static_assert(_Generic(it, const int*: 1, default: 0), "const deque must yield const int*");
+    sum += *it;
+  }
+  deque_foreach_reversed(cq, it) {
+    static_assert(_Generic(it, const int*: 1, default: 0), "const deque must yield const int*");
+    sum += *it;
+  }
+  deque_foreach(&q, it) {
+    static_assert(_Generic(it, int*: 1, default: 0), "mutable deque must yield int*");
+    *it += 10;
+  }
+  triax_expect_eq(sum, 6);
+  triax_expect_eq(deque_front(int, &q), 11);
+  deque_release(int, &q);
+}
+
 static Deque(int) * rki_mark_eval_deque(Deque(int) * q, int* count) {
   ++*count;
   return q;

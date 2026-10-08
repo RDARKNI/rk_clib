@@ -659,7 +659,7 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 #define RKI_BstEntryPriv(K, V)   RKI_bst_entry_##K##_##V
 
-#define RKI_BST_INIT(K, V, A)    ((Bst(K, V)){RK_IFALLOC(.alloc = A)})
+#define RKI_BST_INIT(K, V, A)    ((Bst(K, V)){RK_IFALLOC(.alloc = A, ).count = 0})
 #define RKI_BST_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, A))
 #define RKI_BST_INIT2(K, V)      RKI_BST_INIT(K, V, alloc_ctx)
 
@@ -793,7 +793,7 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){RK_IFALLOC(.alloc = A)})
+#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){RK_IFALLOC(.alloc = A, ).count = 0})
 #define RKI_AVL_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_AVL_INIT(K, V, A))
 #define RKI_AVL_INIT2(K, V)      RKI_AVL_INIT(K, V, alloc_ctx)
 
@@ -988,7 +988,7 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){RK_IFALLOC(.alloc = A)})
+#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){RK_IFALLOC(.alloc = A, ).count = 0})
 #define RKI_RBT_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_RBT_INIT(K, V, A))
 #define RKI_RBT_INIT2(K, V)      RKI_RBT_INIT(K, V, alloc_ctx)
 

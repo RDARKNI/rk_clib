@@ -79,8 +79,6 @@ triax_test(arena, cap_used_remaining_empty) {
   triax_expect_eq(arena_remaining(&glob_a), ARENA_SIZE);
 }
 
-int arr[5];
-int test() { try_static_assert_expr(countof(arr) == 5, "oh dear"); }
 // ---- alloc ----
 
 triax_test(arena, alloc_basic) {

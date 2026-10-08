@@ -459,11 +459,15 @@ rklib_fun __forceinline rk_noreturn void rki_unreachable_impl(void) {
 #define maxof(T)      RKI_MAXOF(T)
 
 /// @brief Like the Kernel's container_of_const macro but portable
+// For a const `ptr`, the `const typeof(*(ptr))*` association spells a doubled qualifier, which C
+// permits but MSVC reports as C4114; `ptr` is generic, so it cannot be tested via a named member
+// type the way the container iteration macros do.
 #define containerof(ptr, type, member)                                                             \
-  ((typeof(_Generic(ptr,                                                                           \
-               const typeof(*(ptr))*: (const type*)0,                                              \
-               default: (type*)0)))((char*)(typeof(((const type*)0)->member)*){ptr}                \
-                                    - offsetof(type, member)))
+  RKI_IGNWARN_MSC(4114, ((typeof(_Generic(ptr,                                                     \
+                                          const typeof(*(ptr))*: (const type*)0,                   \
+                                          default: (type*)0)))(                                    \
+                            (char*)(typeof(((const type*)0)->member)*){ptr}                        \
+                            - offsetof(type, member))))
 
 /// @brief Overflow-checked `size_t` multiplication; `abort()`s instead of wrapping. Not used by
 /// default — see the `rk_mult` config hook in `rk_config.h` to opt every size/count computation in
