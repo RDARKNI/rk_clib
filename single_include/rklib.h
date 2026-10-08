@@ -946,37 +946,6 @@ rk_noreturn rklib_fun void rki_assertfail(const char* expr, const char* file, in
 
 /// @}
 
-#if RKI_STDBIT_FALLBACK
-# define stdc_leading_zeros(...)                                                                   \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
-# define stdc_leading_ones(...)                                                                    \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_ones_))(__VA_ARGS__)
-# define stdc_trailing_zeros(...)                                                                  \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
-# define stdc_trailing_ones(...)                                                                   \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
-# define stdc_count_zeros(...)                                                                     \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_zeros_))(__VA_ARGS__)
-# define stdc_count_ones(...)                                                                      \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_ones_))(__VA_ARGS__)
-# define stdc_first_leading_zero(...)                                                              \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
-# define stdc_first_leading_one(...)                                                               \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
-# define stdc_first_trailing_zero(...)                                                             \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
-# define stdc_first_trailing_one(...)                                                              \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
-# define stdc_bit_floor(...)                                                                       \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_floor_))(__VA_ARGS__)
-# define stdc_bit_ceil(...)                                                                        \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
-# define stdc_bit_width(...)                                                                       \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
-# define stdc_has_single_bit(...)                                                                  \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
-#endif /* RKI_STDBIT_FALLBACK */
-
 #define RKI_AMALG_IMPL_74750096303C1B2D 1
 RKI_HEADER_END
 
@@ -4077,9 +4046,9 @@ rklib_fun Str*                str_clear(Str* restrict self);
 /// @name String Capacity
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`. If `self` has less,
-/// it is reallocated to exactly `new_cap` bytes (the null terminator counts towards the capacity).
-/// Unlike the growth of appending operations, the capacity is not rounded up.
+/// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`. If `self` has
+/// less, it is reallocated to exactly `new_cap` bytes (the null terminator counts towards the
+/// capacity). Unlike the growth of appending operations, the capacity is not rounded up.
 rklib_fun Str*                str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
@@ -5497,6 +5466,35 @@ RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
 # undef RKI_DEF_TZ__
 # undef RKI_DEF_CO_
 # undef RKI_DEF_STDCBIT_FUNS
+
+# define stdc_leading_zeros(...)                                                                   \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
+# define stdc_leading_ones(...)                                                                    \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_ones_))(__VA_ARGS__)
+# define stdc_trailing_zeros(...)                                                                  \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
+# define stdc_trailing_ones(...)                                                                   \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
+# define stdc_count_zeros(...)                                                                     \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_zeros_))(__VA_ARGS__)
+# define stdc_count_ones(...)                                                                      \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_ones_))(__VA_ARGS__)
+# define stdc_first_leading_zero(...)                                                              \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
+# define stdc_first_leading_one(...)                                                               \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
+# define stdc_first_trailing_zero(...)                                                             \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
+# define stdc_first_trailing_one(...)                                                              \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
+# define stdc_bit_floor(...)                                                                       \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_floor_))(__VA_ARGS__)
+# define stdc_bit_ceil(...)                                                                        \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
+# define stdc_bit_width(...)                                                                       \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
+# define stdc_has_single_bit(...)                                                                  \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
 
 #endif /* RKI_STDBIT_FALLBACK */
 
@@ -7625,11 +7623,8 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
     RKI_IGNWARN_MSC_BEG(4114)                                                                      \
     typeof(vec) rki_var_vec = (vec);                                                               \
     if (!vec_count(rki_var_vec)) { break; }                                                        \
-    typeof(*rki_var_vec)*rki_var_write = rki_var_vec, *const rki_var_end                           \
-                                                      = rki_var_write                              \
-                                                      + RKI_VEC_COUNT(rki_var_write);              \
-    for (typeof(*rki_var_vec)* rki_var_it = rki_var_vec; rki_var_it != rki_var_end;                \
-         ++rki_var_it) {                                                                           \
+    typeof(*rki_var_vec)* rki_var_write = rki_var_vec;                                             \
+    vec_foreach(rki_var_vec, rki_var_it) {                                                         \
       typeof(*rki_var_vec)* const it = rki_var_it;                                                 \
       if (!(pred)) { *rki_var_write++ = *rki_var_it; }                                             \
     }                                                                                              \
@@ -8486,12 +8481,8 @@ rklib_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
   }
   return rk_null;
 }
-
 rklib_fun rk_pure bool str_contains_char(Strv sv, char c) {
-  for (size_t i = 0; i < sv.len; ++i) {
-    if (sv.str[i] == c) { return true; }
-  }
-  return false;
+  return sv.len != 0 && memchr(sv.str, (unsigned char)c, sv.len) != rk_null;
 }
 
 rklib_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
@@ -8757,8 +8748,8 @@ rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count) {
 }
 
 rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc) {
-  for (size_t i = 0, len = self->len; i < len; ++i) {
-    if (self->str[i] == oldc) { self->str[i] = newc; }
+  str_foreach(self, it) {
+    if (*it == oldc) { *it = newc; }
   }
   return self;
 }
@@ -8770,25 +8761,16 @@ rklib_fun char str_replace_at(Str* restrict self, size_t pos, char c) {
 }
 
 rklib_fun Str* str_to_upper(Str* restrict self) {
-  char* s = self->str;
-  for (size_t i = 0, len = self->len; i < len; ++i) {
-    // The adjustment is always exactly 0 or 'a'-'A', so the result always
-    // stays within a valid char; the cast just makes that narrowing explicit.
-    s[i] = (char)(s[i] - (s[i] >= 'a' && s[i] <= 'z') * ('a' - 'A'));
-  }
+  str_foreach(self, it) { *it = (char)(*it - (*it >= 'a' && *it <= 'z') * ('a' - 'A')); }
   return self;
 }
 rklib_fun Str* str_to_lower(Str* restrict self) {
-  char* s = self->str;
-  for (size_t i = 0, len = self->len; i < len; ++i) {
-    s[i] = (char)(s[i] + (s[i] >= 'A' && s[i] <= 'Z') * ('a' - 'A'));
-  }
+  str_foreach(self, it) { *it = (char)(*it + (*it >= 'A' && *it <= 'Z') * ('a' - 'A')); }
   return self;
 }
 rklib_fun Str* str_reverse(Str* restrict self) {
-  for (size_t i = 0, len = self->len; i < len / 2; ++i) {
-    rk_SWAP(self->str[i], self->str[len - 1 - i]);
-  }
+  char* s = self->str;
+  for (size_t i = 0, len = self->len; i < len / 2; ++i) { rk_SWAP(s[i], s[len - 1 - i]); }
   return self;
 }
 
@@ -9137,7 +9119,7 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
 #define RKI_POOL_ERASE_IF(self, it, pred)                                                          \
   do {                                                                                             \
     typeof(self) const rki_var_pool = (self);                                                      \
-    RKI_POOL_FOREACH(rki_var_pool, rki_var_cursor) {                                               \
+    pool_foreach(rki_var_pool, rki_var_cursor) {                                                   \
       RKI_POOL_T(rki_var_pool)* const it = rki_var_cursor;                                         \
       (void)it;                                                                                    \
       if (pred) { pool_delete(rki_var_pool, it); }                                                 \
