@@ -260,6 +260,129 @@ triax_test(vec, vec_front_back) {
   vec_release(v);
 }
 
+triax_test(vec, try_pop_nonempty_removes_last) {
+  Vec(int) v   = vec_init_list(int, 5, 10, 15);
+  int      out = -1;
+  triax_expect_true(vec_try_pop(v, &out));
+  triax_expect_eq(out, 15);
+  triax_expect_eq(vec_count(v), 2u);
+  triax_expect_true(vec_try_pop(v, &out));
+  triax_expect_true(vec_try_pop(v, &out));
+  triax_expect_eq(out, 5);
+  triax_expect_eq(vec_count(v), 0u);
+  vec_release(v);
+}
+
+triax_test(vec, try_pop_empty_or_uninit_fails_and_leaves_out) {
+  Vec(int) empty = vec_init(int, 4);
+  int      out   = -1;
+  triax_expect_false(vec_try_pop(empty, &out));
+  triax_expect_eq(out, -1);
+  triax_expect_eq(vec_count(empty), 0u);
+  vec_release(empty);
+
+  Vec(int) uninit = rk_null;
+  triax_expect_false(vec_try_pop(uninit, &out));
+  triax_expect_eq(out, -1);
+}
+
+// `out` is evaluated at most once: once when a value is removed, not at all when empty.
+triax_test(vec, try_pop_evaluates_out_at_most_once) {
+  Vec(int) v       = vec_init_list(int, 1, 2);
+  int      outs[2] = {0, 0};
+  int*     cursor  = outs;
+  triax_expect_true(vec_try_pop(v, cursor++));
+  triax_expect_eq(cursor, outs + 1);
+  triax_expect_eq(outs[0], 2);
+  vec_release(v);
+
+  Vec(int) empty = vec_init(int, 4);
+  triax_expect_false(vec_try_pop(empty, cursor++));
+  triax_expect_eq(cursor, outs + 1);
+  vec_release(empty);
+}
+
+#ifdef RKLIB_DEBUG
+triax_test(vec, pop_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Vec(int) v = vec_init(int, 4);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)vec_pop(v); });
+}
+#endif
+
+// ---- accessors: _front/_back/_at are asserted lvalues, _peek_* are nullable pointers ----
+
+triax_test(vec, at_front_back_are_writable_lvalues) {
+  Vec(int) v = vec_init_list(int, 5, 10, 15);
+  vec_front(v) = 1;
+  vec_at(v, 1) += 1;
+  vec_back(v)  = 3;
+  triax_expect_eq(v[0], 1);
+  triax_expect_eq(v[1], 11);
+  triax_expect_eq(v[2], 3);
+  triax_expect_eq(&vec_at(v, 2), &vec_back(v));
+  vec_release(v);
+}
+
+triax_test(vec, peek_in_bounds_returns_element_pointer) {
+  Vec(int) v = vec_init_list(int, 5, 10, 15);
+  triax_expect_eq(vec_peek_front(v), &v[0]);
+  triax_expect_eq(vec_peek_back(v), &v[2]);
+  triax_expect_eq(vec_peek_at(v, 1), &v[1]);
+  *vec_peek_at(v, 1) = 7;
+  triax_expect_eq(v[1], 7);
+  vec_release(v);
+}
+
+triax_test(vec, peek_out_of_bounds_returns_null) {
+  Vec(int) v = vec_init_list(int, 5, 10, 15);
+  triax_expect_null(vec_peek_at(v, 3));
+  triax_expect_null(vec_peek_at(v, (size_t)-1));
+  vec_release(v);
+
+  Vec(int) empty = vec_init(int, 4);
+  triax_expect_null(vec_peek_front(empty));
+  triax_expect_null(vec_peek_back(empty));
+  triax_expect_null(vec_peek_at(empty, 0));
+  vec_release(empty);
+
+  Vec(int) uninit = rk_null;
+  triax_expect_null(vec_peek_front(uninit));
+  triax_expect_null(vec_peek_back(uninit));
+  triax_expect_null(vec_peek_at(uninit, 0));
+}
+
+triax_test(vec, accessors_preserve_element_constness) {
+  Vec(int)   v  = vec_init_list(int, 5, 10, 15);
+  const int* cv = v;
+  static_assert(_Generic(&vec_at(cv, 0), const int*: 1, default: 0), "const Vec yields const");
+  static_assert(_Generic(&vec_front(cv), const int*: 1, default: 0), "const Vec yields const");
+  static_assert(_Generic(&vec_back(cv), const int*: 1, default: 0), "const Vec yields const");
+  static_assert(_Generic(vec_peek_at(cv, 0), const int*: 1, default: 0), "const Vec yields const");
+  static_assert(_Generic(&vec_at(v, 0), int*: 1, default: 0), "mutable Vec yields mutable");
+  static_assert(_Generic(vec_peek_back(v), int*: 1, default: 0), "mutable Vec yields mutable");
+  triax_expect_eq(vec_at(cv, 2), 15);
+  triax_expect_eq(*vec_peek_front(cv), 5);
+  vec_release(v);
+}
+
+// An expected fault ends the test process, so each case needs its own test.
+#ifdef RKLIB_DEBUG
+triax_test(vec, at_out_of_bounds_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Vec(int) v = vec_init_list(int, 5, 10, 15);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)vec_at(v, 3); });
+}
+
+triax_test(vec, front_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Vec(int) v = vec_init(int, 4);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)vec_front(v); });
+}
+
+triax_test(vec, back_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Vec(int) v = vec_init(int, 4);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)vec_back(v); });
+}
+#endif
+
 triax_test(vec, vec_insert_arr_erase_n) {
   Vec(int) v     = vec_init(int, 5);
   int      arr[] = {10, 20, 30};

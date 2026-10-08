@@ -66,6 +66,7 @@ RKI_HEADER_BEGIN
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
 #define pool_used(self)               ((size_t)RKI_POOL_USED(self))
+#define pool_count(self)              pool_used(self) /// @brief aloas for `pool_used`
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
@@ -366,8 +367,8 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
 #define RKI_POOL_FOREACH(self, it)                                                                 \
   for (struct {                                                                                    \
          typeof(*(self))* pool;                                                                    \
-         RKI_BitsetIter bits;                                                                      \
-         size_t         idx;                                                                       \
+         RKI_BitsetIter   bits;                                                                    \
+         size_t           idx;                                                                     \
        } rki_var_state = {(self), {rk_null, 0, 0, 0}, 0};                                          \
        rki_var_state.pool                                                                          \
        && (rki_var_state.bits.bits = rki_var_state.pool->data,                                     \

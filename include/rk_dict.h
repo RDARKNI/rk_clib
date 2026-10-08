@@ -219,6 +219,7 @@ RKI_HEADER_BEGIN
 
 /// @brief Retrieves the value for `key`, or `NULL` if absent. Returns `V*` for a mutable Dict
 /// and `const V*` for a const Dict.
+/// @see dict_at
 #ifdef __cplusplus
 # define dict_get(K, V, self, key)                                                                 \
    ((typename std::conditional<std::is_const<typeof(*(self))>::value, const V*, V*>::type)         \
@@ -228,6 +229,24 @@ RKI_HEADER_BEGIN
    _Generic((self),                                                                                \
        const Dict(K, V)*: RKI_DICT_PUB(K, V, get_const),                                           \
        Dict(K, V)*: RKI_DICT_PUB(K, V, get))((self), (key))
+#endif
+
+/// @brief Returns the value for `key` as an lvalue, mutable for a mutable Dict and const for a
+/// const Dict.
+/// @pre `key` is present; use `dict_get()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Never inserts, unlike `dict_get_or_add()`. Invalidated by any insertion that rehashes,
+/// and by removal of `key`.
+/// @see dict_get
+#ifdef __cplusplus
+# define dict_at(K, V, self, key)                                                                  \
+   (*(typename std::conditional<std::is_const<typeof(*(self))>::value, const V*, V*>::type)        \
+         RKI_DICT_PUB(K, V, at_const)(self, key))
+#else
+# define dict_at(K, V, self, key)                                                                  \
+   (*_Generic((self),                                                                              \
+        const Dict(K, V)*: RKI_DICT_PUB(K, V, at_const),                                           \
+        Dict(K, V)*: RKI_DICT_PUB(K, V, at))((self), (key)))
 #endif
 
 /// @brief `bool dict_contains(K, V, const Dict(K, V)* self, K key)` - Checks whether the given key
@@ -412,7 +431,15 @@ RKI_HEADER_BEGIN
 
 /// @brief `const K* set_get(K, const Set(K)* self, K key)` - Retrieves the stored
 /// key representative, or NULL if absent. The returned key must not be modified.
+/// @see set_at
 #define set_get(K, self, key)                  RKI_SET_PUB(K, get)(self, key)
+
+/// @brief `const K set_at(K, const Set(K)* self, K key)` - Returns the stored key representative
+/// for `key` as a const lvalue. Always const: modifying a stored key would break its hash slot.
+/// @pre `key` is present; use `set_get()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @see set_get
+#define set_at(K, self, key)                   (*RKI_SET_PUB(K, at)(self, key))
 
 /// @brief `bool set_extract(K, Set(K)* self, K key, K* out_ptr)` - Removes a key
 /// and copies its stored representative to out_ptr. Returns whether it was found.
@@ -835,6 +862,17 @@ rklib_fun rk_pure bool rki_ds_needs_rehash(const RKI_ds_header* hdr) {
       RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
       return RKI_PROBE_FOUND(r) ? &self->vals[RKI_PROBE_IDX(r)] : rk_null;                        \
     }                                                                                             \
+    /* Not rk_pure: the assert must survive a discarded result, e.g. `(void)dict_at(...)`. */     \
+    rklib_fun const V* PUBF(K, V, at_const)(const DSTYPE(K, V)* restrict self, K key) {           \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      rk_assert(RKI_PROBE_FOUND(r) && "Key not present in Dict");                                 \
+      return &self->vals[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
+    rklib_fun V* PUBF(K, V, at)(DSTYPE(K, V)* restrict self, K key) {                             \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      rk_assert(RKI_PROBE_FOUND(r) && "Key not present in Dict");                                 \
+      return &self->vals[RKI_PROBE_IDX(r)];                                                       \
+    }                                                                                             \
     rklib_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, V* out_ptr) {          \
       rk_assert_ptr_nonnull(out_ptr);                                                             \
       RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
@@ -875,6 +913,12 @@ rklib_fun rk_pure bool rki_ds_needs_rehash(const RKI_ds_header* hdr) {
     rklib_fun rk_pure const K* PUBF(K, V, get)(const DSTYPE(K, V)* restrict self, K key) {        \
       RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
       return RKI_PROBE_FOUND(r) ? &self->keys[RKI_PROBE_IDX(r)] : rk_null;                        \
+    }                                                                                             \
+    /* Not rk_pure: the assert must survive a discarded result, e.g. `(void)set_at(...)`. */      \
+    rklib_fun const K* PUBF(K, V, at)(const DSTYPE(K, V)* restrict self, K key) {                 \
+      RKI_hashprobe_t r = PRIF(K, V, probe_f)(self, key, PRIF(K, V, hash_key)(key));              \
+      rk_assert(RKI_PROBE_FOUND(r) && "Key not present in Set");                                  \
+      return &self->keys[RKI_PROBE_IDX(r)];                                                       \
     }                                                                                             \
     rklib_fun bool PUBF(K, V, extract)(DSTYPE(K, V)* restrict self, K key, K* out_ptr) {          \
       rk_assert_ptr_nonnull(out_ptr);                                                             \

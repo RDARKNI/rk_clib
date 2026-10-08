@@ -121,7 +121,8 @@ RKI_HEADER_BEGIN
 /// `const Deque(T)* self`. Like `vec_front()`, requires a nonempty Deque.
 /// @param T Element type
 /// @return Lvalue for the first element
-/// @attention Requires a nonempty Deque; use `deque_peek_front()` to check safely.
+/// @pre The Deque is nonempty; use `deque_peek_front()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_front(T, self)                                                                       \
   (*_Generic((self),                                                                               \
@@ -132,22 +133,38 @@ RKI_HEADER_BEGIN
 /// `const Deque(T)* self`. Like `vec_back()`, requires a nonempty Deque.
 /// @param T Element type
 /// @return Lvalue for the last element
-/// @attention Requires a nonempty Deque; use `deque_peek_back()` to check safely.
+/// @pre The Deque is nonempty; use `deque_peek_back()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Invalidated by any later mutation of the Deque.
 #define deque_back(T, self)                                                                        \
   (*_Generic((self),                                                                               \
        const Deque(T)*: RKI_DEQUE_PUB(T, back_const),                                              \
        default: RKI_DEQUE_PUB(T, back))(self))
 
+/// @brief Returns the element at the zero-based logical index (counting from the front) as an
+/// lvalue, mutable for `Deque(T)* self` and const for `const Deque(T)* self`.
+/// @param T     Element type
+/// @param index Zero-based logical index
+/// @pre `index < deque_count(self)`.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Invalidated by any later mutation of the Deque.
+/// @see deque_peek_at
+#define deque_at(T, self, index)                                                                   \
+  (*_Generic((self), const Deque(T)*: RKI_DEQUE_PUB(T, at_const), default: RKI_DEQUE_PUB(T, at))(  \
+      (self), (index)))
+
 /// @brief Returns a pointer to the element at the zero-based logical index (counting from the
 /// front): `T*` for `Deque(T)* self`, `const T*` for `const Deque(T)* self`.
 /// @param T     Element type
 /// @param index Zero-based logical index
-/// @return Pointer to the element, or `NULL` if `index` is out of bounds
+/// @return Pointer to the element, or `NULL` if `index` is out of bounds (including an empty
+/// Deque).
+/// @note Bounds are checked in both debug and release builds.
 /// @note Invalidated by any later mutation of the Deque.
-#define deque_at(T, self, index)                                                                   \
-  _Generic((self), const Deque(T)*: RKI_DEQUE_PUB(T, at_const), default: RKI_DEQUE_PUB(T, at))(    \
-      (self), (index))
+#define deque_peek_at(T, self, index)                                                              \
+  _Generic((self),                                                                                 \
+      const Deque(T)*: RKI_DEQUE_PUB(T, peek_at_const),                                            \
+      default: RKI_DEQUE_PUB(T, peek_at))((self), (index))
 
 /// @brief Returns a pointer to the first element: `T*` for `Deque(T)* self`, `const T*` for
 /// `const Deque(T)* self`.
@@ -348,38 +365,46 @@ RKI_HEADER_BEGIN
     RKI_DEQUE_PRI(T, realloc_to)(self, cap);                                                       \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, at)(Deque(T) * self, size_t i) {                                   \
-    return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
+    rk_assert(i < self->count && "Access out of bounds of Deque.");                                \
+    return &self->data[(self->head + i) & (self->cap - 1)];                                        \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, at_const)(const Deque(T) * self, size_t i) {                 \
+    rk_assert(i < self->count && "Access out of bounds of Deque.");                                \
+    return &self->data[(self->head + i) & (self->cap - 1)];                                        \
+  }                                                                                                \
+  rklib_fun T* RKI_DEQUE_PUB(T, peek_at)(Deque(T) * self, size_t i) {                              \
+    return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
+  }                                                                                                \
+  rklib_fun const T* RKI_DEQUE_PUB(T, peek_at_const)(const Deque(T) * self, size_t i) {            \
     return i < self->count ? &self->data[(self->head + i) & (self->cap - 1)] : rk_null;            \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, peek_front)(Deque(T) * self) {                                     \
-    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
+    return self->count ? &self->data[self->head] : rk_null;                                        \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, peek_front_const)(const Deque(T) * self) {                   \
-    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
+    return self->count ? &self->data[self->head] : rk_null;                                        \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, peek_back)(Deque(T) * self) {                                      \
-    return self->count ? RKI_DEQUE_PUB(T, at)(self, self->count - 1) : rk_null;                    \
+    return self->count ? &self->data[(self->head + self->count - 1) & (self->cap - 1)] : rk_null;  \
   }                                                                                                \
-  rklib_fun T const* RKI_DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                    \
-    return self->count ? RKI_DEQUE_PUB(T, at_const)(self, self->count - 1) : rk_null;              \
+  rklib_fun const T* RKI_DEQUE_PUB(T, peek_back_const)(const Deque(T) * self) {                    \
+    return self->count ? &self->data[(self->head + self->count - 1) & (self->cap - 1)] : rk_null;  \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, front)(Deque(T) * self) {                                          \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RKI_DEQUE_PUB(T, at)(self, 0);                                                          \
+    return &self->data[self->head];                                                                \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, front_const)(const Deque(T) * self) {                        \
     rk_assert(self->count && "Cannot access front of empty deque");                                \
-    return RKI_DEQUE_PUB(T, at_const)(self, 0);                                                    \
+    return &self->data[self->head];                                                                \
   }                                                                                                \
   rklib_fun T* RKI_DEQUE_PUB(T, back)(Deque(T) * self) {                                           \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RKI_DEQUE_PUB(T, at)(self, self->count - 1);                                            \
+    return &self->data[(self->head + self->count - 1) & (self->cap - 1)];                          \
   }                                                                                                \
   rklib_fun const T* RKI_DEQUE_PUB(T, back_const)(const Deque(T) * self) {                         \
     rk_assert(self->count && "Cannot access back of empty deque");                                 \
-    return RKI_DEQUE_PUB(T, at_const)(self, self->count - 1);                                      \
+    return &self->data[(self->head + self->count - 1) & (self->cap - 1)];                          \
   }                                                                                                \
   rklib_fun void RKI_DEQUE_PUB(T, push_front)(Deque(T) * self, T value) {                          \
     if (self->count == self->cap) {                                                                \

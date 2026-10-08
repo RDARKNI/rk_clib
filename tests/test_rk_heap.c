@@ -110,6 +110,67 @@ triax_test(heap, try_pop) {
   heap_release(&h);
 }
 
+// ---- heap_top: asserted const lvalue; heap_peek: nullable pointer ----
+
+triax_test(heap, top_tracks_minimum_and_matches_peek) {
+  Heap(int) h = heap_init(int, 0);
+  heap_push(int, &h, 5);
+  triax_expect_eq(heap_top(int, &h), 5);
+  heap_push(int, &h, 2);
+  heap_push(int, &h, 8);
+  triax_expect_eq(heap_top(int, &h), 2);
+  triax_expect_eq(&heap_top(int, &h), heap_peek(int, &h));
+  (void)heap_pop(int, &h);
+  triax_expect_eq(heap_top(int, &h), 5);
+  (void)heap_replace_top(int, &h, 9);
+  triax_expect_eq(heap_top(int, &h), 8);
+  heap_release(&h);
+}
+
+// The top is const even for a mutable Heap: writing it in place would break the heap order.
+triax_test(heap, top_and_peek_are_always_const) {
+  Heap(int)        h  = heap_init(int, 0);
+  const Heap(int)* ch = &h;
+  heap_push(int, &h, 4);
+  static_assert(_Generic(&heap_top(int, &h), const int*: 1, default: 0), "mutable heap: const");
+  static_assert(_Generic(&heap_top(int, ch), const int*: 1, default: 0), "const heap: const");
+  static_assert(_Generic(heap_peek(int, &h), const int*: 1, default: 0), "mutable heap: const");
+  triax_expect_eq(heap_top(int, ch), 4);
+  triax_expect_eq(*heap_peek(int, ch), 4);
+  heap_release(&h);
+}
+
+triax_test(heap, peek_of_empty_or_zero_initialized_is_null) {
+  Heap(int) h = heap_init(int, 0);
+  triax_expect_null(heap_peek(int, &h));
+  heap_push(int, &h, 1);
+  (void)heap_pop(int, &h);
+  triax_expect_null(heap_peek(int, &h));
+  heap_release(&h);
+
+  Heap(int) z = {0};
+  triax_expect_null(heap_peek(int, &z));
+}
+
+// An expected fault ends the test process, so each case needs its own test. The results are
+// discarded on purpose: the precondition check must still run.
+#ifdef RKLIB_DEBUG
+triax_test(heap, top_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Heap(int) h = heap_init(int, 0);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)heap_top(int, &h); });
+}
+
+triax_test(heap, pop_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Heap(int) h = heap_init(int, 0);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)heap_pop(int, &h); });
+}
+
+triax_test(heap, replace_top_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Heap(int) h = heap_init(int, 0);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)heap_replace_top(int, &h, 1); });
+}
+#endif
+
 triax_test(heap, replace_top) {
   Heap(int) h = heap_init(int, 0);
   heap_push(int, &h, 5);

@@ -763,6 +763,45 @@ triax_test(dict, const_dict_get_and_foreach) {
   dict_release(int, cstr, &d);
 }
 
+// ---- dict_at: asserted value lvalue; dict_get: nullable pointer ----
+
+triax_test(dict, at_is_writable_value_lvalue) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 1, "one");
+  dict_set(int, cstr, &d, 2, "two");
+  triax_expect_streq(dict_at(int, cstr, &d, 1), "one");
+  triax_expect_eq(&dict_at(int, cstr, &d, 2), dict_get(int, cstr, &d, 2));
+  dict_at(int, cstr, &d, 2) = "TWO";
+  triax_expect_streq(*dict_get(int, cstr, &d, 2), "TWO");
+  triax_expect_eq(dict_count(&d), 2u); // never inserts
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, at_follows_dict_constness) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 7, "seven");
+  const Dict(int, cstr)* cd = &d;
+  static_assert(_Generic(&dict_at(int, cstr, &d, 7), cstr*: 1, default: 0), "mutable: mutable");
+  static_assert(_Generic(&dict_at(int, cstr, cd, 7), const cstr*: 1, default: 0), "const: const");
+  triax_expect_streq(dict_at(int, cstr, cd, 7), "seven");
+  dict_release(int, cstr, &d);
+}
+
+// An expected fault ends the test process, so each case needs its own test. The results are
+// discarded on purpose: the presence check must still run.
+#ifdef RKLIB_DEBUG
+triax_test(dict, at_missing_key_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 1, "one");
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)dict_at(int, cstr, &d, 2); });
+}
+
+triax_test(dict, at_on_zero_initialized_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Dict(int, cstr) d = {RKI_ZINIT};
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)dict_at(int, cstr, &d, 1); });
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name Set Tests
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -776,6 +815,7 @@ typedef unsigned char uchar;
 static inline int     rk_uchar_cmp(uchar x, uchar y) { return x != y; }
 static inline int     rk_uchar_hash(uchar x) { return x; }
 SET_DEFINE(uchar, rk_uchar_hash, rk_uchar_cmp)
+SET_DEFINE(cstr, str_hash, str_cmp)
 
 triax_test(set, zero_initialized) {
   Set(uchar) s = {RKI_ZINIT};
@@ -1050,6 +1090,25 @@ triax_test(set, get_returns_stored_member) {
   triax_expect_eq(*p, 3);
   set_release(int, &s);
 }
+
+// set_at returns the stored representative, not the probe key: equal keys need not be identical.
+triax_test(set, at_returns_stored_representative) {
+  Set(cstr) s = {RKI_ZINIT};
+  char      stored[] = "key", probe[] = "key";
+  set_add(cstr, &s, stored);
+  triax_expect_true(set_at(cstr, &s, probe) == stored);
+  triax_expect_eq(&set_at(cstr, &s, probe), set_get(cstr, &s, probe));
+  static_assert(_Generic(&set_at(cstr, &s, probe), const cstr*: 1, default: 0), "always const");
+  set_release(cstr, &s);
+}
+
+#ifdef RKLIB_DEBUG
+triax_test(set, at_missing_key_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 1);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)set_at(int, &s, 2); });
+}
+#endif
 
 triax_test(set, assign_replaces_contents_and_dedups) {
   Set(int) s = set_init(int, 8);

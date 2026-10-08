@@ -136,7 +136,7 @@ triax_test(deque, scripted, .params = triax_as_params(deque_scripts)) {
 
   triax_expect(deque_count(&q) == c->n_expect, "case: %s", c->name);
   for (size_t i = 0; i < c->n_expect; ++i) {
-    int* p = deque_at(int, &q, i);
+    int* p = deque_peek_at(int, &q, i);
     triax_expect_nonnull(p);
     if (p) { triax_expect_eq(*p, c->expect[i]); }
   }
@@ -154,7 +154,7 @@ triax_test(deque, init_and_empty) {
   triax_expect_eq(deque_count(&q), 0u);
   triax_expect_null(deque_peek_front(int, &q));
   triax_expect_null(deque_peek_back(int, &q));
-  triax_expect_null(deque_at(int, &q, 0));
+  triax_expect_null(deque_peek_at(int, &q, 0));
   deque_release(int, &q);
 
   // a plain zero-initialized struct is documented as a valid empty deque too
@@ -171,6 +171,94 @@ triax_test(deque, init_and_empty) {
   triax_expect_true(deque_is_empty(&c));
   deque_release(int, &c);
 }
+
+// ---- accessors: _front/_back/_at are asserted lvalues, _peek_* are nullable pointers ----
+
+// Builds 0, 1, 2, 3 with a wrapped head, so logical indices differ from storage indices.
+static Deque(int) deque_wrapped_0123(void) {
+  Deque(int) q = deque_init(int, 0);
+  deque_push_back(int, &q, 2);
+  deque_push_back(int, &q, 3);
+  deque_push_front(int, &q, 1);
+  deque_push_front(int, &q, 0);
+  return q;
+}
+
+triax_test(deque, at_front_back_are_writable_lvalues) {
+  Deque(int) q = deque_wrapped_0123();
+  deque_front(int, &q) = 10;
+  deque_at(int, &q, 1) += 10;
+  deque_back(int, &q)  = 13;
+  triax_expect_eq(deque_at(int, &q, 0), 10);
+  triax_expect_eq(deque_at(int, &q, 1), 11);
+  triax_expect_eq(deque_at(int, &q, 2), 2);
+  triax_expect_eq(deque_at(int, &q, 3), 13);
+  triax_expect_eq(&deque_at(int, &q, 3), &deque_back(int, &q));
+  deque_release(int, &q);
+}
+
+triax_test(deque, peek_in_bounds_matches_at) {
+  Deque(int) q = deque_wrapped_0123();
+  triax_expect_eq(deque_peek_front(int, &q), &deque_front(int, &q));
+  triax_expect_eq(deque_peek_back(int, &q), &deque_back(int, &q));
+  for (size_t i = 0; i < 4; ++i) {
+    triax_expect_eq(deque_peek_at(int, &q, i), &deque_at(int, &q, i));
+    triax_expect_eq(*deque_peek_at(int, &q, i), (int)i);
+  }
+  *deque_peek_at(int, &q, 2) = 20;
+  triax_expect_eq(deque_at(int, &q, 2), 20);
+  deque_release(int, &q);
+}
+
+triax_test(deque, peek_out_of_bounds_returns_null) {
+  Deque(int) q = deque_wrapped_0123();
+  triax_expect_null(deque_peek_at(int, &q, 4));
+  triax_expect_null(deque_peek_at(int, &q, (size_t)-1));
+  deque_release(int, &q);
+
+  Deque(int) z = {0};
+  triax_expect_null(deque_peek_front(int, &z));
+  triax_expect_null(deque_peek_back(int, &z));
+  triax_expect_null(deque_peek_at(int, &z, 0));
+}
+
+triax_test(deque, accessors_propagate_deque_constness) {
+  Deque(int)        q  = deque_wrapped_0123();
+  const Deque(int)* cq = &q;
+  static_assert(_Generic(&deque_at(int, cq, 0), const int*: 1, default: 0), "const yields const");
+  static_assert(_Generic(&deque_front(int, cq), const int*: 1, default: 0), "const yields const");
+  static_assert(_Generic(&deque_back(int, cq), const int*: 1, default: 0), "const yields const");
+  static_assert(_Generic(deque_peek_at(int, cq, 0), const int*: 1, default: 0),
+                "const yields const");
+  static_assert(_Generic(deque_peek_front(int, cq), const int*: 1, default: 0),
+                "const yields const");
+  static_assert(_Generic(deque_peek_back(int, cq), const int*: 1, default: 0),
+                "const yields const");
+  static_assert(_Generic(&deque_at(int, &q, 0), int*: 1, default: 0), "mutable yields mutable");
+  static_assert(_Generic(deque_peek_at(int, &q, 0), int*: 1, default: 0),
+                "mutable yields mutable");
+  triax_expect_eq(deque_at(int, cq, 3), 3);
+  triax_expect_eq(*deque_peek_back(int, cq), 3);
+  deque_release(int, &q);
+}
+
+// An expected fault ends the test process, so each case needs its own test.
+#ifdef RKLIB_DEBUG
+triax_test(deque, at_out_of_bounds_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Deque(int) q = deque_wrapped_0123();
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)deque_at(int, &q, 4); });
+}
+
+triax_test(deque, front_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Deque(int) q = deque_init(int, 0);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)deque_front(int, &q); });
+}
+
+triax_test(deque, back_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Deque(int) q = deque_init(int, 0);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)deque_back(int, &q); });
+}
+#endif
 
 triax_test(deque, try_pop) {
   Deque(int) q = deque_init(int, 0);
@@ -210,7 +298,7 @@ triax_test(deque, push_n) {
     deque_push_back_n(int, &q, arr, 3);
     int expect[] = {1, 2, 3, 4};
     triax_expect_eq(deque_count(&q), 4u);
-    for (size_t i = 0; i < 4; ++i) { triax_expect_eq(*deque_at(int, &q, i), expect[i]); }
+    for (size_t i = 0; i < 4; ++i) { triax_expect_eq(deque_at(int, &q, i), expect[i]); }
     deque_release(int, &q);
   }
 
@@ -223,7 +311,7 @@ triax_test(deque, push_n) {
     deque_push_front_n(int, &q, arr, 3);
     int expect[] = {1, 2, 3, 4};
     triax_expect_eq(deque_count(&q), 4u);
-    for (size_t i = 0; i < 4; ++i) { triax_expect_eq(*deque_at(int, &q, i), expect[i]); }
+    for (size_t i = 0; i < 4; ++i) { triax_expect_eq(deque_at(int, &q, i), expect[i]); }
     deque_release(int, &q);
   }
 
@@ -247,7 +335,7 @@ triax_test(deque, push_n) {
     deque_push_back_n(int, &q, arr, 5);
     int expect[] = {4, 5, 6, 7, 8, 9, 10};
     triax_expect_eq(deque_count(&q), 7u);
-    for (size_t i = 0; i < 7; ++i) { triax_expect_eq(*deque_at(int, &q, i), expect[i]); }
+    for (size_t i = 0; i < 7; ++i) { triax_expect_eq(deque_at(int, &q, i), expect[i]); }
     deque_release(int, &q);
   }
 
@@ -261,7 +349,7 @@ triax_test(deque, push_n) {
     deque_push_front_n(int, &q, arr, 5);
     int expect[] = {-1, -2, -3, -4, -5, 4, 5};
     triax_expect_eq(deque_count(&q), 7u);
-    for (size_t i = 0; i < 7; ++i) { triax_expect_eq(*deque_at(int, &q, i), expect[i]); }
+    for (size_t i = 0; i < 7; ++i) { triax_expect_eq(deque_at(int, &q, i), expect[i]); }
     deque_release(int, &q);
   }
 }
@@ -511,7 +599,7 @@ triax_test(deque, reserve_and_shrink_to_fit) {
   deque_reserve(int, &q, 100);
   triax_expect_true(deque_cap(&q) >= 100u);
   triax_expect_eq(deque_count(&q), 5u);
-  for (int i = 0; i < 5; ++i) { triax_expect_eq(*deque_at(int, &q, (size_t)i), i); }
+  for (int i = 0; i < 5; ++i) { triax_expect_eq(deque_at(int, &q, (size_t)i), i); }
 
   // reserving at or below the current capacity is a no-op
   size_t cap_before = deque_cap(&q);
@@ -522,7 +610,7 @@ triax_test(deque, reserve_and_shrink_to_fit) {
   triax_expect_true(deque_cap(&q) < cap_before);
   triax_expect_true(deque_cap(&q) >= deque_count(&q));
   triax_expect_eq(deque_count(&q), 5u);
-  for (int i = 0; i < 5; ++i) { triax_expect_eq(*deque_at(int, &q, (size_t)i), i); }
+  for (int i = 0; i < 5; ++i) { triax_expect_eq(deque_at(int, &q, (size_t)i), i); }
 
   // shrink_to_fit on an empty deque fully frees the backing buffer
   deque_clear(int, &q);
@@ -550,7 +638,7 @@ triax_test(deque, assign) {
     deque_assign(int, &q, arr, 3);
     triax_expect_eq(deque_count(&q), 3u);
     triax_expect_eq(q.data, before_ptr); // reused, no reallocation
-    for (size_t i = 0; i < 3; ++i) { triax_expect_eq(*deque_at(int, &q, i), arr[i]); }
+    for (size_t i = 0; i < 3; ++i) { triax_expect_eq(deque_at(int, &q, i), arr[i]); }
     deque_release(int, &q);
   }
 
@@ -562,7 +650,7 @@ triax_test(deque, assign) {
     for (int i = 0; i < 50; ++i) { big[i] = i; }
     deque_assign(int, &q, big, 50);
     triax_expect_eq(deque_count(&q), 50u);
-    for (size_t i = 0; i < 50; ++i) { triax_expect_eq(*deque_at(int, &q, i), (int)i); }
+    for (size_t i = 0; i < 50; ++i) { triax_expect_eq(deque_at(int, &q, i), (int)i); }
     deque_release(int, &q);
   }
 
@@ -584,8 +672,8 @@ triax_test(deque, assign) {
     int arr[] = {100, 200};
     deque_assign(int, &q, arr, 2);
     triax_expect_eq(deque_count(&q), 2u);
-    triax_expect_eq(*deque_at(int, &q, 0), 100);
-    triax_expect_eq(*deque_at(int, &q, 1), 200);
+    triax_expect_eq(deque_at(int, &q, 0), 100);
+    triax_expect_eq(deque_at(int, &q, 1), 200);
     deque_release(int, &q);
   }
 }
@@ -648,7 +736,7 @@ triax_test(deque, large_randomized_stress) {
     size_t len_u = (size_t)len;
     triax_assert_eq(deque_count(&q), len_u);
     for (int i = 0; i < len; ++i) {
-      int* p = deque_at(int, &q, (size_t)i);
+      int* p = deque_peek_at(int, &q, (size_t)i);
       triax_assert_nonnull(p);
       triax_assert_eq(*p, ref[start + i]);
     }

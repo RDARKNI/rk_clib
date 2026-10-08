@@ -141,6 +141,16 @@ RKI_HEADER_BEGIN
 /// @note Invalidated by any later mutation of the Heap.
 #define heap_peek(T, self)               RKI_HEAP_PUB(T, peek)(self)
 
+/// @brief Returns the top element according to the heap's ordering as a const lvalue.
+/// @param T Element type.
+/// @pre The Heap is nonempty; use `heap_peek()` to check safely.
+/// @note Always const, even for a mutable Heap: writing the top in place would break the heap
+/// order. Use `heap_replace_top()` to change it.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Invalidated by any later mutation of the Heap.
+/// @see heap_peek
+#define heap_top(T, self)                (*RKI_HEAP_PUB(T, top_ptr)(self))
+
 /// @brief `void heap_push(T, Heap(T)* self, T value)` - Inserts `value` into the Heap.
 /// @param T     Element type
 /// @param value Value to insert. Evaluated once.
@@ -150,7 +160,8 @@ RKI_HEADER_BEGIN
 /// @brief `T heap_pop(T, Heap(T)* self)` - Removes and returns the minimum element.
 /// @param T Element type
 /// @return The (former) minimum element
-/// @attention Requires a nonempty Heap.
+/// @pre The Heap is nonempty; use `heap_try_pop()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define heap_pop(T, self)                RKI_HEAP_PUB(T, pop)(self)
 
 /// @brief `bool heap_try_pop(T, Heap(T)* self, T* out)` - Removes the minimum element and writes
@@ -165,7 +176,8 @@ RKI_HEADER_BEGIN
 /// @param T     Element type
 /// @param value Value to insert in place of the removed minimum. Evaluated once.
 /// @return The (former) minimum element
-/// @attention Requires a nonempty Heap.
+/// @pre The Heap is nonempty.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Equivalent to, but cheaper than, `heap_pop()` followed by `heap_push()`: it never shrinks
 /// or reallocates the backing Vec.
 #define heap_replace_top(T, self, value) RKI_HEAP_PUB(T, replace_top)(self, value)
@@ -238,6 +250,10 @@ RKI_HEADER_BEGIN
   }                                                                                                \
   rklib_fun rk_pure Allocator RKI_HEAP_PUB(T, allocator)(const Heap(T) * self) {                   \
     return vec_allocator(self->data);                                                              \
+  }                                                                                                \
+  rklib_fun const T* RKI_HEAP_PUB(T, top_ptr)(const Heap(T) * self) {                              \
+    rk_assert(heap_count(self) && "Cannot access top of empty heap");                              \
+    return self->data;                                                                             \
   }                                                                                                \
   rklib_fun rk_pure const T* RKI_HEAP_PUB(T, peek)(const Heap(T) * self) {                         \
     return vec_count(self->data) ? &self->data[0] : rk_null;                                       \

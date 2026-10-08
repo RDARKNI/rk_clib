@@ -45,6 +45,129 @@ triax_test(string, str_starts_with) {
   triax_expect_eq(str_len(ptr2), 2u);
 }
 
+// ---- accessors: _front/_back/_at are asserted lvalues, _peek_* are nullable pointers ----
+
+triax_test(string, at_front_back_are_writable_lvalues) {
+  Str s = str_from_literal("hello");
+  str_front(s) = 'j';
+  str_at(s, 1) = 'E';
+  str_back(s)  = 'y';
+  triax_expect_streq(s.str, "jElly");
+  triax_expect_eq(&str_at(s, 4), &str_back(s));
+  str_release(&s);
+
+  char  buf[] = "abc";
+  char* p     = buf;
+  str_at(p, 1) = 'B';
+  str_back(p)  = 'C';
+  triax_expect_streq(buf, "aBC");
+}
+
+triax_test(string, peek_in_bounds_matches_at) {
+  Str  s  = str_from_literal("hello");
+  Strv sv = s.v;
+  triax_expect_eq(str_peek_front(s), &str_front(s));
+  triax_expect_eq(str_peek_back(s), &str_back(s));
+  for (size_t i = 0; i < 5; ++i) {
+    triax_expect_eq(str_peek_at(s, i), &str_at(s, i));
+    triax_expect_eq(str_peek_at(sv, i), s.str + i);
+  }
+  *str_peek_at(s, 0) = 'H';
+  triax_expect_eq(str_at(sv, 0), 'H');
+  triax_expect_eq(*str_peek_back("xyz"), 'z');
+  str_release(&s);
+}
+
+triax_test(string, peek_out_of_bounds_returns_null) {
+  Str s = str_from_literal("hi");
+  triax_expect_null(str_peek_at(s, 2)); // the terminating null is not an element
+  triax_expect_null(str_peek_at(s, (size_t)-1));
+  str_release(&s);
+
+  Str empty = str_from_literal("");
+  triax_expect_null(str_peek_front(empty));
+  triax_expect_null(str_peek_back(empty));
+  triax_expect_null(str_peek_at(empty, 0));
+  str_release(&empty);
+
+  Str  unalloc = {RKI_ZINIT};
+  Strv nullv   = {rk_null, 0};
+  triax_expect_null(str_peek_front(unalloc));
+  triax_expect_null(str_peek_back(nullv));
+  triax_expect_null(str_peek_at(nullv, 0));
+  triax_expect_null(str_peek_front(""));
+}
+
+triax_test(string, accessors_follow_stringlike_constness) {
+  Str         s  = str_from_literal("abc");
+  Strv        sv = s.v;
+  char*       p  = s.str;
+  const char* cp = s.str;
+  static_assert(_Generic(&str_at(s, 0), char*: 1, default: 0), "Str yields char");
+  static_assert(_Generic(&str_at(p, 0), char*: 1, default: 0), "char* yields char");
+  static_assert(_Generic(&str_at(sv, 0), const char*: 1, default: 0), "Strv yields const char");
+  static_assert(_Generic(&str_at(cp, 0), const char*: 1, default: 0), "const char* yields const");
+  static_assert(_Generic(&str_front(sv), const char*: 1, default: 0), "Strv yields const char");
+  static_assert(_Generic(&str_back(s), char*: 1, default: 0), "Str yields char");
+  static_assert(_Generic(str_peek_at(s, 0), char*: 1, default: 0), "Str yields char");
+  static_assert(_Generic(str_peek_at(cp, 0), const char*: 1, default: 0), "const yields const");
+  static_assert(_Generic(str_begin(s), char*: 1, default: 0), "Str yields char");
+  static_assert(_Generic(str_end(sv), const char*: 1, default: 0), "Strv yields const char");
+  triax_expect_eq(str_at(cp, 2), 'c');
+  str_release(&s);
+}
+
+triax_test(string, begin_end_cover_exactly_len_chars) {
+  Str s = str_from_literal("hello");
+  triax_expect_eq(str_begin(s), s.str);
+  triax_expect_eq((size_t)(str_end(s) - str_begin(s)), str_len(s));
+  triax_expect_eq(*str_end(s), '\0'); // the terminator, for a null-terminated string
+  triax_expect_eq((size_t)(str_end("abc") - str_begin("abc")), 3u);
+
+  Strv sub = strv_from_cstrn(s.str, 3); // a view need not end at a terminator
+  triax_expect_eq(str_end(sub), s.str + 3);
+  triax_expect_eq(*str_end(sub), 'l');
+
+  size_t n = 0;
+  for (const char* it = str_begin(sub); it != str_end(sub); ++it) { ++n; }
+  triax_expect_eq(n, 3u);
+  str_release(&s);
+}
+
+triax_test(string, begin_end_of_empty_strings_form_empty_ranges) {
+  Str empty = str_from_literal("");
+  triax_expect_nonnull(str_begin(empty));
+  triax_expect_eq(str_begin(empty), str_end(empty));
+  str_release(&empty);
+
+  Str  unalloc = {RKI_ZINIT};
+  Strv nullv   = {rk_null, 0};
+  triax_expect_null(str_begin(unalloc));
+  triax_expect_null(str_end(unalloc));
+  triax_expect_null(str_begin(nullv));
+  triax_expect_null(str_end(nullv));
+  triax_expect_eq(str_begin(""), str_end(""));
+}
+
+// An expected fault ends the test process, so each case needs its own test. The results are
+// discarded on purpose: the bounds check must still run (see rki_str_at_ptr).
+#ifdef RKLIB_DEBUG
+triax_test(string, at_out_of_bounds_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Strv sv = strv_from_literal("abc");
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)str_at(sv, 3); });
+}
+
+triax_test(string, front_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Strv sv = strv_from_literal("");
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)str_front(sv); });
+}
+
+triax_test(string, back_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Str s = {RKI_ZINIT};
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)str_back(s); });
+}
+#endif
+
 triax_test(string, str_init_and_from_literal) {
   Str s1 = str_init(16);
   triax_expect_eq(s1.len, 0u);
@@ -138,6 +261,92 @@ triax_test(string, str_cat_and_push) {
   triax_expect_streq(s.str, "hi! there");
   str_release(&s);
 }
+
+// ---- str_pop: asserted; str_try_pop: recoverable ----
+
+triax_test(string, pop_removes_last_and_keeps_terminator) {
+  Str s = str_from_literal("abc");
+  triax_expect_eq(str_pop(&s), 'c');
+  triax_expect_eq(str_len(s), 2u);
+  triax_expect_eq(s.str[2], '\0');
+  triax_expect_eq(str_pop(&s), 'b');
+  triax_expect_eq(str_pop(&s), 'a');
+  triax_expect_true(str_is_empty(s));
+  triax_expect_streq(s.str, "");
+  str_release(&s);
+}
+
+triax_test(string, try_pop_nonempty_removes_last) {
+  Str  s   = str_from_literal("xy");
+  char out = '?';
+  triax_expect_true(str_try_pop(&s, &out));
+  triax_expect_eq(out, 'y');
+  triax_expect_streq(s.str, "x");
+  triax_expect_true(str_try_pop(&s, &out));
+  triax_expect_eq(out, 'x');
+  triax_expect_false(str_try_pop(&s, &out)); // now empty
+  triax_expect_eq(out, 'x');                 // left untouched
+  str_release(&s);
+}
+
+triax_test(string, try_pop_empty_or_unallocated_fails_and_leaves_out) {
+  Str  empty = str_from_literal("");
+  char out   = '?';
+  triax_expect_false(str_try_pop(&empty, &out));
+  triax_expect_eq(out, '?');
+  str_release(&empty);
+
+  Str unalloc = {RKI_ZINIT};
+  triax_expect_false(str_try_pop(&unalloc, &out));
+  triax_expect_eq(out, '?');
+  triax_expect_null(unalloc.str);
+}
+
+// A Str tracks its length, so it can hold an embedded '\0'. Popping it is a real character, which
+// a sentinel return value could not distinguish from an empty Str.
+triax_test(string, pop_embedded_nul_is_a_character) {
+  Str s = str_from_literal("a");
+  str_push(&s, '\0');
+  triax_expect_eq(str_len(s), 2u);
+  char out = '?';
+  triax_expect_true(str_try_pop(&s, &out));
+  triax_expect_eq(out, '\0');
+  triax_expect_eq(str_len(s), 1u);
+  triax_expect_eq(str_pop(&s), 'a');
+  triax_expect_false(str_try_pop(&s, &out));
+  str_release(&s);
+}
+
+triax_test(string, pop_n_zero_is_noop_even_unallocated) {
+  Str s = str_from_literal("abc");
+  str_pop_n(&s, 0);
+  triax_expect_streq(s.str, "abc");
+  str_pop_n(&s, 2);
+  triax_expect_streq(s.str, "a");
+  str_release(&s);
+
+  Str unalloc = {RKI_ZINIT};
+  str_pop_n(&unalloc, 0);
+  triax_expect_null(unalloc.str);
+}
+
+// An expected fault ends the test process, so each case needs its own test.
+#ifdef RKLIB_DEBUG
+triax_test(string, pop_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Str s = str_from_literal("");
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)str_pop(&s); });
+}
+
+triax_test(string, pop_of_unallocated_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Str s = {RKI_ZINIT};
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)str_pop(&s); });
+}
+
+triax_test(string, pop_n_more_than_len_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Str s = str_from_literal("ab");
+  triax_assert_fault(TRIAX_FAULT_ABORT, { str_pop_n(&s, 3); });
+}
+#endif
 
 triax_test(string, str_cat_fmt) {
   Str s = str_init(8);

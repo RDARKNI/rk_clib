@@ -463,11 +463,11 @@ rklib_fun __forceinline rk_noreturn void rki_unreachable_impl(void) {
 // permits but MSVC reports as C4114; `ptr` is generic, so it cannot be tested via a named member
 // type the way the container iteration macros do.
 #define containerof(ptr, type, member)                                                             \
-  RKI_IGNWARN_MSC(4114, ((typeof(_Generic(ptr,                                                     \
-                                          const typeof(*(ptr))*: (const type*)0,                   \
-                                          default: (type*)0)))(                                    \
-                            (char*)(typeof(((const type*)0)->member)*){ptr}                        \
-                            - offsetof(type, member))))
+  RKI_IGNWARN_MSC(                                                                                 \
+      4114, ((typeof(_Generic((ptr),                                                               \
+                         const typeof(*(ptr))*: (const type*)0,                                    \
+                         default: (type*)0)))((char*)(typeof(((const type*)0)->member)*){ptr}      \
+                                              - offsetof(type, member))))
 
 /// @brief Overflow-checked `size_t` multiplication; `abort()`s instead of wrapping. Not used by
 /// default — see the `rk_mult` config hook in `rk_config.h` to opt every size/count computation in
@@ -750,8 +750,8 @@ rk_noreturn rklib_fun void rki_assertfail(const char* expr, const char* file, in
 #endif
 
 #define RKI_GENCASE(T, N, fun_name) , T : fun_name##N
-#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RKI_ZINIT})
-#define RKI_contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
+#define RKI_contrav(T, x)           _Generic((x), T: x, default: (T){RKI_ZINIT})
+#define RKI_contrav_p(T, x)         _Generic((x), T: x, default: (T)1)
 
 #define rk_dummyofp(v)              ((typeof(v)*)0)
 

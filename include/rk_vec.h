@@ -201,22 +201,52 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// `self` or `NULL` if `self` is `NULL`.
 #define vec_end(self)                 ((self) ? ((self) + RKI_VEC_COUNT(self)) : (self))
 
-/// @brief `T& vec_front(Vec(T) self)` - Returns an Lvalue reference to the first element of the
-/// Vec.
+/// @brief Returns the first element as an lvalue, preserving the element type's constness.
+/// @pre The Vec is nonempty.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour undefined for empty or uninitialised vec
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_front(self)               (((typeof(self))rki_vec_check_front(self))[0])
 
-/// @brief `T& vec_back(Vec(T) self)` - Returns an Lvalue reference to the last element of the Vec.
+/// @brief Returns the last element as an lvalue, preserving the element type's constness.
+/// @pre The Vec is nonempty.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour undefined for empty or uninitialised vec
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_back(self)                (*((typeof(self))rki_vec_check_back(sizeof(*(self)), self)))
+
+/// @brief Returns the element at zero-based index `idx` as an lvalue, preserving the element
+/// type's constness.
+/// @param self The Vec, by value.
+/// @param idx Zero-based element index.
+/// @pre `idx < vec_count(self)`.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @see vec_peek_at
+#define vec_at(self, idx)            (*((typeof(self))rki_vec_check_at(sizeof(*(self)), self, idx)))
+
+/// @brief Returns a pointer to the first element, or `NULL` if the Vec is empty or uninitialised.
+/// @return An element pointer preserving the element type's constness.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+#define vec_peek_front(self)         ((typeof(self))rki_vec_peek_at(sizeof(*(self)), self, 0))
+
+/// @brief Returns a pointer to the last element, or `NULL` if the Vec is empty or uninitialised.
+/// @return An element pointer preserving the element type's constness.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+#define vec_peek_back(self)          ((typeof(self))rki_vec_peek_back(sizeof(*(self)), self))
+
+/// @brief Returns a pointer to the element at zero-based index `idx`, or `NULL` if the index is
+/// out of bounds (including an empty or uninitialised Vec).
+/// @param self The Vec, by value.
+/// @param idx Zero-based element index.
+/// @return An element pointer preserving the element type's constness.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Bounds are checked in both debug and release builds.
+#define vec_peek_at(self, idx)       ((typeof(self))rki_vec_peek_at(sizeof(*(self)), self, idx))
 
 /// @brief `void vec_push(Vec(T)& self, T obj)` - Pushes a value onto the Vec, resising the
 /// allocation, if necessary.
 /// @attention **`obj` must not modify the vec due to sequencing issues**
 /// @note Reassigns `self`, if necessary
-#define vec_push(self, obj)           ((void)RKI_VEC_PUSH(self, obj)) // NOLINT
+#define vec_push(self, obj)          ((void)RKI_VEC_PUSH(self, obj)) // NOLINT
 
 /// @brief `void vec_push_n(Vec(T)& self, T* arr, size_t count)` - Copies `count` values of `arr`
 /// onto `self`. `arr` must be a pointer variable of type `T*`.
@@ -224,7 +254,7 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @attention `arr[0..count)` must not overlap the Vec's own backing allocation, for the same
 /// reasons documented on `vec_assign()`.
 /// @note Reassigns `self`, if necessary
-#define vec_push_n(self, arr, count)  ((void)RKI_VEC_PUSH_N(self, arr, count))
+#define vec_push_n(self, arr, count) ((void)RKI_VEC_PUSH_N(self, arr, count))
 
 /// @brief `void vec_push_unchecked(Vec(T)& self, T obj)` - Pushes a value onto the Vec, not
 /// checking for capacity.
@@ -233,15 +263,26 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 
 /// @brief `T vec_pop(Vec(T)& self)` - Pops the last value off the Vec and decreases its length.
 /// @return The popped value
+/// @pre The Vec is nonempty; use `vec_try_pop()` to check safely.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of empty or uninitialised Vec is undefined
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_pop(self)                 ((self)[--RKI_VEC_COUNT(rki_check_vec_pop(self))])
 
-/// @brief `T* vec_pop(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
+/// @brief `bool vec_try_pop(Vec(T) self, T* out)` - Removes the last value and writes it to `*out`,
+/// if the Vec is nonempty.
+/// @param out Destination for the removed value. Evaluated at most once, and only when a value is
+/// removed; left untouched if the Vec is empty or uninitialised.
+/// @return `true` if a value was removed, `false` if the Vec was empty or uninitialised.
+/// @attention **Arguments with side effects are not safe in vec_ macros**
+/// @note Never reallocates, so `self` is not reassigned.
+#define vec_try_pop(self, out)        RKI_VEC_TRY_POP(self, out)
+
+/// @brief `T* vec_pop_n(Vec(T)& self, size_t count)` - Pops 'count' values off the Vec, decreasing
 /// its length.
 /// @return A pointer to the popped memory region, to copy away from
+/// @pre `count <= vec_count(self)`.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Behaviour in case of `count > vec_count(self)` undefined
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 #define vec_pop_n(self, count)        (typeof(self))rki_vec_pop_n(sizeof(*(self)), self, count)
 
 /// @brief `void vec_insert_at(Vec(T)& self, size_t idx, T obj)` - Inserts an object at index `idx`,
@@ -388,6 +429,9 @@ rklib_fun rk_forceinline void* rki_check_vec_push_u(void* self) {
   return self;
 }
 
+#define RKI_VEC_TRY_POP(self, out)                                                                 \
+  ((bool)(vec_count(self) ? (*(out) = (self)[--RKI_VEC_COUNT(self)], true) : false))
+
 rklib_fun rk_forceinline void* rki_check_vec_pop(void* self) {
   rk_assert(vec_count(self) && "Attempting to pop from zero-length vec");
   return self;
@@ -399,14 +443,30 @@ rklib_fun rk_forceinline void* rki_vec_pop_n(size_t elsize, void* self, size_t c
   return (char*)self + rk_mult(elsize, RKI_VEC_COUNT(self));
 }
 
-rklib_fun rk_forceinline void* rki_vec_check_front(void* self) {
+// Like the peek helpers, these take and return const void* so const element types pass through;
+// the accessor macros cast the result back to typeof(self), restoring the caller's constness.
+rklib_fun rk_forceinline const void* rki_vec_check_front(const void* self) {
   rk_assert(vec_count(self) && "Attempting to access front of zero-sized vec");
   return self;
 }
 
-rklib_fun rk_forceinline void* rki_vec_check_back(size_t elsize, void* self) {
+rklib_fun rk_forceinline const void* rki_vec_check_back(size_t elsize, const void* self) {
   rk_assert(vec_count(self) && "Attempting to access back of zero-sized vec");
-  return (char*)self + rk_mult(elsize, RKI_VEC_COUNT(self) - 1);
+  return (const char*)self + rk_mult(elsize, vec_count(self) - 1);
+}
+
+rklib_fun rk_forceinline const void* rki_vec_check_at(size_t elsize, const void* self, size_t idx) {
+  rk_assert(idx < vec_count(self) && "Access out of bounds of Vec.");
+  return (const char*)self + rk_mult(elsize, idx);
+}
+
+rklib_fun rk_forceinline const void* rki_vec_peek_at(size_t elsize, const void* self, size_t idx) {
+  return idx < vec_count(self) ? (const char*)self + rk_mult(elsize, idx) : rk_null;
+}
+
+rklib_fun rk_forceinline const void* rki_vec_peek_back(size_t elsize, const void* self) {
+  size_t count = vec_count(self);
+  return count ? (const char*)self + rk_mult(elsize, count - 1) : rk_null;
 }
 
 rklib_fun rk_forceinline size_t rki_vec_assert_insertbounds(void* self, size_t i) {
@@ -581,10 +641,10 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
 // msvc sizeof returns 0
 #define RKI_VEC_INIT_LIST_(T, arr, alloc)                                                          \
   memcpy(RKI_VEC_NEW_NONZERO(T, rk_COUNTOF(arr), rk_COUNTOF(arr), alloc), arr, sizeof(arr))
-#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RKI_ZINIT})
+#define RKI_VEC_CONTRAV(T, x) _Generic((x), T: x, Allocator: (T){RKI_ZINIT})
 #if RK_CUSTOM_ALLOCATORS
 # define RKI_VEC_INIT_LIST(T, ...)                                                                 \
-   _Generic(VA_FIRST(__VA_ARGS__),                                                                 \
+   _Generic((VA_FIRST(__VA_ARGS__)),                                                               \
        Allocator: RKI_VEC_INIT_LIST_(T, ((const T[]){VA_REST(__VA_ARGS__)}),                       \
                                      RKI_contrav(Allocator, VA_FIRST(__VA_ARGS__))),               \
        default: RKI_VEC_INIT_LIST_(                                                                \

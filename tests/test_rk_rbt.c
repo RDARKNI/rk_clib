@@ -18,8 +18,8 @@ triax_test(rbt, empty) {
 
   triax_expect_true(rbt_is_empty(&r));
   triax_expect_eq(rbt_count(&r), 0u);
-  triax_expect_null(rbt_min(&r));
-  triax_expect_null(rbt_max(&r));
+  triax_expect_null(rbt_peek_min(&r));
+  triax_expect_null(rbt_peek_max(&r));
   triax_expect_null(rbt_get(int, char, &r, 123));
   triax_expect_false(rbt_contains(int, char, &r, 123));
 
@@ -33,8 +33,8 @@ triax_test(rbt, zero_initialized) {
   Rbt(int, char) r = {0};
   triax_expect_true(rbt_is_empty(&r));
   triax_expect_eq(rbt_count(&r), 0u);
-  triax_expect_null(rbt_min(&r));
-  triax_expect_null(rbt_max(&r));
+  triax_expect_null(rbt_peek_min(&r));
+  triax_expect_null(rbt_peek_max(&r));
 
   triax_expect_true(rbt_set(int, char, &r, 7, 'g'));
   triax_expect_eq(rbt_count(&r), 1u);
@@ -74,14 +74,60 @@ triax_test(rbt, insert_and_lookup) {
   triax_expect_true(rbt_contains(int, char, &r, 4));
   triax_expect_false(rbt_contains(int, char, &r, 99));
 
-  RbtEntry(int, char)* mn = rbt_min(&r);
-  RbtEntry(int, char)* mx = rbt_max(&r);
+  RbtEntry(int, char)* mn = rbt_peek_min(&r);
+  RbtEntry(int, char)* mx = rbt_peek_max(&r);
   triax_expect_nonnull(mn), triax_expect_nonnull(mx);
   if (mn) { triax_expect_eq(mn->key, 1), triax_expect_eq(mn->val, 'a'); }
   if (mx) { triax_expect_eq(mx->key, 4), triax_expect_eq(mx->val, 'd'); }
 
   rbt_release(int, char, &r);
 }
+
+// ---- min/max: asserted entry lvalues; peek_min/peek_max: nullable entry pointers ----
+
+triax_test(rbt, min_max_are_entry_lvalues) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 5, 'e');
+  rbt_set(int, char, &r, 1, 'a');
+  rbt_set(int, char, &r, 9, 'i');
+  triax_expect_eq(rbt_min(&r).key, 1);
+  triax_expect_eq(rbt_max(&r).key, 9);
+  triax_expect_eq(&rbt_min(&r), rbt_peek_min(&r));
+  triax_expect_eq(&rbt_max(&r), rbt_peek_max(&r));
+  rbt_min(&r).val = 'A'; // values are writable; keys stay const
+  rbt_max(&r).val = 'I';
+  triax_expect_eq(*rbt_get(int, char, &r, 1), 'A');
+  triax_expect_eq(*rbt_get(int, char, &r, 9), 'I');
+  rbt_release(int, char, &r);
+}
+
+triax_test(rbt, min_max_follow_tree_constness) {
+  Rbt(int, char) r = rbt_init(int, char);
+  rbt_set(int, char, &r, 2, 'b');
+  const Rbt(int, char)* c = &r;
+  static_assert(_Generic(&rbt_min(&r), RbtEntry(int, char)*: 1, default: 0), "mutable: mutable");
+  static_assert(_Generic(&rbt_max(c), const RbtEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(rbt_peek_min(&r), RbtEntry(int, char)*: 1, default: 0), "mutable: mutable");
+  static_assert(_Generic(rbt_peek_max(c), const RbtEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(&rbt_min(&r).key, const int*: 1, default: 0), "keys are always const");
+  triax_expect_eq(rbt_min(c).key, 2);
+  triax_expect_eq(rbt_peek_max(c)->val, 'b');
+  rbt_release(int, char, &r);
+}
+
+// An expected fault ends the test process, so each case needs its own test. The results are
+// discarded on purpose: the emptiness check must still run.
+#ifdef RKLIB_DEBUG
+triax_test(rbt, min_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Rbt(int, char) r = rbt_init(int, char);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)rbt_min(&r); });
+}
+
+triax_test(rbt, max_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Rbt(int, char) r = rbt_init(int, char);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)rbt_max(&r); });
+}
+#endif
 
 triax_test(rbt, add_does_not_overwrite_set_does) {
   Rbt(int, char) r = rbt_init(int, char);
@@ -365,8 +411,8 @@ triax_test(rbt, remove_sequence) {
   rbt_remove(int, char, &r, 1);
   triax_expect_eq(rbt_count(&r), 0u);
   triax_expect_true(rbt_is_empty(&r));
-  triax_expect_null(rbt_min(&r));
-  triax_expect_null(rbt_max(&r));
+  triax_expect_null(rbt_peek_min(&r));
+  triax_expect_null(rbt_peek_max(&r));
 
   // removing a missing key from an empty tree is harmless
   rbt_remove(int, char, &r, 999);
@@ -382,8 +428,8 @@ triax_test(rbt, release_and_reuse) {
   rbt_release(int, char, &r);
   triax_expect_true(rbt_is_empty(&r));
   triax_expect_eq(rbt_count(&r), 0u);
-  triax_expect_null(rbt_min(&r));
-  triax_expect_null(rbt_max(&r));
+  triax_expect_null(rbt_peek_min(&r));
+  triax_expect_null(rbt_peek_max(&r));
 
   // tree should still be usable after release
   triax_expect_true(rbt_set(int, char, &r, 42, 'x'));
@@ -452,8 +498,8 @@ triax_test(rbt, large_sorted_order_stays_balanced) {
   // n=32).
   for (int i = 1; i <= 32; ++i) { rbt_set(int, char, &r, i, (char)('a' + (i - 1) % 26)); }
   triax_expect_eq(rbt_count(&r), 32u);
-  triax_expect_eq(rbt_min(&r)->key, 1);
-  triax_expect_eq(rbt_max(&r)->key, 32);
+  triax_expect_eq(rbt_min(&r).key, 1);
+  triax_expect_eq(rbt_max(&r).key, 32);
 
   tree_node* stack[10];
   int        prev = -1, count = 0;
@@ -496,8 +542,8 @@ triax_test(rbt, single_key_roundtrip, .params = triax_as_params(rbt_roundtrip_ca
   triax_expect_nonnull(p);
   if (p) { triax_expect_eq(*p, c->value); }
 
-  RbtEntry(int, char)* mn = rbt_min(&r);
-  RbtEntry(int, char)* mx = rbt_max(&r);
+  RbtEntry(int, char)* mn = rbt_peek_min(&r);
+  RbtEntry(int, char)* mx = rbt_peek_max(&r);
   triax_expect_nonnull(mn), triax_expect_nonnull(mx);
   if (mn) { triax_expect_eq(mn->key, c->key); }
   if (mx) { triax_expect_eq(mx->key, c->key); }

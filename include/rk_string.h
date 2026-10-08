@@ -77,34 +77,77 @@ typedef struct Str {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns the string data ([const] char*) or any Stringlike.
-#define str_dat(strlike)        RKI_STR_DAT(strlike)
+#define str_dat(strlike)      RKI_STR_DAT(strlike)
 
 /// @brief `size_t str_len(strlike)` - Returns the length of any Stringlike.
-#define str_len(strlike)        RKI_STR_LEN(strlike)
+#define str_len(strlike)      RKI_STR_LEN(strlike)
 
 /// @brief `bool str_is_empty(strlike)` - Returns if stringlike is empty.
-#define str_is_empty(strlike)   ((bool)(str_len(strlike) == 0))
+#define str_is_empty(strlike) ((bool)(str_len(strlike) == 0))
 
-#define str_begin(strlike)      str_dat(strlike)
+/// @brief Returns a pointer to the first character of any Stringlike, for iterating together with
+/// str_end().
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*. `NULL` for an
+/// unallocated Str or a `(Strv){NULL, 0}`, in which case str_end() is also `NULL`.
+/// @note Same as str_dat(). Unlike str_front(), valid for an empty string: `[str_begin, str_end)`
+/// is then an empty range.
+/// @note Invalidated by any operation that reallocates a Str.
+/// @see str_end
+#define str_begin(strlike)    str_dat(strlike)
 
-#define str_end(strlike)        RKI_STR_QCHARPTR(strlike, rki_str_end(strv_from(strlike)))
+/// @brief Returns a pointer one past the last character of any Stringlike, so that
+/// `[str_begin(s), str_end(s))` covers exactly `str_len(s)` characters.
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*. For a non-null
+/// null-terminated string this is the terminating null; it must not be dereferenced as an element.
+/// `NULL` for an unallocated Str or a `(Strv){NULL, 0}`, matching str_begin().
+/// @note For `char*` and `const char*` arguments the length is computed with `strlen()`, so this is
+/// O(n); Str and Strv store their length.
+/// @note Invalidated by any operation that reallocates a Str.
+/// @see str_begin
+#define str_end(strlike)      RKI_STR_QCHARPTR(strlike, rki_str_end(strv_from(strlike)))
 
-// todo docs
-#define str_peek_front(strlike) (*RKI_STR_QCHARPTR(strlike, rki_str_peek_front(strv_from(strlike))))
+/// @brief Returns the first character as an lvalue, mutable for Str or char*, const for Strv or
+/// const char*.
+/// @param strlike A Stringlike, by value.
+/// @pre The string is nonempty.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+#define str_front(strlike)    (*RKI_STR_QCHARPTR(strlike, rki_str_front_ptr(strv_from(strlike))))
 
-#define str_peek_back(strlike)  (*RKI_STR_QCHARPTR(strlike, rki_str_peek_back(strv_from(strlike))))
+/// @brief Returns the last character as an lvalue, mutable for Str or char*, const for Strv or
+/// const char*.
+/// @param strlike A Stringlike, by value.
+/// @pre The string is nonempty.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+#define str_back(strlike)     (*RKI_STR_QCHARPTR(strlike, rki_str_back_ptr(strv_from(strlike))))
 
-/// @brief Returns an lvalue reference to the first character of a Stringlike.
-/// @param strlike the Stringlike, by value
-/// @return Lvalue reference to the first character in strlike
-/// @note behaviour undefined for empty strings
-#define str_front(strlike)      (*RKI_STR_QCHARPTR(strlike, rki_str_front_ptr(strv_from(strlike))))
+/// @brief Returns the character at zero-based index `idx` as an lvalue, mutable for Str or char*,
+/// const for Strv or const char*.
+/// @param strlike A Stringlike, by value.
+/// @param idx Zero-based byte index; the terminating null is not an element.
+/// @pre `idx < str_len(strlike)`.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @see str_peek_at
+#define str_at(strlike, idx)  (*RKI_STR_QCHARPTR(strlike, rki_str_at_ptr(strv_from(strlike), idx)))
 
-/// @brief Returns an lvalue reference to the last character of a string.
-/// @param strlike the Stringlike, by value
-/// @return Lvalue reference to the last character in strlike
-/// @note behaviour undefined for empty strings
-#define str_back(strlike)       (*RKI_STR_QCHARPTR(strlike, rki_str_back_ptr(strv_from(strlike))))
+/// @brief Returns a pointer to the first character, or `NULL` if the string is empty.
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*.
+#define str_peek_front(strlike) RKI_STR_QCHARPTR(strlike, rki_str_peek_front(strv_from(strlike)))
+
+/// @brief Returns a pointer to the last character, or `NULL` if the string is empty.
+/// @param strlike A Stringlike, by value.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*.
+#define str_peek_back(strlike)  RKI_STR_QCHARPTR(strlike, rki_str_peek_back(strv_from(strlike)))
+
+/// @brief Returns a pointer to the character at zero-based index `idx`, or `NULL` if out of bounds.
+/// @param strlike A Stringlike, by value.
+/// @param idx Zero-based byte index; the terminating null is not an element.
+/// @return `char*` for Str or char*, `const char*` for Strv or const char*.
+/// @note Bounds are checked in both debug and release builds.
+#define str_peek_at(strlike, idx)                                                                  \
+  RKI_STR_QCHARPTR(strlike, rki_str_peek_at(strv_from(strlike), idx))
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Lifetime/Ownership
@@ -115,7 +158,7 @@ typedef struct Str {
 /// @param init_cap size_t The initial capacity of the string (in elements)
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx`
 /// @return A `Str` object with the given capacity
-#define str_init(init_cap, ...) RKI_OVERLOAD(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
+#define str_init(init_cap, ...)       RKI_OVERLOAD(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
 
 /// @brief `Str str_from(Strlike strlike, Allocator alloc = alloc_ctx)` - Constructs a Str from a
 /// Stringlike object, copying the data.
@@ -124,7 +167,7 @@ typedef struct Str {
 /// this defaults to the Allocator of the cloned Strlike if it is a Str object, or alloc_ctx
 /// otherwise.
 /// @return A `Str` object with the copied string data
-#define str_from(strlike, ...)  RKI_OVERLOAD(RKI_STR_FROM, strlike, ##__VA_ARGS__)
+#define str_from(strlike, ...)        RKI_OVERLOAD(RKI_STR_FROM, strlike, ##__VA_ARGS__)
 
 /// @brief `Str str_from_literal(STRING_LITERAL, Allocator alloc = alloc_ctx)`
 /// - Construct a Str from a string literal.
@@ -282,16 +325,30 @@ rklib_fun Str* str_cat_fmt(Str* self, const char* fmt, ...);
 #define str_insert_at_mayalias(self, idx, strlike) RKI_STR_INSERT_AT_MAYALIAS(self, idx, strlike)
 
 /// @brief Pops the last character off the Str, decreasing its length and null-terminating it.
-/// @note Returns the `\0` if the Str is empty.
+/// @return The popped character.
+/// @pre The Str is nonempty; use `str_try_pop()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 rklib_fun char str_pop(Str* restrict self) {
-  if (self->len == 0) { return '\0'; }
+  rk_assert(self->len && "Attempted to pop from an empty Str");
   char tmp                    = self->str[--self->len];
   return self->str[self->len] = '\0', tmp;
 }
 
-/// @brief Pops the last n character off the Str, decreasing its length and null-terminating it.
-/// @note no-op for size 0 strings. Popping more characters than the length of the Str is asserted
-/// in debug builds.
+/// @brief Removes the last character and writes it to `*out`, if the Str is nonempty, keeping the
+/// Str null-terminated.
+/// @param out Destination for the removed character. Left untouched if the Str is empty or
+/// unallocated.
+/// @return `true` if a character was removed, `false` if the Str was empty or unallocated.
+/// @note Unlike a sentinel return value, this distinguishes popping an embedded `'\0'` from an
+/// empty Str.
+rklib_fun bool str_try_pop(Str* restrict self, char* restrict out) {
+  if (!self->len) { return false; }
+  return *out = str_pop(self), true;
+}
+
+/// @brief Pops the last n characters off the Str, decreasing its length and null-terminating it.
+/// @pre `n <= str_len(*self)`. Popping zero characters is a no-op, even for an unallocated Str.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 rklib_fun void str_pop_n(Str* restrict self, size_t n) {
   if (!n) { return; }
   rk_assert(n <= self->len && "Attempted to pop more than Str length");
@@ -490,14 +547,14 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// @cond INTERNAL
 
 #define RKI_STR_DAT(_S)                                                                            \
-  _Generic(_S,                                                                                     \
+  _Generic((_S),                                                                                   \
       Str: (char*)RKI_contrav(Str, _S).str,                                                        \
       Strv: (const char*)RKI_contrav(Strv, _S).str,                                                \
       char*: (char*)RKI_contrav_p(char*, _S),                                                      \
       const char*: (const char*)RKI_contrav_p(const char*, _S))
 
 #define RKI_STR_LEN(_S)                                                                            \
-  ((size_t)_Generic(_S,                                                                            \
+  ((size_t)_Generic((_S),                                                                          \
        Str: RKI_contrav(Str, _S).len,                                                              \
        Strv: RKI_contrav(Strv, _S).len,                                                            \
        char*: strlen(RKI_contrav_p(char*, _S)),                                                    \
@@ -507,7 +564,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 
 // conditionally cast away const (const is default)
 #define RKI_STR_QCHARPTR(_S, expr)                                                                 \
-  _Generic(_S, Str: (char*)(expr), Strv: expr, char*: (char*)(expr), const char*: expr)
+  _Generic((_S), Str: (char*)(expr), Strv: expr, char*: (char*)(expr), const char*: expr)
 
 #define RKI_STR_ITER_PTR(self)                                                                     \
   _Generic((self),                                                                                 \
@@ -547,7 +604,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
   } while (0)
 
 #define RKI_STRV_FROM(_S)                                                                          \
-  _Generic(_S,                                                                                     \
+  _Generic((_S),                                                                                   \
       Str: RKI_contrav(Str, _S).v,                                                                 \
       Strv: RKI_contrav(Strv, _S),                                                                 \
       char*: strv_from_cstr(RKI_contrav_p(char*, _S)),                                             \
@@ -555,7 +612,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 
 // only to satisfy _Generic when the type cannot be int or char
 #define RKI_STRV_FROM_FALLBACK(_S)                                                                 \
-  _Generic(_S,                                                                                     \
+  _Generic((_S),                                                                                   \
       Str: RKI_contrav(Str, _S).v,                                                                 \
       Strv: RKI_contrav(Strv, _S),                                                                 \
       char*: strv_from_cstr(RKI_contrav_p(char*, _S)),                                             \
@@ -564,8 +621,8 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
       char: (Strv){rk_null, 0})
 
 #define RKI_ISCHARLITLIKE(C, _if, _else)                                                           \
-  rk_static_if(_Generic(C, char: 1, int: 1, default: 0), _if, _else)
-#define RKI_GETCHARLITLIKE(_S) _Generic(_S, char: _S, int: _S, default: 0)
+  rk_static_if(_Generic((C), char: 1, int: 1, default: 0), _if, _else)
+#define RKI_GETCHARLITLIKE(_S) _Generic((_S), char: _S, int: _S, default: 0)
 
 #define RKI_STR_INSERT_AT(self, idx, strlike)                                                      \
   RKI_ISCHARLITLIKE(strlike, str_insert_at_char(self, idx, RKI_GETCHARLITLIKE(strlike)),           \
@@ -731,15 +788,25 @@ rklib_fun rk_const const char* rki_str_peek_front(Strv sv) { return sv.len ? sv.
 rklib_fun rk_const const char* rki_str_peek_back(Strv sv) {
   return sv.len ? sv.str + sv.len - 1 : rk_null;
 }
+rklib_fun rk_const const char* rki_str_peek_at(Strv sv, size_t idx) {
+  return idx < sv.len ? sv.str + idx : rk_null;
+}
 
-rklib_fun rk_const const char* rki_str_front_ptr(Strv sv) {
+// Not rk_const: the asserts are side effects, and a const call whose result is discarded (e.g.
+// `(void)str_at(s, i)`) may be removed entirely, silently skipping the bounds check.
+rklib_fun const char* rki_str_front_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access first element of empty string");
   return sv.str;
 }
 
-rklib_fun rk_const const char* rki_str_back_ptr(Strv sv) {
+rklib_fun const char* rki_str_back_ptr(Strv sv) {
   rk_assert(sv.len > 0 && "Cannot access last element of empty string");
   return sv.str + sv.len - 1;
+}
+
+rklib_fun const char* rki_str_at_ptr(Strv sv, size_t idx) {
+  rk_assert(idx < sv.len && "Access out of bounds of string");
+  return sv.str + idx;
 }
 
 rklib_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
@@ -753,7 +820,7 @@ rklib_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
 #define RKI_STR_FROM2(_S, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(str_from_strv(strv_from(_S), alloc))
 #define RKI_STR_FROM1(_S)                                                                          \
   str_from_strv(strv_from(_S) RK_IFALLOC(                                                          \
-      , _Generic(_S, Str: RKI_contrav(Str, _S).alloc, default: alloc_ctx)))
+      , _Generic((_S), Str: RKI_contrav(Str, _S).alloc, default: alloc_ctx)))
 
 rklib_fun Str rki_str_join_strv_n(Strv* svs, size_t count, Strv sep RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);

@@ -18,8 +18,8 @@ triax_test(avl, empty) {
 
   triax_expect_true(avl_is_empty(&a));
   triax_expect_eq(avl_count(&a), 0u);
-  triax_expect_null(avl_min(&a));
-  triax_expect_null(avl_max(&a));
+  triax_expect_null(avl_peek_min(&a));
+  triax_expect_null(avl_peek_max(&a));
   triax_expect_null(avl_get(int, char, &a, 123));
   triax_expect_false(avl_contains(int, char, &a, 123));
 
@@ -33,8 +33,8 @@ triax_test(avl, zero_initialized) {
   Avl(int, char) a = {0};
   triax_expect_true(avl_is_empty(&a));
   triax_expect_eq(avl_count(&a), 0u);
-  triax_expect_null(avl_min(&a));
-  triax_expect_null(avl_max(&a));
+  triax_expect_null(avl_peek_min(&a));
+  triax_expect_null(avl_peek_max(&a));
 
   triax_expect_true(avl_set(int, char, &a, 7, 'g'));
   triax_expect_eq(avl_count(&a), 1u);
@@ -74,14 +74,60 @@ triax_test(avl, insert_and_lookup) {
   triax_expect_true(avl_contains(int, char, &a, 4));
   triax_expect_false(avl_contains(int, char, &a, 99));
 
-  AvlEntry(int, char)* mn = avl_min(&a);
-  AvlEntry(int, char)* mx = avl_max(&a);
+  AvlEntry(int, char)* mn = avl_peek_min(&a);
+  AvlEntry(int, char)* mx = avl_peek_max(&a);
   triax_expect_nonnull(mn), triax_expect_nonnull(mx);
   if (mn) { triax_expect_eq(mn->key, 1), triax_expect_eq(mn->val, 'a'); }
   if (mx) { triax_expect_eq(mx->key, 4), triax_expect_eq(mx->val, 'd'); }
 
   avl_release(int, char, &a);
 }
+
+// ---- min/max: asserted entry lvalues; peek_min/peek_max: nullable entry pointers ----
+
+triax_test(avl, min_max_are_entry_lvalues) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 5, 'e');
+  avl_set(int, char, &a, 1, 'a');
+  avl_set(int, char, &a, 9, 'i');
+  triax_expect_eq(avl_min(&a).key, 1);
+  triax_expect_eq(avl_max(&a).key, 9);
+  triax_expect_eq(&avl_min(&a), avl_peek_min(&a));
+  triax_expect_eq(&avl_max(&a), avl_peek_max(&a));
+  avl_min(&a).val = 'A'; // values are writable; keys stay const
+  avl_max(&a).val = 'I';
+  triax_expect_eq(*avl_get(int, char, &a, 1), 'A');
+  triax_expect_eq(*avl_get(int, char, &a, 9), 'I');
+  avl_release(int, char, &a);
+}
+
+triax_test(avl, min_max_follow_tree_constness) {
+  Avl(int, char) a = avl_init(int, char);
+  avl_set(int, char, &a, 2, 'b');
+  const Avl(int, char)* c = &a;
+  static_assert(_Generic(&avl_min(&a), AvlEntry(int, char)*: 1, default: 0), "mutable: mutable");
+  static_assert(_Generic(&avl_max(c), const AvlEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(avl_peek_min(&a), AvlEntry(int, char)*: 1, default: 0), "mutable: mutable");
+  static_assert(_Generic(avl_peek_max(c), const AvlEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(&avl_min(&a).key, const int*: 1, default: 0), "keys are always const");
+  triax_expect_eq(avl_min(c).key, 2);
+  triax_expect_eq(avl_peek_max(c)->val, 'b');
+  avl_release(int, char, &a);
+}
+
+// An expected fault ends the test process, so each case needs its own test. The results are
+// discarded on purpose: the emptiness check must still run.
+#ifdef RKLIB_DEBUG
+triax_test(avl, min_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Avl(int, char) a = avl_init(int, char);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)avl_min(&a); });
+}
+
+triax_test(avl, max_of_empty_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Avl(int, char) a = avl_init(int, char);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)avl_max(&a); });
+}
+#endif
 
 triax_test(avl, add_does_not_overwrite_set_does) {
   Avl(int, char) a = avl_init(int, char);
@@ -365,8 +411,8 @@ triax_test(avl, remove_sequence) {
   avl_remove(int, char, &a, 1);
   triax_expect_eq(avl_count(&a), 0u);
   triax_expect_true(avl_is_empty(&a));
-  triax_expect_null(avl_min(&a));
-  triax_expect_null(avl_max(&a));
+  triax_expect_null(avl_peek_min(&a));
+  triax_expect_null(avl_peek_max(&a));
 
   // removing a missing key from an empty tree is harmless
   avl_remove(int, char, &a, 999);
@@ -382,8 +428,8 @@ triax_test(avl, release_and_reuse) {
   avl_release(int, char, &a);
   triax_expect_true(avl_is_empty(&a));
   triax_expect_eq(avl_count(&a), 0u);
-  triax_expect_null(avl_min(&a));
-  triax_expect_null(avl_max(&a));
+  triax_expect_null(avl_peek_min(&a));
+  triax_expect_null(avl_peek_max(&a));
 
   // tree should still be usable after release
   triax_expect_true(avl_set(int, char, &a, 42, 'x'));
@@ -451,8 +497,8 @@ triax_test(avl, large_sorted_order_stays_balanced) {
   // worst-case height bound of ~1.44*log2(n+2) (7 for n=32).
   for (int i = 1; i <= 32; ++i) { avl_set(int, char, &a, i, (char)('a' + (i - 1) % 26)); }
   triax_expect_eq(avl_count(&a), 32u);
-  triax_expect_eq(avl_min(&a)->key, 1);
-  triax_expect_eq(avl_max(&a)->key, 32);
+  triax_expect_eq(avl_min(&a).key, 1);
+  triax_expect_eq(avl_max(&a).key, 32);
 
   tree_node* stack[8];
   int        prev = -1, count = 0;
@@ -495,8 +541,8 @@ triax_test(avl, single_key_roundtrip, .params = triax_as_params(avl_roundtrip_ca
   triax_expect_nonnull(p);
   if (p) { triax_expect_eq(*p, c->value); }
 
-  AvlEntry(int, char)* mn = avl_min(&a);
-  AvlEntry(int, char)* mx = avl_max(&a);
+  AvlEntry(int, char)* mn = avl_peek_min(&a);
+  AvlEntry(int, char)* mx = avl_peek_max(&a);
   triax_expect_nonnull(mn), triax_expect_nonnull(mx);
   if (mn) { triax_expect_eq(mn->key, c->key); }
   if (mx) { triax_expect_eq(mx->key, c->key); }

@@ -113,18 +113,42 @@ typedef struct tree_iter {
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
 #define tree_is_empty(self)  (tree_count(self) == 0)
 
-/// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
-/// Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`): the
-/// real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
+/// @brief Returns the entry with the smallest key as an lvalue: mutable for a mutable tree, const
+/// for a const tree. The entry's `key` is always const; its `val` is writable through a mutable
+/// tree.
+/// @param self Pointer to a `Bst`, `Avl`, or `Rbt`. Evaluated more than once.
+/// @pre The tree is nonempty; use `tree_peek_min()` to check safely.
+/// @note The precondition is asserted in debug builds; invalid access is undefined in release.
+/// @note Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`):
+/// the real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
 /// `Avl`/`Rbt` nodes carry extra bookkeeping (height/color) that `Bst` nodes don't.
+/// @note Invalidated when the entry is removed. O(height).
+/// @see tree_peek_min
 #define tree_min(self)                                                                             \
-  ((typeof((self)->root->entry)*)rki_tree_min_off((self)->_tree.root,                              \
-                                                  offsetof(typeof(*(self)->root), entry)))
+  (*(typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_check_min_off(                                      \
+      (self)->_tree.root, offsetof(typeof(*(self)->root), entry)))
 
 /// @brief Like `tree_min()`, but for the largest key.
+/// @pre The tree is nonempty; use `tree_peek_max()` to check safely.
+/// @see tree_peek_max
 #define tree_max(self)                                                                             \
-  ((typeof((self)->root->entry)*)rki_tree_max_off((self)->_tree.root,                              \
-                                                  offsetof(typeof(*(self)->root), entry)))
+  (*(typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_check_max_off(                                      \
+      (self)->_tree.root, offsetof(typeof(*(self)->root), entry)))
+
+/// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
+/// @param self Pointer to a `Bst`, `Avl`, or `Rbt`. Evaluated more than once.
+/// @return `Entry*` for a mutable tree, `const Entry*` for a const tree.
+/// @note Invalidated when the entry is removed. O(height).
+/// @see tree_min
+#define tree_peek_min(self)                                                                        \
+  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_min_off((self)->_tree.root,                          \
+                                                      offsetof(typeof(*(self)->root), entry)))
+
+/// @brief Like `tree_peek_min()`, but for the largest key.
+/// @see tree_max
+#define tree_peek_max(self)                                                                        \
+  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_max_off((self)->_tree.root,                          \
+                                                      offsetof(typeof(*(self)->root), entry)))
 
 /// @brief Iterates over all entries in ascending key order.
 ///
@@ -225,13 +249,21 @@ typedef struct tree_iter {
 /// Alias for `tree_is_empty()`.
 #define bst_is_empty(self)              tree_is_empty(self)
 
-/// @brief `BstEntry(K, V)* bst_min(Bst(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the BST is empty. Alias for `tree_min()`.
+/// @brief `BstEntry(K, V) bst_min(Bst(K, V)* self)` - Returns the entry with the smallest key as an
+/// lvalue (const for a const Bst). Asserts the BST is nonempty. Alias for `tree_min()`.
 #define bst_min(self)                   tree_min(self)
 
-/// @brief `BstEntry(K, V)* bst_max(Bst(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the BST is empty. Alias for `tree_max()`.
+/// @brief `BstEntry(K, V) bst_max(Bst(K, V)* self)` - Returns the entry with the largest key as an
+/// lvalue (const for a const Bst). Asserts the BST is nonempty. Alias for `tree_max()`.
 #define bst_max(self)                   tree_max(self)
+
+/// @brief `BstEntry(K, V)* bst_peek_min(Bst(K, V)* self)` - Returns a pointer to the entry with
+/// the smallest key, or `NULL` if the BST is empty. Alias for `tree_peek_min()`.
+#define bst_peek_min(self)              tree_peek_min(self)
+
+/// @brief `BstEntry(K, V)* bst_peek_max(Bst(K, V)* self)` - Returns a pointer to the entry with
+/// the largest key, or `NULL` if the BST is empty. Alias for `tree_peek_max()`.
+#define bst_peek_max(self)              tree_peek_max(self)
 
 /// @brief `V* bst_get(K, V, Bst(K, V)* self, K key)` - Looks up a key and returns a pointer to its
 /// associated value, or `NULL` if not found.
@@ -364,13 +396,21 @@ typedef struct tree_iter {
 /// Alias for `tree_is_empty()`.
 #define avl_is_empty(self)              tree_is_empty(self)
 
-/// @brief `AvlEntry(K, V)* avl_min(Avl(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
+/// @brief `AvlEntry(K, V) avl_min(Avl(K, V)* self)` - Returns the entry with the smallest key as an
+/// lvalue (const for a const Avl). Asserts the tree is nonempty. Alias for `tree_min()`.
 #define avl_min(self)                   tree_min(self)
 
-/// @brief `AvlEntry(K, V)* avl_max(Avl(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
+/// @brief `AvlEntry(K, V) avl_max(Avl(K, V)* self)` - Returns the entry with the largest key as an
+/// lvalue (const for a const Avl). Asserts the tree is nonempty. Alias for `tree_max()`.
 #define avl_max(self)                   tree_max(self)
+
+/// @brief `AvlEntry(K, V)* avl_peek_min(Avl(K, V)* self)` - Returns a pointer to the entry with
+/// the smallest key, or `NULL` if the tree is empty. Alias for `tree_peek_min()`.
+#define avl_peek_min(self)              tree_peek_min(self)
+
+/// @brief `AvlEntry(K, V)* avl_peek_max(Avl(K, V)* self)` - Returns a pointer to the entry with
+/// the largest key, or `NULL` if the tree is empty. Alias for `tree_peek_max()`.
+#define avl_peek_max(self)              tree_peek_max(self)
 
 /// @brief `V* avl_get(K, V, Avl(K, V)* self, K key)` - See `bst_get()`.
 #define avl_get(K, V, self, key)        RKI_AVL_PUB(K, V, get)(self, key)
@@ -451,13 +491,21 @@ typedef struct tree_iter {
 /// Alias for `tree_is_empty()`.
 #define rbt_is_empty(self)              tree_is_empty(self)
 
-/// @brief `RbtEntry(K, V)* rbt_min(Rbt(K, V)* self)` - Returns a pointer to the entry with the
-/// smallest key, or `NULL` if the tree is empty. Alias for `tree_min()`.
+/// @brief `RbtEntry(K, V) rbt_min(Rbt(K, V)* self)` - Returns the entry with the smallest key as an
+/// lvalue (const for a const Rbt). Asserts the tree is nonempty. Alias for `tree_min()`.
 #define rbt_min(self)                   tree_min(self)
 
-/// @brief `RbtEntry(K, V)* rbt_max(Rbt(K, V)* self)` - Returns a pointer to the entry with the
-/// largest key, or `NULL` if the tree is empty. Alias for `tree_max()`.
+/// @brief `RbtEntry(K, V) rbt_max(Rbt(K, V)* self)` - Returns the entry with the largest key as an
+/// lvalue (const for a const Rbt). Asserts the tree is nonempty. Alias for `tree_max()`.
 #define rbt_max(self)                   tree_max(self)
+
+/// @brief `RbtEntry(K, V)* rbt_peek_min(Rbt(K, V)* self)` - Returns a pointer to the entry with
+/// the smallest key, or `NULL` if the tree is empty. Alias for `tree_peek_min()`.
+#define rbt_peek_min(self)              tree_peek_min(self)
+
+/// @brief `RbtEntry(K, V)* rbt_peek_max(Rbt(K, V)* self)` - Returns a pointer to the entry with
+/// the largest key, or `NULL` if the tree is empty. Alias for `tree_peek_max()`.
+#define rbt_peek_max(self)              tree_peek_max(self)
 
 /// @brief `V* rbt_get(K, V, Rbt(K, V)* self, K key)` - See `bst_get()`.
 #define rbt_get(K, V, self, key)        RKI_RBT_PUB(K, V, get)(self, key)
@@ -556,6 +604,25 @@ rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
 }
+
+// Not rk_pure: the asserts are side effects, and a pure call whose result is discarded (e.g.
+// `(void)tree_min(t)`) may be removed entirely, silently skipping the emptiness check.
+rklib_fun void* rki_tree_check_min_off(tree_node* node, size_t entry_off) {
+  rk_assert(node && "Cannot access min of empty tree");
+  return rki_tree_min_off(node, entry_off);
+}
+
+rklib_fun void* rki_tree_check_max_off(tree_node* node, size_t entry_off) {
+  rk_assert(node && "Cannot access max of empty tree");
+  return rki_tree_max_off(node, entry_off);
+}
+
+// Entry pointer type matching the tree's constness. Constness is detected through `count`, a
+// member of a named type, as for the Dict/Deque iteration pointers (avoids `const const`, C4114).
+#define RKI_TREE_ENTRY_PTR(self)                                                                   \
+  _Generic(&(self)->count,                                                                         \
+      const size_t*: (const typeof((self)->root->entry)*)0,                                        \
+      default: (typeof((self)->root->entry)*)0)
 
 rklib_fun tree_node* rki_tree_iter_next(tree_iter* restrict it) {
   while (it->curr) {

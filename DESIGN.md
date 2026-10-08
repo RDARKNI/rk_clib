@@ -427,6 +427,8 @@ Several conventions recur across otherwise different data structures:
 - `*_reserve` grows capacity without changing logical contents;
 - `*_shrink_to_fit` reduces retained storage;
 - `*_try_*` denotes a recoverable failure path rather than the library's normal fail-fast path;
+- removal follows the same split: `vec_pop`, `deque_pop_*`, `heap_pop`, and `str_pop` assert that the container is nonempty, while `vec_try_pop`, `deque_try_pop_*`, `heap_try_pop`, and `str_try_pop` return `false` and leave their output untouched when it is empty. No pop returns a sentinel value, which could not be told apart from a stored element;
+- positional element access comes in two forms: `*_front`, `*_back`, `*_at`, `heap_top`, and the trees' `*_min`/`*_max` return an lvalue and assert their precondition, while the matching `*_peek_*` (and `heap_peek`) return a nullable pointer (`NULL` when the element does not exist). Keyed lookup follows the same split: `dict_at`/`set_at` return an asserted lvalue, `*_get` a nullable pointer. A stored key is always const (`set_at` and `set_get` are const even for a mutable Set), since modifying it would break its hash slot. All of them propagate the container's constness; `heap_top`/`heap_peek` are always const, since writing the top in place would break the heap order;
 - bulk operations exist when they can avoid repeated allocation or repeated O(log n) work;
 - unordered erase/insert variants are exposed when relaxing order can materially reduce work;
 - iterators are usually plain typed pointers rather than opaque iterator objects where representation permits it.
@@ -447,6 +449,8 @@ The code generally favors simple predictable costs over abstraction uniformity:
 - type-specific comparison/hash behavior is statically bound rather than stored as callbacks.
 
 Compiler attributes communicate purity, allocation size/alignment, and similar facts where supported, but correctness does not rely on one compiler understanding a particular annotation.
+
+`rk_const` and `rk_pure` let the compiler remove a call whose result is unused, and any assertion inside goes with it. With `rk_const` on the string bounds-check helpers, `(void)str_at(s, i)` skipped its bounds check at `-O2`. So helpers behind asserting accessors (`*_front`, `*_back`, `*_at`, `*_pop`) must not carry these annotations: such a call may be made only for its check. Pure queries such as `bitset_test()` or `rk_align_up()` may keep them, accepting that their assertions only run when the result is used, since a discarded query has no purpose.
 
 ## Safety philosophy
 This is a low-level C library, not a bounds-checked runtime.
