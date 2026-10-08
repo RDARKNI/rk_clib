@@ -179,7 +179,7 @@ triax_test(bst, get_or_add) {
 triax_test(bst, foreach_empty) {
   Bst(int, char) b = bst_init(int, char);
   TreeNode* stack[4];
-  int        visited = 0;
+  int       visited = 0;
   bst_foreach(&b, stack, 4, e) {
     (void)e;
     ++visited;
@@ -197,9 +197,9 @@ triax_test(bst, foreach_inorder) {
   bst_set(int, char, &b, 2, 'B');
 
   TreeNode* stack[4];
-  int        keys[4] = {0};
-  char       vals[4] = {0};
-  int        i       = 0;
+  int       keys[4] = {0};
+  char      vals[4] = {0};
+  int       i       = 0;
 
   bst_foreach(&b, stack, 4, e) {
     keys[i] = e->key;
@@ -219,7 +219,7 @@ triax_test(bst, foreach_inorder) {
 triax_test(bst, foreach_reversed_empty) {
   Bst(int, char) b = bst_init(int, char);
   TreeNode* stack[4];
-  int        visited = 0;
+  int       visited = 0;
   bst_foreach_reversed(&b, stack, 4, e) {
     (void)e;
     ++visited;
@@ -236,8 +236,8 @@ triax_test(bst, foreach_reversed_visits_descending) {
   bst_set(int, char, &b, 2, 'b');
 
   TreeNode* stack[4];
-  int        keys[4] = {0};
-  int        i       = 0;
+  int       keys[4] = {0};
+  int       i       = 0;
   bst_foreach_reversed(&b, stack, 4, e) { keys[i++] = e->key; }
   triax_expect_eq(i, 4);
 
@@ -260,7 +260,7 @@ triax_test(bst, foreach_break_stops_iteration) {
   bst_set(int, char, &b, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   bst_foreach(&b, stack, 4, e) {
     if (e->key == 2) { break; }
     ++visits;
@@ -278,7 +278,7 @@ triax_test(bst, foreach_continue_skips_entry) {
   bst_set(int, char, &b, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   bst_foreach(&b, stack, 4, e) {
     if (e->key == 2) { continue; }
     ++visits;
@@ -296,7 +296,7 @@ triax_test(bst, foreach_reversed_break_stops_iteration) {
   bst_set(int, char, &b, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   bst_foreach_reversed(&b, stack, 4, e) {
     if (e->key == 3) { break; }
     ++visits;
@@ -314,7 +314,7 @@ triax_test(bst, foreach_reversed_continue_skips_entry) {
   bst_set(int, char, &b, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   bst_foreach_reversed(&b, stack, 4, e) {
     if (e->key == 3) { continue; }
     ++visits;
@@ -360,7 +360,7 @@ triax_test(bst, foreach_const_entries) {
     e->val = 'b';
   }
   const Bst(int, char)* ct = &t;
-  int seen = 0;
+  int seen                 = 0;
   tree_foreach(ct, stack, 2, e) {
     static_assert(_Generic(e, const BstEntry(int, char)*: 1, default: 0), "Const tree entry");
     triax_expect_eq(e->val, 'b');
@@ -385,7 +385,7 @@ triax_test(bst, erase_if_changes_root_then_release) {
   triax_expect_eq(tree_count(&t), 1u);
   triax_expect_eq(tree_min(&t).key, 3);
   bst_release(int, char, &t);
-  triax_expect_null(t.root);
+  triax_expect_null(t.base.root);
 }
 
 triax_test(bst, erase_if_removes_all) {
@@ -394,17 +394,17 @@ triax_test(bst, erase_if_removes_all) {
   TreeNode* stack[4];
   bst_erase_if(int, char, &t, stack, 4, e, ((void)e, true));
   triax_expect_true(tree_is_empty(&t));
-  triax_expect_null(t.root);
+  triax_expect_null(t.base.root);
   bst_release(int, char, &t);
 }
 
 #if RK_CUSTOM_ALLOCATORS
 triax_test(bst, erase_if_scratch_allocation_size) {
   alignas_max unsigned char storage[1024];
-  Arena arena = arena_init_static(storage);
-  Bst(int, char) t = bst_init(int, char, arena_to_alloc(&arena));
+  Arena                     arena = arena_init_static(storage);
+  Bst(int, char) t                = bst_init(int, char, arena_to_alloc(&arena));
   for (int i = 1; i <= 4; ++i) { bst_set(int, char, &t, i, 'a'); }
-  size_t before = arena_used(&arena);
+  size_t    before = arena_used(&arena);
   TreeNode* stack[4];
   // Nodes precede the scratch allocation and cannot be reclaimed while it is live.
   // Freeing the scratch buffer with its original size must restore the cursor.
@@ -417,7 +417,7 @@ triax_test(bst, erase_if_scratch_allocation_size) {
 triax_test(bst, erase_if_empty_is_noop) {
   Bst(int, char) b = bst_init(int, char);
   TreeNode* stack[4];
-  int        pred_calls = 0;
+  int       pred_calls = 0;
   bst_erase_if(int, char, &b, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(bst_count(&b), 0u);
@@ -431,7 +431,7 @@ triax_test(bst, erase_if_evaluates_predicate_once_per_entry) {
   bst_set(int, char, &b, 3, 'c');
 
   TreeNode* stack[4];
-  int        pred_calls = 0;
+  int       pred_calls = 0;
   bst_erase_if(int, char, &b, stack, 4, e, (++pred_calls, (void)e, false));
   triax_expect_eq(pred_calls, 3);
   triax_expect_eq(bst_count(&b), 3u);
@@ -548,8 +548,8 @@ triax_test(bst, remove_two_children) {
 
   // BST property: in-order traversal must still be sorted
   TreeNode* stack[8];
-  int        keys[5];
-  int        i = 0;
+  int       keys[5];
+  int       i = 0;
   bst_foreach(&b, stack, 8, e) { keys[i++] = e->key; }
   triax_expect_eq(i, 5);
   for (int j = 1; j < 5; ++j) { triax_expect_gt(keys[j], keys[j - 1]); }
@@ -568,7 +568,7 @@ triax_test(bst, large_sorted_order) {
 
   // In-order traversal must produce strictly ascending keys
   TreeNode* stack[32];
-  int        prev = -1, count = 0;
+  int       prev = -1, count = 0;
   bst_foreach(&b, stack, 32, e) {
     triax_expect_gt(e->key, prev);
     prev = e->key;
