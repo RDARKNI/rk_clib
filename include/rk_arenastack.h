@@ -55,9 +55,7 @@ rklib_fun void              arenastack_release(ArenaStack* self);
 /// This is the allocator used to obtain buffers, not an Allocator adapter allocating within this
 /// stack.
 /// @see arenastack_to_alloc
-rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
-  return vec_allocator(self->arenas);
-}
+rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self);
 
 /// @brief Reclaims all allocations for reuse without releasing backing storage.
 /// @return self, for chaining.
@@ -72,9 +70,8 @@ rklib_fun ArenaStack*       arenastack_clear(ArenaStack* self);
 /// @note Does not allocate or keep allocations alive. A null-position mark denotes the stack's
 /// starting position: rewinding to it clears the stack, even if it has since been lazily
 /// initialized.
-rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
-  return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
-}
+rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self);
+
 /// @brief Reclaims allocations made after a saved position, retaining backing buffers for reuse.
 /// @param self Stack from which the mark was obtained.
 /// @param mark A mark from arenastack_mark() on this stack, still valid for its current state and
@@ -84,7 +81,7 @@ rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
 /// @note Invalidates allocations and marks in the discarded region. Rewinding to an empty later
 /// arena may make the preceding arena active. Foreign or invalidated non-null marks are
 /// unsupported.
-rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
+rklib_fun ArenaStack*       arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
 /// aligned storage, reusing or adding an arena if necessary.
@@ -103,7 +100,7 @@ rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark 
 /// NULL; such a zero-size position must not be passed to alloc_deallocate()/alloc_reallocate().
 /// @see arenastack_new
 /// @see arenastack_to_alloc
-rklib_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
+rklib_fun void*             arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
 
 /// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Allocates raw storage for
 /// count elements with the type's required alignment.
@@ -217,15 +214,19 @@ static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = rki_are
 /// by deallocation.
 /// @note Clearing, rewinding, or releasing must not discard storage still used through this handle.
 /// @see arenastack_allocator
-static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
-  return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
-}
+static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self);
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
+  return vec_allocator(self->arenas);
+}
+rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
+  return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
+}
 
 #define RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)                                   \
   ((typeof(T)*)(alloc_log_new(), rk_assert_valid_align(T, align),                                  \
@@ -363,6 +364,9 @@ rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size
   return rki_arenastack_allocate(nbytes, align, self);
 }
 
+static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
+  return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
+}
 #undef RKI_ARENA_ALLOC_INIT
 
 /// @endcond

@@ -178,10 +178,7 @@ typedef struct Str {
 #define str_from_literal(strlit, ...) RKI_OVERLOAD(RKI_STR_FROMLIT, strlit, ##__VA_ARGS__)
 
 /// @brief Frees the underlying memory of `self`.
-rklib_fun void str_release(Str* restrict self) {
-  if (self->str) { alloc_delete(self->str, self->cap RK_IFALLOC(, self->alloc)); }
-  self->len = self->cap = 0, self->str = rk_null;
-}
+rklib_fun void str_release(Str* restrict self);
 
 /// @brief `Str str_join_strv_n(Strv* svs, size_t count, Strv sep, Allocator alloc = alloc_ctx)` -
 /// Constructs a Str by concatenating `count` elements from `svs`, inserting `sep` between each
@@ -200,9 +197,7 @@ rklib_fun void str_release(Str* restrict self) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Returns whether the String is null-terminated.
-rklib_fun rk_pure bool str_is_null_terminated(const Str* self) {
-  return self->cap > self->len && self->str[self->len] == '\0';
-}
+rklib_fun rk_pure bool        str_is_null_terminated(const Str* self);
 
 /// @brief Returns a null-terminated C string view of the string.
 /// @param self Pointer to the string object.
@@ -216,23 +211,18 @@ rklib_fun rk_pure bool str_is_null_terminated(const Str* self) {
 ///
 /// @warning This function does not enforce null-termination or perform any allocation. Callers must
 /// ensure null-termination if access to the full contents as a C string is required.
-rklib_fun rk_pure const char* str_cstr(const Str* self) {
-  return str_is_null_terminated(self) ? self->str : "";
-}
+rklib_fun rk_pure const char* str_cstr(const Str* self);
 
 /// @brief Returns the current capacity of `self`, in bytes.
-rklib_fun rk_pure size_t    str_cap(const Str* self) { return self->cap; }
+rklib_fun rk_pure size_t      str_cap(const Str* self);
 
 /// @brief Returns the Allocator `self` was constructed with, or `alloc_ctx` if `self` was never
 /// initialized, or custom allocators are disabled.
-rklib_fun rk_pure Allocator str_allocator(const Str* self) { return RKI_allocatorof(self); }
+rklib_fun rk_pure Allocator   str_allocator(const Str* self);
 
 /// @brief Clears the contents of `self`, setting its length to zero and null-terminating it, if it
 /// owns an allocation.
-rklib_fun Str*              str_clear(Str* restrict self) {
-  if (self->str) { self->str[self->len = 0] = '\0'; }
-  return self;
-}
+rklib_fun Str*                str_clear(Str* restrict self);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Capacity
@@ -240,21 +230,21 @@ rklib_fun Str*              str_clear(Str* restrict self) {
 
 /// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`, reallocating, if
 /// necessary.
-rklib_fun Str* str_reserve(Str* restrict self, size_t new_cap);
+rklib_fun Str*                str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
 /// null-terminating it.
-rklib_fun Str* str_resize(Str* restrict self, size_t new_len);
+rklib_fun Str*                str_resize(Str* restrict self, size_t new_len);
 
 /// @brief Resizes a Str's capacity to the next power of two larger than its length,
 /// null-terminating it (matching `vec_shrink_to_fit()`'s convention). Leaves some slack to reduce
 /// reallocation on subsequent growth.
 /// @note Use `str_shrink_to_fit_exact()` for an exact-capacity shrink.
-rklib_fun Str* str_shrink_to_fit(Str* restrict self);
+rklib_fun Str*                str_shrink_to_fit(Str* restrict self);
 
 /// @brief Resizes a Str's capacity to exactly its length + 1 (matching
 /// `vec_shrink_to_fit_exact()`'s convention).
-rklib_fun Str* str_shrink_to_fit_exact(Str* restrict self);
+rklib_fun Str*                str_shrink_to_fit_exact(Str* restrict self);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Mutators
@@ -328,11 +318,7 @@ rklib_fun Str* str_cat_fmt(Str* self, const char* fmt, ...);
 /// @return The popped character.
 /// @pre The Str is nonempty; use `str_try_pop()` to check safely.
 /// @note The precondition is asserted in debug builds; invalid access is undefined in release.
-rklib_fun char str_pop(Str* restrict self) {
-  rk_assert(self->len && "Attempted to pop from an empty Str");
-  char tmp                    = self->str[--self->len];
-  return self->str[self->len] = '\0', tmp;
-}
+rklib_fun char str_pop(Str* restrict self);
 
 /// @brief Removes the last character and writes it to `*out`, if the Str is nonempty, keeping the
 /// Str null-terminated.
@@ -341,19 +327,12 @@ rklib_fun char str_pop(Str* restrict self) {
 /// @return `true` if a character was removed, `false` if the Str was empty or unallocated.
 /// @note Unlike a sentinel return value, this distinguishes popping an embedded `'\0'` from an
 /// empty Str.
-rklib_fun bool str_try_pop(Str* restrict self, char* restrict out) {
-  if (!self->len) { return false; }
-  return *out = str_pop(self), true;
-}
+rklib_fun bool str_try_pop(Str* restrict self, char* restrict out);
 
 /// @brief Pops the last n characters off the Str, decreasing its length and null-terminating it.
 /// @pre `n <= str_len(*self)`. Popping zero characters is a no-op, even for an unallocated Str.
 /// @note The precondition is asserted in debug builds; invalid access is undefined in release.
-rklib_fun void str_pop_n(Str* restrict self, size_t n) {
-  if (!n) { return; }
-  rk_assert(n <= self->len && "Attempted to pop more than Str length");
-  self->len -= n, self->str[self->len] = '\0';
-}
+rklib_fun void str_pop_n(Str* restrict self, size_t n);
 
 /// @brief Removes a single character at the given index from the string.
 /// @param self The string to modify
@@ -423,9 +402,8 @@ rklib_fun Str* str_reverse(Str* restrict self);
 /// @brief Constructs a Strv from a string literal.
 #define strv_from_literal(strlit) {.str = strlit, .len = lenof(strlit)}
 
-rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
-  return (Strv){.str = str, .len = len};
-}
+rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len);
+
 /// @brief Constructs a Strv from a Stringlike.
 #define strv_from(strlike)              RKI_STRV_FROM(strlike)
 
@@ -545,6 +523,8 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+
+rklib_fun rk_pure Allocator str_allocator(const Str* self) { return RKI_allocatorof(self); }
 
 #define RKI_STR_DAT(_S)                                                                            \
   _Generic((_S),                                                                                   \
@@ -670,6 +650,40 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 
 rklib_fun rk_pure Strv strv_from_cstr(const char* s) {
   return (Strv){.str = s, .len = s ? strlen(s) : 0};
+}
+
+rklib_fun void str_release(Str* restrict self) {
+  if (self->str) { alloc_delete(self->str, self->cap RK_IFALLOC(, self->alloc)); }
+  self->len = self->cap = 0, self->str = rk_null;
+}
+
+rklib_fun rk_pure bool str_is_null_terminated(const Str* self) {
+  return self->cap > self->len && self->str[self->len] == '\0';
+}
+rklib_fun rk_pure const char* str_cstr(const Str* self) {
+  return str_is_null_terminated(self) ? self->str : "";
+}
+rklib_fun rk_pure size_t str_cap(const Str* self) { return self->cap; }
+rklib_fun Str*           str_clear(Str* restrict self) {
+  if (self->str) { self->str[self->len = 0] = '\0'; }
+  return self;
+}
+rklib_fun char str_pop(Str* restrict self) {
+  rk_assert(self->len && "Attempted to pop from an empty Str");
+  char tmp                    = self->str[--self->len];
+  return self->str[self->len] = '\0', tmp;
+}
+rklib_fun bool str_try_pop(Str* restrict self, char* restrict out) {
+  if (!self->len) { return false; }
+  return *out = str_pop(self), true;
+}
+rklib_fun void str_pop_n(Str* restrict self, size_t n) {
+  if (!n) { return; }
+  rk_assert(n <= self->len && "Attempted to pop more than Str length");
+  self->len -= n, self->str[self->len] = '\0';
+}
+rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
+  return (Strv){.str = str, .len = len};
 }
 
 rklib_fun rk_const Strv strv_from_strv(Strv str) { return str; }

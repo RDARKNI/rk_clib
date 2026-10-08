@@ -108,7 +108,7 @@ RKI_HEADER_BEGIN
 
 /// @brief `bool heap_is_empty(const Heap(T)* self)` - Returns `true` iff the Heap contains no
 /// elements.
-#define heap_is_empty(self)              (heap_count(self) == 0)
+#define heap_is_empty(self)              ((bool)(heap_count(self) == 0))
 
 /// @brief `void heap_clear(Heap(T)* self)` - Removes all elements without freeing the backing Vec.
 #define heap_clear(self)                 vec_clear((self)->data)

@@ -220,16 +220,10 @@ RKI_HEADER_BEGIN
 /// @brief Retrieves the value for `key`, or `NULL` if absent. Returns `V*` for a mutable Dict
 /// and `const V*` for a const Dict.
 /// @see dict_at
-#ifdef __cplusplus
-# define dict_get(K, V, self, key)                                                                 \
-   ((typename std::conditional<std::is_const<typeof(*(self))>::value, const V*, V*>::type)         \
-        RKI_DICT_PUB(K, V, get_const)(self, key))
-#else
-# define dict_get(K, V, self, key)                                                                 \
-   _Generic((self),                                                                                \
-       const Dict(K, V)*: RKI_DICT_PUB(K, V, get_const),                                           \
-       Dict(K, V)*: RKI_DICT_PUB(K, V, get))((self), (key))
-#endif
+#define dict_get(K, V, self, key)                                                                  \
+  _Generic((self),                                                                                 \
+      const Dict(K, V)*: RKI_DICT_PUB(K, V, get_const),                                            \
+      Dict(K, V)*: RKI_DICT_PUB(K, V, get))((self), (key))
 
 /// @brief Returns the value for `key` as an lvalue, mutable for a mutable Dict and const for a
 /// const Dict.
@@ -238,16 +232,10 @@ RKI_HEADER_BEGIN
 /// @note Never inserts, unlike `dict_get_or_add()`. Invalidated by any insertion that rehashes,
 /// and by removal of `key`.
 /// @see dict_get
-#ifdef __cplusplus
-# define dict_at(K, V, self, key)                                                                  \
-   (*(typename std::conditional<std::is_const<typeof(*(self))>::value, const V*, V*>::type)        \
-         RKI_DICT_PUB(K, V, at_const)(self, key))
-#else
-# define dict_at(K, V, self, key)                                                                  \
-   (*_Generic((self),                                                                              \
-        const Dict(K, V)*: RKI_DICT_PUB(K, V, at_const),                                           \
-        Dict(K, V)*: RKI_DICT_PUB(K, V, at))((self), (key)))
-#endif
+#define dict_at(K, V, self, key)                                                                   \
+  (*_Generic((self),                                                                               \
+       const Dict(K, V)*: RKI_DICT_PUB(K, V, at_const),                                            \
+       Dict(K, V)*: RKI_DICT_PUB(K, V, at))((self), (key)))
 
 /// @brief `bool dict_contains(K, V, const Dict(K, V)* self, K key)` - Checks whether the given key
 /// is present in the Dict.

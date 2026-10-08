@@ -97,7 +97,7 @@ typedef struct TreeNode { struct TreeNode *l, *r; } TreeNode;
 #define tree_allocator(self) RKI_allocatorof(&(self)->base)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
-#define tree_is_empty(self)  (tree_count(self) == 0)
+#define tree_is_empty(self)  ((bool)(tree_count(self) == 0))
 
 /// @brief Returns the entry with the smallest key as an lvalue: mutable for a mutable tree, const
 /// for a const tree. The entry's `key` is always const; its `val` is writable through a mutable
