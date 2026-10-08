@@ -385,7 +385,57 @@ triax_test(string, pop_n_more_than_len_asserts, .isolation = TRIAX_ISOLATION_ON)
   Str s = str_from_literal("ab");
   triax_assert_fault(TRIAX_FAULT_ABORT, { str_pop_n(&s, 3); });
 }
+
+triax_test(string, growth_capacity_overflow_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Str s = str_from_literal("ab");
+  // new_len + 1 has no power-of-two ceiling in size_t
+  triax_assert_fault(TRIAX_FAULT_ABORT, { str_resize(&s, (SIZE_MAX >> 1) + 1); });
+}
 #endif
+
+// ---- capacity: str_reserve is exact, appending grows geometrically ----
+
+triax_test(string, reserve_is_exact) {
+  Str s = str_from_literal("ab");
+  str_reserve(&s, 100);
+  triax_expect_eq(str_cap(&s), 100u);
+  triax_expect_streq(s.str, "ab");
+  triax_expect_eq(str_len(s), 2u);
+  str_release(&s);
+}
+
+triax_test(string, reserve_never_shrinks) {
+  Str s = str_init(64);
+  str_cat_literal(&s, "abc");
+  str_reserve(&s, 10);
+  triax_expect_eq(str_cap(&s), 64u);
+  str_reserve(&s, 64);
+  triax_expect_eq(str_cap(&s), 64u);
+  triax_expect_streq(s.str, "abc");
+  str_release(&s);
+}
+
+triax_test(string, reserve_then_fill_does_not_reallocate) {
+  Str s = str_init(1);
+  str_reserve(&s, 33);
+  const char* buf = s.str;
+  for (int i = 0; i < 32; ++i) str_push(&s, 'x');
+  triax_expect_eq(s.str, buf);
+  triax_expect_eq(str_cap(&s), 33u);
+  triax_expect_eq(str_len(s), 32u);
+  str_release(&s);
+}
+
+triax_test(string, appending_rounds_capacity_to_power_of_two) {
+  Str s = str_init(1);
+  for (int i = 0; i < 20; ++i) str_push(&s, 'x');
+  triax_expect_eq(str_cap(&s), 32u);
+  str_reserve(&s, 33);
+  triax_expect_eq(str_cap(&s), 33u);
+  str_push(&s, 'y'); // fits: 21 chars + terminator
+  triax_expect_eq(str_cap(&s), 33u);
+  str_release(&s);
+}
 
 triax_test(string, str_cat_fmt) {
   Str s = str_init(8);

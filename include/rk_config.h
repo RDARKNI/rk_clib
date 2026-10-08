@@ -171,8 +171,8 @@
 /// @brief Failure handler for the malloc-backed allocator.
 # define RK_MALLOC_FAIL(cond, ctx, old_ptr, align, new_size)                                       \
    do {                                                                                            \
-     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      rk_assert((cond) && "malloc allocation failure");                                             \
+     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      (cond) ? (void)0 : abort();                                                                   \
    } while (0)
 
@@ -183,8 +183,8 @@
 /// @brief Failure handler for OS page allocation (`mmap` / `VirtualAlloc`).
 # define RK_MMAP_FAIL(cond, ctx, old_ptr, align, new_size)                                         \
    do {                                                                                            \
-     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      rk_assert((cond) && "map allocation failure");                                                \
+     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      (cond) ? (void)0 : abort();                                                                   \
    } while (0)
 
@@ -195,8 +195,8 @@
 /// @brief Failure handler for arena allocation. `ctx` is the corresponding `Arena *`.
 # define RK_ARENA_FAIL(cond, ctx, old_ptr, align, new_size)                                        \
    do {                                                                                            \
-     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      rk_assert((cond) && "arena allocation failure");                                              \
+     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      (cond) ? (void)0 : abort();                                                                   \
    } while (0)
 
@@ -207,8 +207,8 @@
 /// @brief Failure handler for pool allocation. `ctx` is the corresponding pool pointer.
 # define RK_POOL_FAIL(cond, ctx, old_ptr, align, new_size)                                         \
    do {                                                                                            \
-     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      rk_assert((cond) && "pool allocation failure");                                               \
+     (void)(ctx), (void)(old_ptr), (void)(align), (void)(new_size);                                \
      (cond) ? (void)0 : abort();                                                                   \
    } while (0)
 

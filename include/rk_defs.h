@@ -686,37 +686,6 @@ rk_noreturn rklib_fun void rki_assertfail(const char* expr, const char* file, in
 
 /// @}
 
-#if RKI_STDBIT_FALLBACK
-# define stdc_leading_zeros(...)                                                                   \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
-# define stdc_leading_ones(...)                                                                    \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_ones_))(__VA_ARGS__)
-# define stdc_trailing_zeros(...)                                                                  \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
-# define stdc_trailing_ones(...)                                                                   \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
-# define stdc_count_zeros(...)                                                                     \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_zeros_))(__VA_ARGS__)
-# define stdc_count_ones(...)                                                                      \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_ones_))(__VA_ARGS__)
-# define stdc_first_leading_zero(...)                                                              \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
-# define stdc_first_leading_one(...)                                                               \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
-# define stdc_first_trailing_zero(...)                                                             \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
-# define stdc_first_trailing_one(...)                                                              \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
-# define stdc_bit_floor(...)                                                                       \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_floor_))(__VA_ARGS__)
-# define stdc_bit_ceil(...)                                                                        \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
-# define stdc_bit_width(...)                                                                       \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
-# define stdc_has_single_bit(...)                                                                  \
-   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
-#endif /* RKI_STDBIT_FALLBACK */
-
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////// Implementation Details //////////////////////////////////////
@@ -1230,6 +1199,35 @@ RKI_U_TYPES(RKI_DEF_STDCBIT_FUNS)
 # undef RKI_DEF_TZ__
 # undef RKI_DEF_CO_
 # undef RKI_DEF_STDCBIT_FUNS
+
+# define stdc_leading_zeros(...)                                                                   \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_zeros_))(__VA_ARGS__)
+# define stdc_leading_ones(...)                                                                    \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_leading_ones_))(__VA_ARGS__)
+# define stdc_trailing_zeros(...)                                                                  \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_zeros_))(__VA_ARGS__)
+# define stdc_trailing_ones(...)                                                                   \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_trailing_ones_))(__VA_ARGS__)
+# define stdc_count_zeros(...)                                                                     \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_zeros_))(__VA_ARGS__)
+# define stdc_count_ones(...)                                                                      \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_count_ones_))(__VA_ARGS__)
+# define stdc_first_leading_zero(...)                                                              \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_zero_))(__VA_ARGS__)
+# define stdc_first_leading_one(...)                                                               \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_leading_one_))(__VA_ARGS__)
+# define stdc_first_trailing_zero(...)                                                             \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_zero_))(__VA_ARGS__)
+# define stdc_first_trailing_one(...)                                                              \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_first_trailing_one_))(__VA_ARGS__)
+# define stdc_bit_floor(...)                                                                       \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_floor_))(__VA_ARGS__)
+# define stdc_bit_ceil(...)                                                                        \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_ceil_))(__VA_ARGS__)
+# define stdc_bit_width(...)                                                                       \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_bit_width_))(__VA_ARGS__)
+# define stdc_has_single_bit(...)                                                                  \
+   _Generic((__VA_ARGS__)RKI_U_TYPES(RKI_GENCASE, stdc_has_single_bit_))(__VA_ARGS__)
 
 #endif /* RKI_STDBIT_FALLBACK */
 

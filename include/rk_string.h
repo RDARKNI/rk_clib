@@ -228,8 +228,9 @@ rklib_fun Str*                str_clear(Str* restrict self);
 /// @name String Capacity
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`, reallocating, if
-/// necessary.
+/// @brief Ensures at least `new_cap` bytes of capacity are allocated for `self`. If `self` has
+/// less, it is reallocated to exactly `new_cap` bytes (the null terminator counts towards the
+/// capacity). Unlike the growth of appending operations, the capacity is not rounded up.
 rklib_fun Str*                str_reserve(Str* restrict self, size_t new_cap);
 
 /// @brief Resizes the length of `self` to `new_len`, reallocating the memory if necessary and
@@ -759,12 +760,8 @@ rklib_fun rk_pure const char* str_findr_strv(Strv hs, Strv ne) {
   }
   return rk_null;
 }
-
 rklib_fun rk_pure bool str_contains_char(Strv sv, char c) {
-  for (size_t i = 0; i < sv.len; ++i) {
-    if (sv.str[i] == c) { return true; }
-  }
-  return false;
+  return sv.len != 0 && memchr(sv.str, (unsigned char)c, sv.len) != rk_null;
 }
 
 rklib_fun rk_pure bool str_contains_strv(Strv s1, Strv s2) {
@@ -793,8 +790,13 @@ rklib_fun void rki_str_change_cap(Str* restrict self, size_t new_cap) {
   self->str = alloc_renew(self->str, self->cap, new_cap RK_IFALLOC(, self->alloc));
   self->cap = new_cap;
 }
+// Growth policy of appending operations: rounds the capacity up to a power of two.
 rklib_fun void rki_str_ensure_cap(Str* restrict self, size_t new_cap) {
-  if (new_cap > self->cap) { rki_str_change_cap(self, stdc_bit_ceil(new_cap)); }
+  if (new_cap > self->cap) {
+    size_t cap = stdc_bit_ceil(new_cap);
+    rk_assert(cap && "Str capacity overflow");
+    rki_str_change_cap(self, cap);
+  }
 }
 rklib_fun rk_const const char* rki_str_end(Strv sv) { return sv.str ? sv.str + sv.len : rk_null; }
 
@@ -878,7 +880,7 @@ rklib_fun rk_const Strv strv_slice_strv(Strv sv, size_t start, size_t end) {
 }
 
 rklib_fun Str* str_reserve(Str* restrict self, size_t new_cap) {
-  rki_str_ensure_cap(self, new_cap);
+  if (new_cap > self->cap) { rki_str_change_cap(self, new_cap); }
   return self;
 }
 
@@ -1025,8 +1027,8 @@ rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count) {
 }
 
 rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc) {
-  for (size_t i = 0, len = self->len; i < len; ++i) {
-    if (self->str[i] == oldc) { self->str[i] = newc; }
+  str_foreach(self, it) {
+    if (*it == oldc) { *it = newc; }
   }
   return self;
 }
@@ -1038,25 +1040,16 @@ rklib_fun char str_replace_at(Str* restrict self, size_t pos, char c) {
 }
 
 rklib_fun Str* str_to_upper(Str* restrict self) {
-  char* s = self->str;
-  for (size_t i = 0, len = self->len; i < len; ++i) {
-    // The adjustment is always exactly 0 or 'a'-'A', so the result always
-    // stays within a valid char; the cast just makes that narrowing explicit.
-    s[i] = (char)(s[i] - (s[i] >= 'a' && s[i] <= 'z') * ('a' - 'A'));
-  }
+  str_foreach(self, it) { *it = (char)(*it - (*it >= 'a' && *it <= 'z') * ('a' - 'A')); }
   return self;
 }
 rklib_fun Str* str_to_lower(Str* restrict self) {
-  char* s = self->str;
-  for (size_t i = 0, len = self->len; i < len; ++i) {
-    s[i] = (char)(s[i] + (s[i] >= 'A' && s[i] <= 'Z') * ('a' - 'A'));
-  }
+  str_foreach(self, it) { *it = (char)(*it + (*it >= 'A' && *it <= 'Z') * ('a' - 'A')); }
   return self;
 }
 rklib_fun Str* str_reverse(Str* restrict self) {
-  for (size_t i = 0, len = self->len; i < len / 2; ++i) {
-    rk_SWAP(self->str[i], self->str[len - 1 - i]);
-  }
+  char* s = self->str;
+  for (size_t i = 0, len = self->len; i < len / 2; ++i) { rk_SWAP(s[i], s[len - 1 - i]); }
   return self;
 }
 

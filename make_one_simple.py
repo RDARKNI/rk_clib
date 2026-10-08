@@ -17,6 +17,9 @@ or (when no region is present) `/// @cond INTERNAL` / `/// @endcond`.
 RK_IFALLOC remains early because public tree types need it. This tool does not evaluate conditional compilation;
 it preserves the original section's activation using a temporary macro.
 
+The per-header `// SPDX-License-Identifier` lines and trailing MIT license blocks
+are stripped; the root file's license is emitted once at the top of the output.
+
 Resolution strategy for quoted includes:
 1. Relative to the including file's directory
 2. Relative to every parent directory of the including file
@@ -55,6 +58,33 @@ IMPL_BEGIN_RE = re.compile(r'^\s*#\s*pragma\s+region\s+implementation\s*$')
 IMPL_END_RE = re.compile(r'^\s*#\s*pragma\s+endregion\s+implementation\s*$')
 COND_BEGIN_RE = re.compile(r'^\s*///\s*@cond\s+INTERNAL\s*$')
 COND_END_RE = re.compile(r'^\s*///\s*@endcond\s*$')
+SPDX_RE = re.compile(r'^\s*//\s*SPDX-License-Identifier:')
+LICENSE_BEGIN_RE = re.compile(r'^\s*//\s*MIT License\s*$')
+LICENSE_END_RE = re.compile(r'OTHER DEALINGS IN THE SOFTWARE\.\s*$')
+
+
+def strip_license(lines: list[str], licenses: list[list[str]]) -> list[str]:
+    """Remove SPDX tags and MIT license blocks, collecting the blocks."""
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if SPDX_RE.match(line):
+            i += 1
+            continue
+        if LICENSE_BEGIN_RE.match(line):
+            end = next((j for j in range(i, len(lines))
+                        if LICENSE_END_RE.search(lines[j])), None)
+            if end is None:
+                raise ValueError("Unterminated MIT license block")
+            licenses.append(lines[i:end + 1])
+            while out and not out[-1].strip():
+                out.pop()  # the blank separator before the license
+            i = end + 1
+            continue
+        out.append(line)
+        i += 1
+    return out
 
 
 def implementation_span(lines: list[str]) -> tuple[int, int] | None:
@@ -177,10 +207,10 @@ def resolve_quoted_include(
 
 
 def display_path(p: Path) -> str:
-    """Path for provenance comments: relative to cwd when possible, so the
-    output doesn't bake in absolute build-machine paths (e.g. CI runner
-    workspace dirs), falling back to the absolute path if there's no common
-    root (e.g. different drives on Windows)."""
+    """Path for diagnostics and implementation flags: relative to cwd when
+    possible, so the output doesn't depend on absolute build-machine paths
+    (e.g. CI runner workspace dirs), falling back to the absolute path if
+    there's no common root (e.g. different drives on Windows)."""
     try:
         return str(os.path.relpath(p, Path.cwd()))
     except ValueError:
@@ -194,6 +224,7 @@ def flatten_file(
     keep_pragma_once: bool,
     deferred: list[str] | None = None,
     keep_implementations: set[str] | None = None,
+    licenses: list[list[str]] | None = None,
 ) -> str:
     """
     Recursively inline quoted includes.
@@ -203,7 +234,7 @@ def flatten_file(
     shown = display_path(resolved)
 
     if resolved in visited:
-        return f'/* skipped already-included: "{shown}" */\n'
+        return ''
 
     visited.add(resolved)
 
@@ -213,11 +244,12 @@ def flatten_file(
         text = resolved.read_text(encoding="latin-1")
 
     out: list[str] = []
-    out.append(f'/* BEGIN INLINE: {shown} */\n')
 
     lines = text.splitlines(keepends=True)
     if lines and not lines[-1].endswith('\n'):
         lines[-1] += '\n'
+    if licenses is not None:
+        lines = strip_license(lines, licenses)
     keep_implementations = keep_implementations or set()
     span = None
     if deferred is not None and resolved.name not in keep_implementations:
@@ -266,11 +298,9 @@ def flatten_file(
             scopes = replay_scopes.copy()
             deferred.append(''.join([
                 f'#ifdef {flag}\n#undef {flag}\n',
-                f'/* BEGIN DEFERRED IMPLEMENTATION: {shown} */\n',
                 *(opening for opening, _ in original_scopes),
                 *body,
                 *(closing for _, closing in reversed(replay_scopes)),
-                f'/* END DEFERRED IMPLEMENTATION: {shown} */\n',
                 '#endif\n',
             ]))
             line_no = span[1]
@@ -283,8 +313,6 @@ def flatten_file(
         if line_no == 1 or not lines[line_no - 2].rstrip().endswith('\\'):
             advance_scope(scopes, line)
         if not keep_pragma_once and PRAGMA_ONCE_RE.match(line):
-            out.append(
-                f"/* removed #pragma once from {shown}:{line_no} */\n")
             continue
 
         m = INCLUDE_RE.match(line)
@@ -301,14 +329,15 @@ def flatten_file(
                 f'in {shown}:{line_no}'
             )
 
-        out.append(
-            f'/* inlined from {shown}:{line_no}: #include "{include_name}" */\n'
-        )
-        out.append(flatten_file(included, root_file,
-                   visited, keep_pragma_once, deferred, keep_implementations))
+        out.append(flatten_file(included, root_file, visited, keep_pragma_once,
+                                deferred, keep_implementations, licenses))
 
-    out.append(f'/* END INLINE: {shown} */\n')
     return "".join(out)
+
+
+def collapse_blank_lines(text: str) -> str:
+    """Squeeze runs of blank lines left behind by removed sections."""
+    return re.sub(r'\n(?:[ \t]*\n){2,}', '\n\n', text).lstrip('\n')
 
 
 def main() -> int:
@@ -343,6 +372,7 @@ def main() -> int:
 
     try:
         deferred = None if args.no_defer_implementations else []
+        licenses: list[list[str]] = []
         flattened = flatten_file(
             file_path=root,
             root_file=root,
@@ -350,10 +380,18 @@ def main() -> int:
             keep_pragma_once=args.keep_pragma_once,
             deferred=deferred,
             keep_implementations=set(args.keep_implementation),
+            licenses=licenses,
         )
         if deferred:
-            flattened += '\n/* Deferred implementation sections (dependency order). */\n'
-            flattened += ''.join(deferred)
+            flattened += '\n' + '\n'.join(deferred)
+        header = [
+            '// SPDX-License-Identifier: MIT\n',
+            f'// Single-header amalgamation generated from {display_path(root.resolve())}'
+            ' by make_one_simple.py. Do not edit.\n',
+        ]
+        if licenses:
+            header += ['//\n', *licenses[0]]
+        flattened = ''.join(header) + '\n' + collapse_blank_lines(flattened)
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

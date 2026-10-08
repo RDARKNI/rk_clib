@@ -643,11 +643,8 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
     RKI_IGNWARN_MSC_BEG(4114)                                                                      \
     typeof(vec) rki_var_vec = (vec);                                                               \
     if (!vec_count(rki_var_vec)) { break; }                                                        \
-    typeof(*rki_var_vec)*rki_var_write = rki_var_vec, *const rki_var_end                           \
-                                                      = rki_var_write                              \
-                                                      + RKI_VEC_COUNT(rki_var_write);              \
-    for (typeof(*rki_var_vec)* rki_var_it = rki_var_vec; rki_var_it != rki_var_end;                \
-         ++rki_var_it) {                                                                           \
+    typeof(*rki_var_vec)* rki_var_write = rki_var_vec;                                             \
+    vec_foreach(rki_var_vec, rki_var_it) {                                                         \
       typeof(*rki_var_vec)* const it = rki_var_it;                                                 \
       if (!(pred)) { *rki_var_write++ = *rki_var_it; }                                             \
     }                                                                                              \

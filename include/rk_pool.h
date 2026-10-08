@@ -390,7 +390,7 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
 #define RKI_POOL_ERASE_IF(self, it, pred)                                                          \
   do {                                                                                             \
     typeof(self) const rki_var_pool = (self);                                                      \
-    RKI_POOL_FOREACH(rki_var_pool, rki_var_cursor) {                                               \
+    pool_foreach(rki_var_pool, rki_var_cursor) {                                                   \
       RKI_POOL_T(rki_var_pool)* const it = rki_var_cursor;                                         \
       (void)it;                                                                                    \
       if (pred) { pool_delete(rki_var_pool, it); }                                                 \

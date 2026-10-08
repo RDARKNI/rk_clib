@@ -40,11 +40,11 @@ RKI_HEADER_BEGIN
 /// @param T Name of the element type. Must be a plain type identifier; use a typedef for a pointer
 /// or struct type.
 /// @note Generates only the type; all operations are shared across element types.
-#define DEQUE_DEFINE(T)                     RKI_DEQUE_DEFINE(T)
+#define DEQUE_DEFINE(T)            RKI_DEQUE_DEFINE(T)
 
 /// @brief Macro to indicate that an object is a Deque.
 /// @param T The type of elements stored in the Deque
-#define Deque(T)                            Deque_##T
+#define Deque(T)                   Deque_##T
 
 /// @brief `Deque(T) deque_init(T, size_t capacity, Allocator alloc = alloc_ctx)` - Initialises and
 /// returns an empty Deque.
@@ -54,7 +54,7 @@ RKI_HEADER_BEGIN
 /// @return An initialised, empty `Deque(T)` bound to `alloc`, even for a capacity of zero.
 /// @note A zero-initialized `Deque(T)` is also a valid, empty deque; it allocates using `alloc_ctx`
 /// on first insertion.
-#define deque_init(T, cap, ...)             RKI_OVERLOAD(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
+#define deque_init(T, cap, ...)    RKI_OVERLOAD(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
 
 /// @brief `Deque(T) deque_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` -
 /// Constructs a new Deque by copying `n` values from `arr`, in front-to-back order.
@@ -63,46 +63,46 @@ RKI_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Deque(T)` containing a copy of `arr`'s first `n` values
-#define deque_from(T, arr, n, ...)          RKI_OVERLOAD(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
+#define deque_from(T, arr, n, ...) RKI_OVERLOAD(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `void deque_release(Deque(T)* self)` - Frees the backing buffer and resets the Deque to
 /// an empty state, keeping its allocator.
 /// @note Safe to call on a zero-initialized Deque.
-#define deque_release(self)                 RKI_DEQUE_RELEASE(self)
+#define deque_release(self)        RKI_DEQUE_RELEASE(self)
 
 /// @brief `size_t deque_count(const Deque(T)* self)` - Returns the number of elements stored in the
 /// Deque.
-#define deque_count(self)                   ((size_t)(self)->base.count)
+#define deque_count(self)          ((size_t)(self)->base.count)
 
 /// @brief `size_t deque_cap(const Deque(T)* self)` - Returns the current capacity of the backing
 /// buffer. Always a power of two (or zero).
-#define deque_cap(self)                     ((size_t)(self)->base.cap)
+#define deque_cap(self)            ((size_t)(self)->base.cap)
 
 /// @brief `Allocator deque_allocator(const Deque(T)* self)` - Returns the Allocator the Deque was
 /// constructed with, or `alloc_ctx` if the Deque was never initialized or custom allocators are
 /// disabled.
-#define deque_allocator(self)               RKI_allocatorof(&(self)->base)
+#define deque_allocator(self)      RKI_allocatorof(&(self)->base)
 
 /// @brief `bool deque_is_empty(const Deque(T)* self)` - Returns `true` iff the Deque contains no
 /// elements.
-#define deque_is_empty(self)                ((bool)((self)->base.count == 0))
+#define deque_is_empty(self)       ((bool)((self)->base.count == 0))
 
 /// @brief `void deque_clear(Deque(T)* self)` - Removes all elements without freeing the backing
 /// buffer.
-#define deque_clear(self)                   rki_deque_clear(&(self)->base)
+#define deque_clear(self)          rki_deque_clear(&(self)->base)
 
 /// @brief `void deque_reserve(Deque(T)* self, size_t cap)` - Ensures the backing buffer holds at
 /// least `cap` elements without reallocating.
 /// @param cap Minimum capacity to reserve (in elements)
 /// @note Existing elements retain their logical order.
-#define deque_reserve(self, cap)            RKI_DEQUE_RESERVE(self, cap)
+#define deque_reserve(self, cap)   RKI_DEQUE_RESERVE(self, cap)
 
 /// @brief `void deque_shrink_to_fit(Deque(T)* self)` - Shrinks the Deque's capacity to the next
 /// power of two greater than or equal to its length, with a floor of 8 for a nonempty Deque
 /// (matching the same minimum `deque_init()`/`deque_reserve()` enforce), leaving contents
 /// unchanged.
 /// @note Frees the backing buffer entirely if the Deque is empty, keeping its allocator.
-#define deque_shrink_to_fit(self)           RKI_DEQUE_SHRINK_TO_FIT(self)
+#define deque_shrink_to_fit(self)  RKI_DEQUE_SHRINK_TO_FIT(self)
 
 /// @brief `void deque_assign(Deque(T)* self, const T* arr, size_t n)` - Replaces the Deque's
 /// contents with a copy of `arr`'s first `n` values, reusing the existing backing buffer (growing
@@ -111,7 +111,7 @@ RKI_HEADER_BEGIN
 /// @param n   Number of values to copy
 /// @attention `arr[0..n)` must not overlap the Deque's own backing allocation, for the same reasons
 /// documented on `deque_push_back_n()`.
-#define deque_assign(self, arr, n)          RKI_DEQUE_ASSIGN(self, arr, n)
+#define deque_assign(self, arr, n) RKI_DEQUE_ASSIGN(self, arr, n)
 
 /// @brief Returns the first element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_front()`, requires a nonempty Deque.
@@ -119,8 +119,7 @@ RKI_HEADER_BEGIN
 /// @pre The Deque is nonempty; use `deque_peek_front()` to check safely.
 /// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Invalidated by any later mutation of the Deque.
-#define deque_front(self)                                                                          \
-  (*(RKI_DEQUE_ELEM_PTR(self))rki_deque_front(RKI_DEQUE_ARGS(self)))
+#define deque_front(self) (*(RKI_DEQUE_ELEM_PTR(self))rki_deque_front(RKI_DEQUE_ARGS(self)))
 
 /// @brief Returns the last element as an lvalue, mutable for `Deque(T)* self` and const for
 /// `const Deque(T)* self`. Like `vec_back()`, requires a nonempty Deque.
@@ -128,8 +127,7 @@ RKI_HEADER_BEGIN
 /// @pre The Deque is nonempty; use `deque_peek_back()` to check safely.
 /// @note The precondition is asserted in debug builds; invalid access is undefined in release.
 /// @note Invalidated by any later mutation of the Deque.
-#define deque_back(self)                                                                           \
-  (*(RKI_DEQUE_ELEM_PTR(self))rki_deque_back(RKI_DEQUE_ARGS(self)))
+#define deque_back(self)  (*(RKI_DEQUE_ELEM_PTR(self))rki_deque_back(RKI_DEQUE_ARGS(self)))
 
 /// @brief Returns the element at the zero-based logical index (counting from the front) as an
 /// lvalue, mutable for `Deque(T)* self` and const for `const Deque(T)* self`.
@@ -162,15 +160,14 @@ RKI_HEADER_BEGIN
 /// `const Deque(T)* self`.
 /// @return Pointer to the last element, or `NULL` if the Deque is empty
 /// @note Invalidated by any later mutation of the Deque.
-#define deque_peek_back(self)                                                                      \
-  ((RKI_DEQUE_ELEM_PTR(self))rki_deque_peek_back(RKI_DEQUE_ARGS(self)))
+#define deque_peek_back(self) ((RKI_DEQUE_ELEM_PTR(self))rki_deque_peek_back(RKI_DEQUE_ARGS(self)))
 
 /// @brief `void deque_push_front(Deque(T)* self, T value)` - Inserts `value` at the front of the
 /// Deque.
 /// @param value Value to insert, converted to `T` as by assignment. Evaluated once, before the
 /// Deque is modified, so it may be computed from the Deque's own elements.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_front(self, value)       RKI_DEQUE_PUSH(rki_deque_push_front, self, value)
+#define deque_push_front(self, value) RKI_DEQUE_PUSH(rki_deque_push_front, self, value)
 
 /// @brief `void deque_push_front_n(Deque(T)* self, const T* arr, size_t count)` - Prepends `count`
 /// values from `arr` to the front of the Deque, preserving `arr`'s own order (`arr[0]` becomes the
@@ -195,7 +192,7 @@ RKI_HEADER_BEGIN
 /// @param value Value to insert, converted to `T` as by assignment. Evaluated once, before the
 /// Deque is modified, so it may be computed from the Deque's own elements.
 /// @note May reallocate the backing buffer, invalidating prior pointers into it.
-#define deque_push_back(self, value)        RKI_DEQUE_PUSH(rki_deque_push_back, self, value)
+#define deque_push_back(self, value) RKI_DEQUE_PUSH(rki_deque_push_back, self, value)
 
 /// @brief `void deque_push_back_n(Deque(T)* self, const T* arr, size_t count)` - Appends `count`
 /// values from `arr` to the back of the Deque, in order, as a single bulk operation.
@@ -213,27 +210,27 @@ RKI_HEADER_BEGIN
 /// @return The (former) first element, as an rvalue
 /// @pre The Deque is nonempty; use `deque_try_pop_front()` to check safely.
 /// @note The precondition is asserted in debug builds; invalid access is undefined in release.
-#define deque_pop_front(self)               RKI_DEQUE_POP(rki_deque_pop_front, self)
+#define deque_pop_front(self)            RKI_DEQUE_POP(rki_deque_pop_front, self)
 
 /// @brief `T deque_pop_back(Deque(T)* self)` - Removes and returns the last element.
 /// @return The (former) last element, as an rvalue
 /// @pre The Deque is nonempty; use `deque_try_pop_back()` to check safely.
 /// @note The precondition is asserted in debug builds; invalid access is undefined in release.
-#define deque_pop_back(self)                RKI_DEQUE_POP(rki_deque_pop_back, self)
+#define deque_pop_back(self)             RKI_DEQUE_POP(rki_deque_pop_back, self)
 
 /// @brief `bool deque_try_pop_front(Deque(T)* self, T* out)` - Removes the first element and
 /// writes it to `*out`, if the Deque is nonempty.
 /// @param out Destination for the removed value; must point to the Deque's element type. Left
 /// untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_front(self, out)      RKI_DEQUE_TRY_POP(rki_deque_try_pop_front, self, out)
+#define deque_try_pop_front(self, out)   RKI_DEQUE_TRY_POP(rki_deque_try_pop_front, self, out)
 
 /// @brief `bool deque_try_pop_back(Deque(T)* self, T* out)` - Removes the last element and writes
 /// it to `*out`, if the Deque is nonempty.
 /// @param out Destination for the removed value; must point to the Deque's element type. Left
 /// untouched if the Deque is empty.
 /// @return `true` if an element was removed, `false` if the Deque was empty
-#define deque_try_pop_back(self, out)       RKI_DEQUE_TRY_POP(rki_deque_try_pop_back, self, out)
+#define deque_try_pop_back(self, out)    RKI_DEQUE_TRY_POP(rki_deque_try_pop_back, self, out)
 
 /// @brief Visits every element in front-to-back order.
 /// @param self Pointer to the Deque. Evaluated once.
@@ -245,11 +242,11 @@ RKI_HEADER_BEGIN
 /// ```c
 /// deque_foreach(&q, it) { printf("%d\n", *it); }
 /// ```
-#define deque_foreach(self, it)             RKI_DEQUE_FOREACH(self, it, 0)
+#define deque_foreach(self, it)          RKI_DEQUE_FOREACH(self, it, 0)
 
 /// @brief Like `deque_foreach()`, but iterates in back-to-front order. Same parameters and
 /// contract.
-#define deque_foreach_reversed(self, it)    RKI_DEQUE_FOREACH(self, it, 1)
+#define deque_foreach_reversed(self, it) RKI_DEQUE_FOREACH(self, it, 1)
 
 /// @brief Erases every element satisfying `pred`, preserving the retained elements' relative
 /// order.
@@ -263,7 +260,7 @@ RKI_HEADER_BEGIN
 /// ```c
 /// deque_erase_if(&q, it, *it % 2 == 0); // remove even numbers
 /// ```
-#define deque_erase_if(self, it, pred)      RKI_DEQUE_ERASE_IF(self, it, pred)
+#define deque_erase_if(self, it, pred)   RKI_DEQUE_ERASE_IF(self, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -290,7 +287,7 @@ typedef struct RKI_DequeBase {
     };                                                                                             \
   } Deque(T);
 
-#define RKI_DEQUE_T(self)     typeof(*(self)->rki_elem_type)
+#define RKI_DEQUE_T(self) typeof(*(self)->rki_elem_type)
 // Element pointer type matching the Deque's constness. Constness is detected through `count`, a
 // member of a named type: matching on `const typeof(*(self))*` would spell `const const Deque`
 // for a const Deque (MSVC C4114).
@@ -298,15 +295,15 @@ typedef struct RKI_DequeBase {
   _Generic(&(self)->base.count,                                                                    \
       const size_t*: (const RKI_DEQUE_T(self)*)0,                                                  \
       default: (RKI_DEQUE_T(self)*)0)
-#define RKI_DEQUE_ELEM_PTR(self) typeof(RKI_DEQUE_ITER_PTR(self))
+#define RKI_DEQUE_ELEM_PTR(self)             typeof(RKI_DEQUE_ITER_PTR(self))
 // The leading arguments of every shared function: `self` evaluated once, the element layout taken
 // from the type marker without evaluating anything.
-#define RKI_DEQUE_ARGS(self)     &(self)->base, sizeof(RKI_DEQUE_T(self))
-#define RKI_DEQUE_ARGS_A(self)   RKI_DEQUE_ARGS(self), alignof(RKI_DEQUE_T(self))
+#define RKI_DEQUE_ARGS(self)                 &(self)->base, sizeof(RKI_DEQUE_T(self))
+#define RKI_DEQUE_ARGS_A(self)               RKI_DEQUE_ARGS(self), alignof(RKI_DEQUE_T(self))
 // Converts `ptr` to `T*`/`const T*` as by initialization, so a pointer to any other element type
 // is rejected at compile time, and evaluates it once.
-#define RKI_DEQUE_CHECK_PTR(self, ptr)       (((RKI_DEQUE_T(self)*[1]){(ptr)})[0])
-#define RKI_DEQUE_CHECK_CONST_PTR(self, ptr) (((const RKI_DEQUE_T(self)*[1]){(ptr)})[0])
+#define RKI_DEQUE_CHECK_PTR(self, ptr)       (((RKI_DEQUE_T(self)* [1]){(ptr)})[0])
+#define RKI_DEQUE_CHECK_CONST_PTR(self, ptr) (((const RKI_DEQUE_T(self)* [1]){(ptr)})[0])
 
 #define RKI_DEQUE_INIT(T, cap, alloc)                                                              \
   ((Deque(T)){.base = rki_deque_init(sizeof(T), alignof(T), (cap)RK_IFALLOC(, (alloc)))})
@@ -314,29 +311,27 @@ typedef struct RKI_DequeBase {
 #define RKI_DEQUE_INIT2(T, cap)        RKI_DEQUE_INIT(T, cap, alloc_ctx)
 
 #define RKI_DEQUE_FROM(T, arr, n, alloc)                                                           \
-  ((Deque(T)){.base = rki_deque_from(sizeof(T), alignof(T), (((const T*[1]){(arr)})[0]),          \
+  ((Deque(T)){.base = rki_deque_from(sizeof(T), alignof(T), (((const T* [1]){(arr)})[0]),          \
                                      (n)RK_IFALLOC(, (alloc)))})
 #define RKI_DEQUE_FROM4(T, arr, n, alloc)                                                          \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_FROM(T, arr, n, alloc))
-#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
+#define RKI_DEQUE_FROM3(T, arr, n)    RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
 
-#define RKI_DEQUE_RELEASE(self)         rki_deque_release(RKI_DEQUE_ARGS_A(self))
-#define RKI_DEQUE_RESERVE(self, cap)    rki_deque_reserve(RKI_DEQUE_ARGS_A(self), (cap))
-#define RKI_DEQUE_SHRINK_TO_FIT(self)   rki_deque_shrink_to_fit(RKI_DEQUE_ARGS_A(self))
+#define RKI_DEQUE_RELEASE(self)       rki_deque_release(RKI_DEQUE_ARGS_A(self))
+#define RKI_DEQUE_RESERVE(self, cap)  rki_deque_reserve(RKI_DEQUE_ARGS_A(self), (cap))
+#define RKI_DEQUE_SHRINK_TO_FIT(self) rki_deque_shrink_to_fit(RKI_DEQUE_ARGS_A(self))
 #define RKI_DEQUE_ASSIGN(self, arr, n)                                                             \
   rki_deque_assign(RKI_DEQUE_ARGS_A(self), RKI_DEQUE_CHECK_CONST_PTR(self, arr), (n))
 
 // The value is first copied into a one-element array of T: converted as by assignment, evaluated
 // before the call (and so before the Deque changes), and passed by address for a byte copy.
-#define RKI_DEQUE_PUSH(fn, self, value)                                                            \
-  fn(RKI_DEQUE_ARGS_A(self), (RKI_DEQUE_T(self)[1]){(value)})
+#define RKI_DEQUE_PUSH(fn, self, value) fn(RKI_DEQUE_ARGS_A(self), (RKI_DEQUE_T(self)[1]){(value)})
 #define RKI_DEQUE_PUSH_N(fn, self, arr, n)                                                         \
   fn(RKI_DEQUE_ARGS_A(self), RKI_DEQUE_CHECK_CONST_PTR(self, arr), (n))
 // The vacated slot stays valid until the next insertion; it is read immediately. The comma
 // operator makes the result an rvalue in C, so a popped element cannot be assigned to.
-#define RKI_DEQUE_POP(fn, self)         ((void)0, *(RKI_DEQUE_T(self)*)fn(RKI_DEQUE_ARGS(self)))
-#define RKI_DEQUE_TRY_POP(fn, self, out)                                                           \
-  fn(RKI_DEQUE_ARGS(self), RKI_DEQUE_CHECK_PTR(self, out))
+#define RKI_DEQUE_POP(fn, self)          ((void)0, *(RKI_DEQUE_T(self)*)fn(RKI_DEQUE_ARGS(self)))
+#define RKI_DEQUE_TRY_POP(fn, self, out) fn(RKI_DEQUE_ARGS(self), RKI_DEQUE_CHECK_PTR(self, out))
 
 ///////////////////////////////////////// Shared operations ////////////////////////////////////////
 
@@ -347,7 +342,7 @@ rklib_fun rk_pure rk_forceinline size_t rki_deque_slot_index(const RKI_DequeBase
 // away here. The macros convert the result to `T*` or `const T*` according to the Deque's
 // constness.
 rklib_fun rk_pure rk_forceinline void* rki_deque_slot(const RKI_DequeBase* self, size_t elsize,
-                                                     size_t i) {
+                                                      size_t i) {
   return (char*)self->data + rk_mult(elsize, rki_deque_slot_index(self, i));
 }
 
@@ -477,8 +472,8 @@ rklib_fun bool rki_deque_try_pop_back(RKI_DequeBase* self, size_t elsize, void* 
 
 // Copies n elements from arr into consecutive logical positions starting at `start`, in at most
 // two segments (the ring may wrap).
-rklib_fun void rki_deque_copy_in(RKI_DequeBase* self, size_t elsize, size_t start,
-                                 const void* arr, size_t n) {
+rklib_fun void rki_deque_copy_in(RKI_DequeBase* self, size_t elsize, size_t start, const void* arr,
+                                 size_t n) {
   size_t first = self->cap - start < n ? self->cap - start : n;
   rk_memcpy((char*)self->data + rk_mult(elsize, start), arr, rk_mult(elsize, first));
   if (first < n) {
@@ -502,8 +497,8 @@ rklib_fun void rki_deque_push_back_n(RKI_DequeBase* self, size_t elsize, size_t 
   rki_deque_copy_in(self, elsize, rki_deque_slot_index(self, self->count), arr, n);
   self->count += n;
 }
-rklib_fun void rki_deque_assign(RKI_DequeBase* self, size_t elsize, size_t elalign,
-                                const void* arr, size_t n) {
+rklib_fun void rki_deque_assign(RKI_DequeBase* self, size_t elsize, size_t elalign, const void* arr,
+                                size_t n) {
   rki_deque_clear(self);
   rki_deque_push_back_n(self, elsize, elalign, arr, n);
 }
@@ -529,7 +524,7 @@ rklib_fun RKI_DequeBase rki_deque_from(size_t elsize, size_t elalign, const void
          && (it = (RKI_DEQUE_ELEM_PTR(rki_var_state.deque))rki_deque_slot(                         \
                  &rki_var_state.deque->base, sizeof(*it),                                          \
                  (reversed) ? rki_var_state.count - 1 - rki_var_state.idx : rki_var_state.idx),    \
-             1);                                                                                   \
+            1);                                                                                    \
          ++rki_var_state.idx)
 
 #define RKI_DEQUE_ERASE_IF(self, it, pred)                                                         \
