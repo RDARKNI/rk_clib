@@ -179,7 +179,7 @@ triax_test(avl, get_or_add) {
 triax_test(avl, foreach_empty) {
   Avl(int, char) a = avl_init(int, char);
   TreeNode* stack[4];
-  int        visited = 0;
+  int       visited = 0;
   avl_foreach(&a, stack, 4, e) {
     (void)e;
     ++visited;
@@ -196,9 +196,9 @@ triax_test(avl, foreach_inorder) {
   avl_set(int, char, &a, 2, 'B');
 
   TreeNode* stack[4];
-  int        keys[4] = {0};
-  char       vals[4] = {0};
-  int        i       = 0;
+  int       keys[4] = {0};
+  char      vals[4] = {0};
+  int       i       = 0;
 
   avl_foreach(&a, stack, 4, e) {
     keys[i] = e->key;
@@ -218,7 +218,7 @@ triax_test(avl, foreach_inorder) {
 triax_test(avl, foreach_reversed_empty) {
   Avl(int, char) a = avl_init(int, char);
   TreeNode* stack[4];
-  int        visited = 0;
+  int       visited = 0;
   avl_foreach_reversed(&a, stack, 4, e) {
     (void)e;
     ++visited;
@@ -235,8 +235,8 @@ triax_test(avl, foreach_reversed_visits_descending) {
   avl_set(int, char, &a, 2, 'b');
 
   TreeNode* stack[4];
-  int        keys[4] = {0};
-  int        i       = 0;
+  int       keys[4] = {0};
+  int       i       = 0;
   avl_foreach_reversed(&a, stack, 4, e) { keys[i++] = e->key; }
   triax_expect_eq(i, 4);
 
@@ -254,7 +254,7 @@ triax_test(avl, foreach_break_stops_iteration) {
   avl_set(int, char, &a, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   avl_foreach(&a, stack, 4, e) {
     if (e->key == 2) { break; }
     ++visits;
@@ -272,7 +272,7 @@ triax_test(avl, foreach_continue_skips_entry) {
   avl_set(int, char, &a, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   avl_foreach(&a, stack, 4, e) {
     if (e->key == 2) { continue; }
     ++visits;
@@ -290,7 +290,7 @@ triax_test(avl, foreach_reversed_break_stops_iteration) {
   avl_set(int, char, &a, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   avl_foreach_reversed(&a, stack, 4, e) {
     if (e->key == 3) { break; }
     ++visits;
@@ -308,7 +308,7 @@ triax_test(avl, foreach_reversed_continue_skips_entry) {
   avl_set(int, char, &a, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   avl_foreach_reversed(&a, stack, 4, e) {
     if (e->key == 3) { continue; }
     ++visits;
@@ -353,7 +353,7 @@ triax_test(avl, foreach_const_entries) {
     e->val = 'b';
   }
   const Avl(int, char)* ct = &t;
-  int seen = 0;
+  int seen                 = 0;
   tree_foreach(ct, stack, 2, e) {
     static_assert(_Generic(e, const AvlEntry(int, char)*: 1, default: 0), "Const tree entry");
     triax_expect_eq(e->val, 'b');
@@ -378,7 +378,7 @@ triax_test(avl, erase_if_changes_root_then_release) {
   triax_expect_eq(tree_count(&t), 1u);
   triax_expect_eq(tree_min(&t).key, 3);
   avl_release(int, char, &t);
-  triax_expect_null(t.root);
+  triax_expect_null(t.base.root);
 }
 
 triax_test(avl, erase_if_removes_all) {
@@ -387,14 +387,14 @@ triax_test(avl, erase_if_removes_all) {
   TreeNode* stack[4];
   avl_erase_if(int, char, &t, stack, 4, e, ((void)e, true));
   triax_expect_true(tree_is_empty(&t));
-  triax_expect_null(t.root);
+  triax_expect_null(t.base.root);
   avl_release(int, char, &t);
 }
 
 triax_test(avl, erase_if_empty_is_noop) {
   Avl(int, char) a = avl_init(int, char);
   TreeNode* stack[4];
-  int        pred_calls = 0;
+  int       pred_calls = 0;
   avl_erase_if(int, char, &a, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(avl_count(&a), 0u);
@@ -408,7 +408,7 @@ triax_test(avl, erase_if_evaluates_predicate_once_per_entry) {
   avl_set(int, char, &a, 3, 'c');
 
   TreeNode* stack[4];
-  int        pred_calls = 0;
+  int       pred_calls = 0;
   avl_erase_if(int, char, &a, stack, 4, e, (++pred_calls, (void)e, false));
   triax_expect_eq(pred_calls, 3);
   triax_expect_eq(avl_count(&a), 3u);
@@ -525,8 +525,8 @@ triax_test(avl, remove_two_children) {
 
   // BST property: in-order traversal must still be sorted
   TreeNode* stack[8];
-  int        keys[5];
-  int        i = 0;
+  int       keys[5];
+  int       i = 0;
   avl_foreach(&a, stack, 8, e) { keys[i++] = e->key; }
   triax_expect_eq(i, 5);
   for (int j = 1; j < 5; ++j) { triax_expect_gt(keys[j], keys[j - 1]); }
@@ -548,7 +548,7 @@ triax_test(avl, large_sorted_order_stays_balanced) {
   triax_expect_eq(avl_max(&a).key, 32);
 
   TreeNode* stack[8];
-  int        prev = -1, count = 0;
+  int       prev = -1, count = 0;
   avl_foreach(&a, stack, 8, e) {
     triax_expect_gt(e->key, prev);
     prev = e->key;

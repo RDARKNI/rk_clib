@@ -179,7 +179,7 @@ triax_test(rbt, get_or_add) {
 triax_test(rbt, foreach_empty) {
   Rbt(int, char) r = rbt_init(int, char);
   TreeNode* stack[4];
-  int        visited = 0;
+  int       visited = 0;
   rbt_foreach(&r, stack, 4, e) {
     (void)e;
     ++visited;
@@ -196,9 +196,9 @@ triax_test(rbt, foreach_inorder) {
   rbt_set(int, char, &r, 2, 'B');
 
   TreeNode* stack[4];
-  int        keys[4] = {0};
-  char       vals[4] = {0};
-  int        i       = 0;
+  int       keys[4] = {0};
+  char      vals[4] = {0};
+  int       i       = 0;
 
   rbt_foreach(&r, stack, 4, e) {
     keys[i] = e->key;
@@ -218,7 +218,7 @@ triax_test(rbt, foreach_inorder) {
 triax_test(rbt, foreach_reversed_empty) {
   Rbt(int, char) r = rbt_init(int, char);
   TreeNode* stack[4];
-  int        visited = 0;
+  int       visited = 0;
   rbt_foreach_reversed(&r, stack, 4, e) {
     (void)e;
     ++visited;
@@ -235,8 +235,8 @@ triax_test(rbt, foreach_reversed_visits_descending) {
   rbt_set(int, char, &r, 2, 'b');
 
   TreeNode* stack[4];
-  int        keys[4] = {0};
-  int        i       = 0;
+  int       keys[4] = {0};
+  int       i       = 0;
   rbt_foreach_reversed(&r, stack, 4, e) { keys[i++] = e->key; }
   triax_expect_eq(i, 4);
 
@@ -254,7 +254,7 @@ triax_test(rbt, foreach_break_stops_iteration) {
   rbt_set(int, char, &r, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   rbt_foreach(&r, stack, 4, e) {
     if (e->key == 2) { break; }
     ++visits;
@@ -272,7 +272,7 @@ triax_test(rbt, foreach_continue_skips_entry) {
   rbt_set(int, char, &r, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   rbt_foreach(&r, stack, 4, e) {
     if (e->key == 2) { continue; }
     ++visits;
@@ -290,7 +290,7 @@ triax_test(rbt, foreach_reversed_break_stops_iteration) {
   rbt_set(int, char, &r, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   rbt_foreach_reversed(&r, stack, 4, e) {
     if (e->key == 3) { break; }
     ++visits;
@@ -308,7 +308,7 @@ triax_test(rbt, foreach_reversed_continue_skips_entry) {
   rbt_set(int, char, &r, 4, 'd');
 
   TreeNode* stack[4];
-  int        visits = 0;
+  int       visits = 0;
   rbt_foreach_reversed(&r, stack, 4, e) {
     if (e->key == 3) { continue; }
     ++visits;
@@ -353,7 +353,7 @@ triax_test(rbt, foreach_const_entries) {
     e->val = 'b';
   }
   const Rbt(int, char)* ct = &t;
-  int seen = 0;
+  int seen                 = 0;
   tree_foreach(ct, stack, 2, e) {
     static_assert(_Generic(e, const RbtEntry(int, char)*: 1, default: 0), "Const tree entry");
     triax_expect_eq(e->val, 'b');
@@ -378,7 +378,7 @@ triax_test(rbt, erase_if_changes_root_then_release) {
   triax_expect_eq(tree_count(&t), 1u);
   triax_expect_eq(tree_min(&t).key, 3);
   rbt_release(int, char, &t);
-  triax_expect_null(t.root);
+  triax_expect_null(t.base.root);
 }
 
 triax_test(rbt, erase_if_removes_all) {
@@ -387,7 +387,7 @@ triax_test(rbt, erase_if_removes_all) {
   TreeNode* stack[4];
   rbt_erase_if(int, char, &t, stack, 4, e, ((void)e, true));
   triax_expect_true(tree_is_empty(&t));
-  triax_expect_null(t.root);
+  triax_expect_null(t.base.root);
   rbt_release(int, char, &t);
 }
 
@@ -427,7 +427,7 @@ triax_test(rbt, comparator_named_like_internal_locals) {
 triax_test(rbt, erase_if_empty_is_noop) {
   Rbt(int, char) r = rbt_init(int, char);
   TreeNode* stack[4];
-  int        pred_calls = 0;
+  int       pred_calls = 0;
   rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(rbt_count(&r), 0u);
@@ -441,7 +441,7 @@ triax_test(rbt, erase_if_evaluates_predicate_once_per_entry) {
   rbt_set(int, char, &r, 3, 'c');
 
   TreeNode* stack[4];
-  int        pred_calls = 0;
+  int       pred_calls = 0;
   rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, false));
   triax_expect_eq(pred_calls, 3);
   triax_expect_eq(rbt_count(&r), 3u);
@@ -558,8 +558,8 @@ triax_test(rbt, remove_two_children) {
 
   // BST property: in-order traversal must still be sorted
   TreeNode* stack[8];
-  int        keys[5];
-  int        i = 0;
+  int       keys[5];
+  int       i = 0;
   rbt_foreach(&r, stack, 8, e) { keys[i++] = e->key; }
   triax_expect_eq(i, 5);
   for (int j = 1; j < 5; ++j) { triax_expect_gt(keys[j], keys[j - 1]); }
@@ -582,7 +582,7 @@ triax_test(rbt, large_sorted_order_stays_balanced) {
   triax_expect_eq(rbt_max(&r).key, 32);
 
   TreeNode* stack[10];
-  int        prev = -1, count = 0;
+  int       prev = -1, count = 0;
   rbt_foreach(&r, stack, 10, e) {
     triax_expect_gt(e->key, prev);
     prev = e->key;
