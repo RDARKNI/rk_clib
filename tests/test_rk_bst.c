@@ -105,10 +105,10 @@ triax_test(bst, min_max_follow_tree_constness) {
   Bst(int, char) b = bst_init(int, char);
   bst_set(int, char, &b, 2, 'b');
   const Bst(int, char)* c = &b;
-  static_assert(_Generic(&bst_min(&b), BstEntry(int, char)*: 1, default: 0), "mutable: mutable");
-  static_assert(_Generic(&bst_max(c), const BstEntry(int, char)*: 1, default: 0), "const: const");
-  static_assert(_Generic(bst_peek_min(&b), BstEntry(int, char)*: 1, default: 0), "mutable: mutable");
-  static_assert(_Generic(bst_peek_max(c), const BstEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(&bst_min(&b), BstEntry(int, char)*: 1, default: 0), "mutable");
+  static_assert(_Generic(&bst_max(c), const BstEntry(int, char)*: 1, default: 0), "const");
+  static_assert(_Generic(bst_peek_min(&b), BstEntry(int, char)*: 1, default: 0), "mutable");
+  static_assert(_Generic(bst_peek_max(c), const BstEntry(int, char)*: 1, default: 0), "const");
   static_assert(_Generic(&bst_min(&b).key, const int*: 1, default: 0), "keys are always const");
   triax_expect_eq(bst_min(c).key, 2);
   triax_expect_eq(bst_peek_max(c)->val, 'b');
@@ -178,7 +178,7 @@ triax_test(bst, get_or_add) {
 
 triax_test(bst, foreach_empty) {
   Bst(int, char) b = bst_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visited = 0;
   bst_foreach(&b, stack, 4, e) {
     (void)e;
@@ -196,7 +196,7 @@ triax_test(bst, foreach_inorder) {
   bst_set(int, char, &b, 2, 'B'); // overwritten below to exercise the overwrite path too
   bst_set(int, char, &b, 2, 'B');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        keys[4] = {0};
   char       vals[4] = {0};
   int        i       = 0;
@@ -218,7 +218,7 @@ triax_test(bst, foreach_inorder) {
 
 triax_test(bst, foreach_reversed_empty) {
   Bst(int, char) b = bst_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visited = 0;
   bst_foreach_reversed(&b, stack, 4, e) {
     (void)e;
@@ -235,7 +235,7 @@ triax_test(bst, foreach_reversed_visits_descending) {
   bst_set(int, char, &b, 4, 'd');
   bst_set(int, char, &b, 2, 'b');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        keys[4] = {0};
   int        i       = 0;
   bst_foreach_reversed(&b, stack, 4, e) { keys[i++] = e->key; }
@@ -259,7 +259,7 @@ triax_test(bst, foreach_break_stops_iteration) {
   bst_set(int, char, &b, 3, 'c');
   bst_set(int, char, &b, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   bst_foreach(&b, stack, 4, e) {
     if (e->key == 2) { break; }
@@ -277,7 +277,7 @@ triax_test(bst, foreach_continue_skips_entry) {
   bst_set(int, char, &b, 3, 'c');
   bst_set(int, char, &b, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   bst_foreach(&b, stack, 4, e) {
     if (e->key == 2) { continue; }
@@ -295,7 +295,7 @@ triax_test(bst, foreach_reversed_break_stops_iteration) {
   bst_set(int, char, &b, 3, 'c');
   bst_set(int, char, &b, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   bst_foreach_reversed(&b, stack, 4, e) {
     if (e->key == 3) { break; }
@@ -313,7 +313,7 @@ triax_test(bst, foreach_reversed_continue_skips_entry) {
   bst_set(int, char, &b, 3, 'c');
   bst_set(int, char, &b, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   bst_foreach_reversed(&b, stack, 4, e) {
     if (e->key == 3) { continue; }
@@ -331,7 +331,7 @@ triax_test(bst, erase_if_removes_matching_entries) {
   bst_set(int, char, &b, 3, 'c');
   bst_set(int, char, &b, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   bst_erase_if(int, char, &b, stack, 4, e, e->key % 2 == 0);
 
   triax_expect_eq(bst_count(&b), 2u);
@@ -351,9 +351,72 @@ triax_test(bst, erase_if_removes_matching_entries) {
   bst_release(int, char, &b);
 }
 
+triax_test(bst, foreach_const_entries) {
+  Bst(int, char) t = bst_init(int, char);
+  bst_set(int, char, &t, 1, 'a');
+  TreeNode* stack[2];
+  tree_foreach(&t, stack, 2, e) {
+    static_assert(_Generic(e, BstEntry(int, char)*: 1, default: 0), "Mutable tree entry");
+    e->val = 'b';
+  }
+  const Bst(int, char)* ct = &t;
+  int seen = 0;
+  tree_foreach(ct, stack, 2, e) {
+    static_assert(_Generic(e, const BstEntry(int, char)*: 1, default: 0), "Const tree entry");
+    triax_expect_eq(e->val, 'b');
+    ++seen;
+  }
+  tree_foreach_reversed(ct, stack, 2, e) {
+    static_assert(_Generic(e, const BstEntry(int, char)*: 1, default: 0), "Const tree entry");
+    triax_expect_eq(e->val, 'b');
+    ++seen;
+  }
+  triax_expect_eq(seen, 2);
+  bst_release(int, char, &t);
+}
+
+triax_test(bst, erase_if_changes_root_then_release) {
+  Bst(int, char) t = bst_init(int, char);
+  bst_set(int, char, &t, 2, 'b');
+  bst_set(int, char, &t, 1, 'a');
+  bst_set(int, char, &t, 3, 'c');
+  TreeNode* stack[3];
+  bst_erase_if(int, char, &t, stack, 3, e, e->key < 3);
+  triax_expect_eq(tree_count(&t), 1u);
+  triax_expect_eq(tree_min(&t).key, 3);
+  bst_release(int, char, &t);
+  triax_expect_null(t.root);
+}
+
+triax_test(bst, erase_if_removes_all) {
+  Bst(int, char) t = bst_init(int, char);
+  for (int i = 1; i <= 4; ++i) { bst_set(int, char, &t, i, 'a'); }
+  TreeNode* stack[4];
+  bst_erase_if(int, char, &t, stack, 4, e, ((void)e, true));
+  triax_expect_true(tree_is_empty(&t));
+  triax_expect_null(t.root);
+  bst_release(int, char, &t);
+}
+
+#if RK_CUSTOM_ALLOCATORS
+triax_test(bst, erase_if_scratch_allocation_size) {
+  alignas_max unsigned char storage[1024];
+  Arena arena = arena_init_static(storage);
+  Bst(int, char) t = bst_init(int, char, arena_to_alloc(&arena));
+  for (int i = 1; i <= 4; ++i) { bst_set(int, char, &t, i, 'a'); }
+  size_t before = arena_used(&arena);
+  TreeNode* stack[4];
+  // Nodes precede the scratch allocation and cannot be reclaimed while it is live.
+  // Freeing the scratch buffer with its original size must restore the cursor.
+  bst_erase_if(int, char, &t, stack, 4, e, e->key % 2 == 0);
+  triax_expect_eq(arena_used(&arena), before);
+  bst_release(int, char, &t);
+}
+#endif
+
 triax_test(bst, erase_if_empty_is_noop) {
   Bst(int, char) b = bst_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        pred_calls = 0;
   bst_erase_if(int, char, &b, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
@@ -367,7 +430,7 @@ triax_test(bst, erase_if_evaluates_predicate_once_per_entry) {
   bst_set(int, char, &b, 2, 'b');
   bst_set(int, char, &b, 3, 'c');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        pred_calls = 0;
   bst_erase_if(int, char, &b, stack, 4, e, (++pred_calls, (void)e, false));
   triax_expect_eq(pred_calls, 3);
@@ -484,7 +547,7 @@ triax_test(bst, remove_two_children) {
   triax_expect_eq(*bst_get(int, char, &b, 8), 'h');
 
   // BST property: in-order traversal must still be sorted
-  tree_node* stack[8];
+  TreeNode* stack[8];
   int        keys[5];
   int        i = 0;
   bst_foreach(&b, stack, 8, e) { keys[i++] = e->key; }
@@ -504,7 +567,7 @@ triax_test(bst, large_sorted_order) {
   triax_expect_eq(bst_max(&b).key, 32);
 
   // In-order traversal must produce strictly ascending keys
-  tree_node* stack[32];
+  TreeNode* stack[32];
   int        prev = -1, count = 0;
   bst_foreach(&b, stack, 32, e) {
     triax_expect_gt(e->key, prev);
@@ -572,7 +635,7 @@ triax_test(bst, foreach_stack_too_small_asserts, .isolation = TRIAX_ISOLATION_ON
   // requirement equals the full height: 8.
   for (int i = 8; i >= 1; --i) { bst_set(int, char, &b, i, (char)('a' + i - 1)); }
 
-  tree_node* stack[1]; // deliberately smaller than the tree's height
+  TreeNode* stack[1]; // deliberately smaller than the tree's height
   triax_assert_fault(TRIAX_FAULT_ABORT, {
     bst_foreach(&b, stack, 1, e) { (void)e;
 }

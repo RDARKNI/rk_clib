@@ -36,7 +36,7 @@ RKI_HEADER_BEGIN
 #define StaticPool(T, CAP)            Pool_##CAP##_##T
 #define DynPool(T)                    Pool_##T
 
-/// @brief `Pool(T)* pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
+/// @brief `Pool(T) pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
 /// pool with given capacity.
 /// @param T Element type
 /// @param cap Desired capacity
@@ -66,7 +66,7 @@ RKI_HEADER_BEGIN
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
 #define pool_used(self)               ((size_t)RKI_POOL_USED(self))
-#define pool_count(self)              pool_used(self) /// @brief aloas for `pool_used`
+#define pool_count(self)              pool_used(self) /// @brief Alias for `pool_used`
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
@@ -105,6 +105,7 @@ RKI_HEADER_BEGIN
 /// @brief Visits every allocated element in the pool.
 /// @param self Pointer to the Pool. Evaluated once.
 /// @param it   Iterator name (a pointer to an element; access via `*it`).
+/// @note Elements are const when accessed through a pointer to a const Pool.
 /// @note break stops traversal; continue advances to the next allocated element.
 /// @note There is deliberately no `pool_foreach_reversed`: unlike Vec/Deque/Str (positional
 /// sequences) or the trees (sorted by key), a Pool's iteration order is just the ascending bitset
@@ -351,9 +352,17 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
 
 #define RKI_POOL_SIZE(self)  sizeof(*(self)->els)
 #define RKI_POOL_ALIGN(self) alignof(RKI_POOL_T(self))
+// Constness is detected through `_pool.cap`, a member of a named type (unsigned char for static
+// pools, size_t for dynamic ones): matching on `const typeof(*(self))*` would spell
+// `const const Pool` for a const Pool (MSVC C4114), as for the Dict/Deque/tree helpers.
+#define RKI_POOL_ITER_PTR(self)                                                                    \
+  _Generic(&(self)->_pool.cap,                                                                     \
+      const unsigned char*: (const RKI_POOL_T(self)*)0,                                            \
+      const size_t*: (const RKI_POOL_T(self)*)0,                                                   \
+      default: (RKI_POOL_T(self)*)0)
 /// to prevent inactive union member access in c++
 #define RKI_POOL_ELS(self)                                                                         \
-  RKI_POOL_DISPATCH(self, (self)->els, (RKI_POOL_T(self)*)(self)->_pool.els)
+  RKI_POOL_DISPATCH(self, (self)->els, (typeof(RKI_POOL_ITER_PTR(self)))(self)->_pool.els)
 
 #define RKI_STATOVERLOAD__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 #define RKI_STATOVERLOAD(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
@@ -374,7 +383,7 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
        && (rki_var_state.bits.bits = rki_var_state.pool->data,                                     \
           rki_var_state.bits.count = pool_cap(rki_var_state.pool), 1);                             \
        rki_var_state.pool = rk_null)                                                               \
-    for (RKI_POOL_T(rki_var_state.pool)* it = rk_null;                                             \
+    for (typeof(RKI_POOL_ITER_PTR(rki_var_state.pool)) it = rk_null;                               \
          (rki_var_state.idx = rki_bitset_iter_next(&rki_var_state.bits)) != BITSET_NPOS            \
          && (it = RKI_POOL_ELS(rki_var_state.pool) + rki_var_state.idx, (void)it, 1);)
 

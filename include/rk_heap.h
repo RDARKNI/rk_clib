@@ -66,7 +66,9 @@ RKI_HEADER_BEGIN
 /// @param cap      The initial capacity of the backing Vec (in elements)
 /// @param alloc    Optional allocator; defaults to `alloc_ctx`. See `vec_init()`.
 /// @return An initialised, empty `Heap(T)`
-/// @note A zero-initialized `Heap(T)` is also a valid, empty heap.
+/// @note Always allocates the backing Vec, so the allocator stays bound even for `cap == 0`
+/// (rounded up to 1). A zero-initialized `Heap(T)` is also a valid, empty heap; it performs no
+/// allocation and grows from `alloc_ctx`.
 #define heap_init(T, cap, ...)           ((Heap(T)){.data = vec_init(T, cap, ##__VA_ARGS__)})
 
 /// @brief `Heap(T) heap_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` - Constructs
@@ -89,6 +91,8 @@ RKI_HEADER_BEGIN
 
 /// @brief `void heap_release(Heap(T)* self)` - Frees the backing Vec and resets the Heap to an
 /// empty state.
+/// @note Releases the allocator binding too, like `vec_release()`: if used again, the Heap grows
+/// from the current `alloc_ctx`.
 #define heap_release(self)               vec_release((self)->data)
 
 /// @brief `size_t heap_count(const Heap(T)* self)` - Returns the number of elements in the Heap.

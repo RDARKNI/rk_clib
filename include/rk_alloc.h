@@ -383,7 +383,6 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @return NULL for zero size; otherwise non-null page-aligned storage.
 /// @note Zero size invokes no failure handler. Positive-size failures invoke RK_MMAP_FAIL, which
 /// aborts by default. Use page_realloc()/page_free() for subsequent operations.
-
 rklib_fun void* page_alloc(size_t size);
 
 /// @brief Resizes page-backed storage, possibly moving it.
@@ -407,7 +406,6 @@ rklib_fun void* page_realloc(void* ptr, size_t old_size, size_t new_size);
 /// @note Either NULL input or zero size is a no-op. In particular, passing zero with a non-null
 /// pointer does not free the allocation. For actual deallocation, ptr must be a valid page
 /// allocation and size must match its current requested size. Failures invoke RK_MMAP_FAIL.
-
 rklib_fun void  page_free(void* ptr, size_t size);
 
 /// @brief Copies nbytes bytes into newly allocated storage aligned to align_max.
@@ -848,6 +846,7 @@ rklib_fun
 RKI_HEADER_END
 /// @}
 #endif // RK_ALLOC_H
+
 // MIT License
 //
 // Copyright (c) 2026 Dariusch Knigge

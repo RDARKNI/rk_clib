@@ -820,7 +820,7 @@ rklib_fun Str str_from_strv(Strv sv RK_IFALLOC(, Allocator alloc)) {
 #define RKI_STR_FROM2(_S, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(str_from_strv(strv_from(_S), alloc))
 #define RKI_STR_FROM1(_S)                                                                          \
   str_from_strv(strv_from(_S) RK_IFALLOC(                                                          \
-      , _Generic((_S), Str: RKI_contrav(Str, _S).alloc, default: alloc_ctx)))
+      , _Generic((_S), Str: rki_allocator_of(RKI_contrav(Str, _S).alloc), default: alloc_ctx)))
 
 rklib_fun Str rki_str_join_strv_n(Strv* svs, size_t count, Strv sep RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);
@@ -896,7 +896,7 @@ rklib_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
   if (!sv.len) { return self; }
   size_t new_len = sv.len + self->len;
   if (new_len + 1 > self->cap) {
-    uptr sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
+    uptr sbeg = (uptr)self->str, send = sbeg + self->cap, cbeg = (uptr)sv.str;
     rki_str_ensure_cap(self, new_len + 1);
     if (cbeg >= sbeg && cbeg < send) {
       // offset of the char* into the str mem since a Str is not a
@@ -904,7 +904,7 @@ rklib_fun Str* str_cat_strv_mayalias(Str* restrict self, Strv sv) {
       sv.str = self->str + (cbeg - sbeg);
     }
   }
-  memcpy(self->str + self->len, sv.str, sv.len);
+  memmove(self->str + self->len, sv.str, sv.len);
   self->str[self->len = new_len] = '\0';
   return self;
 }
@@ -925,7 +925,7 @@ rklib_fun Str* str_insert_at_strv_mayalias(Str* restrict self, size_t idx, Strv 
   rk_assert(idx <= self->len && "Attempted to insert out of Str bounds");
   if (!sv.len) { return self; }
   if (idx == self->len) { return str_cat_strv_mayalias(self, sv); }
-  uptr   sbeg = (uptr)self->str, send = sbeg + self->len, cbeg = (uptr)sv.str;
+  uptr   sbeg = (uptr)self->str, send = sbeg + self->cap, cbeg = (uptr)sv.str;
   bool   alias = cbeg >= sbeg && cbeg < send;
   size_t new_len;
   if (alias) {

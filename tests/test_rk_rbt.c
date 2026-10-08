@@ -105,10 +105,10 @@ triax_test(rbt, min_max_follow_tree_constness) {
   Rbt(int, char) r = rbt_init(int, char);
   rbt_set(int, char, &r, 2, 'b');
   const Rbt(int, char)* c = &r;
-  static_assert(_Generic(&rbt_min(&r), RbtEntry(int, char)*: 1, default: 0), "mutable: mutable");
-  static_assert(_Generic(&rbt_max(c), const RbtEntry(int, char)*: 1, default: 0), "const: const");
-  static_assert(_Generic(rbt_peek_min(&r), RbtEntry(int, char)*: 1, default: 0), "mutable: mutable");
-  static_assert(_Generic(rbt_peek_max(c), const RbtEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(&rbt_min(&r), RbtEntry(int, char)*: 1, default: 0), "mutable");
+  static_assert(_Generic(&rbt_max(c), const RbtEntry(int, char)*: 1, default: 0), "const");
+  static_assert(_Generic(rbt_peek_min(&r), RbtEntry(int, char)*: 1, default: 0), "mutable");
+  static_assert(_Generic(rbt_peek_max(c), const RbtEntry(int, char)*: 1, default: 0), "const");
   static_assert(_Generic(&rbt_min(&r).key, const int*: 1, default: 0), "keys are always const");
   triax_expect_eq(rbt_min(c).key, 2);
   triax_expect_eq(rbt_peek_max(c)->val, 'b');
@@ -178,7 +178,7 @@ triax_test(rbt, get_or_add) {
 
 triax_test(rbt, foreach_empty) {
   Rbt(int, char) r = rbt_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visited = 0;
   rbt_foreach(&r, stack, 4, e) {
     (void)e;
@@ -195,7 +195,7 @@ triax_test(rbt, foreach_inorder) {
   rbt_set(int, char, &r, 4, 'd');
   rbt_set(int, char, &r, 2, 'B');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        keys[4] = {0};
   char       vals[4] = {0};
   int        i       = 0;
@@ -217,7 +217,7 @@ triax_test(rbt, foreach_inorder) {
 
 triax_test(rbt, foreach_reversed_empty) {
   Rbt(int, char) r = rbt_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visited = 0;
   rbt_foreach_reversed(&r, stack, 4, e) {
     (void)e;
@@ -234,7 +234,7 @@ triax_test(rbt, foreach_reversed_visits_descending) {
   rbt_set(int, char, &r, 4, 'd');
   rbt_set(int, char, &r, 2, 'b');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        keys[4] = {0};
   int        i       = 0;
   rbt_foreach_reversed(&r, stack, 4, e) { keys[i++] = e->key; }
@@ -253,7 +253,7 @@ triax_test(rbt, foreach_break_stops_iteration) {
   rbt_set(int, char, &r, 3, 'c');
   rbt_set(int, char, &r, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   rbt_foreach(&r, stack, 4, e) {
     if (e->key == 2) { break; }
@@ -271,7 +271,7 @@ triax_test(rbt, foreach_continue_skips_entry) {
   rbt_set(int, char, &r, 3, 'c');
   rbt_set(int, char, &r, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   rbt_foreach(&r, stack, 4, e) {
     if (e->key == 2) { continue; }
@@ -289,7 +289,7 @@ triax_test(rbt, foreach_reversed_break_stops_iteration) {
   rbt_set(int, char, &r, 3, 'c');
   rbt_set(int, char, &r, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   rbt_foreach_reversed(&r, stack, 4, e) {
     if (e->key == 3) { break; }
@@ -307,7 +307,7 @@ triax_test(rbt, foreach_reversed_continue_skips_entry) {
   rbt_set(int, char, &r, 3, 'c');
   rbt_set(int, char, &r, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   rbt_foreach_reversed(&r, stack, 4, e) {
     if (e->key == 3) { continue; }
@@ -325,7 +325,7 @@ triax_test(rbt, erase_if_removes_matching_entries) {
   rbt_set(int, char, &r, 3, 'c');
   rbt_set(int, char, &r, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   rbt_erase_if(int, char, &r, stack, 4, e, e->key % 2 == 0);
 
   triax_expect_eq(rbt_count(&r), 2u);
@@ -344,9 +344,89 @@ triax_test(rbt, erase_if_removes_matching_entries) {
   rbt_release(int, char, &r);
 }
 
+triax_test(rbt, foreach_const_entries) {
+  Rbt(int, char) t = rbt_init(int, char);
+  rbt_set(int, char, &t, 1, 'a');
+  TreeNode* stack[2];
+  tree_foreach(&t, stack, 2, e) {
+    static_assert(_Generic(e, RbtEntry(int, char)*: 1, default: 0), "Mutable tree entry");
+    e->val = 'b';
+  }
+  const Rbt(int, char)* ct = &t;
+  int seen = 0;
+  tree_foreach(ct, stack, 2, e) {
+    static_assert(_Generic(e, const RbtEntry(int, char)*: 1, default: 0), "Const tree entry");
+    triax_expect_eq(e->val, 'b');
+    ++seen;
+  }
+  tree_foreach_reversed(ct, stack, 2, e) {
+    static_assert(_Generic(e, const RbtEntry(int, char)*: 1, default: 0), "Const tree entry");
+    triax_expect_eq(e->val, 'b');
+    ++seen;
+  }
+  triax_expect_eq(seen, 2);
+  rbt_release(int, char, &t);
+}
+
+triax_test(rbt, erase_if_changes_root_then_release) {
+  Rbt(int, char) t = rbt_init(int, char);
+  rbt_set(int, char, &t, 2, 'b');
+  rbt_set(int, char, &t, 1, 'a');
+  rbt_set(int, char, &t, 3, 'c');
+  TreeNode* stack[3];
+  rbt_erase_if(int, char, &t, stack, 3, e, e->key < 3);
+  triax_expect_eq(tree_count(&t), 1u);
+  triax_expect_eq(tree_min(&t).key, 3);
+  rbt_release(int, char, &t);
+  triax_expect_null(t.root);
+}
+
+triax_test(rbt, erase_if_removes_all) {
+  Rbt(int, char) t = rbt_init(int, char);
+  for (int i = 1; i <= 4; ++i) { rbt_set(int, char, &t, i, 'a'); }
+  TreeNode* stack[4];
+  rbt_erase_if(int, char, &t, stack, 4, e, ((void)e, true));
+  triax_expect_true(tree_is_empty(&t));
+  triax_expect_null(t.root);
+  rbt_release(int, char, &t);
+}
+
+// The generated tree functions have parameters and locals named `c`, `k`, `key`, `n`, ... . A
+// comparator with one of those names used to be shadowed at its call sites (a compile error); it is
+// now only ever called through a wrapper with reserved parameter names. Covers all three variants.
+static int c(short a, short b) { return (a > b) - (a < b); }
+static int key(short a, short b) { return (a > b) - (a < b); }
+RBT_DEFINE(short, int, c)
+AVL_DEFINE(short, int, c)
+BST_DEFINE(short, int, key)
+
+triax_test(rbt, comparator_named_like_internal_locals) {
+  Rbt(short, int) r = rbt_init(short, int);
+  Avl(short, int) a = avl_init(short, int);
+  Bst(short, int) b = bst_init(short, int);
+  for (short i = 0; i < 20; ++i) {
+    rbt_set(short, int, &r, i, i * 2);
+    avl_set(short, int, &a, i, i * 3);
+    bst_set(short, int, &b, i, i * 4);
+  }
+  triax_expect_eq(*rbt_get(short, int, &r, 7), 14);
+  triax_expect_eq(*avl_get(short, int, &a, 7), 21);
+  triax_expect_eq(*bst_get(short, int, &b, 7), 28);
+  int out = 0;
+  triax_expect_true(rbt_extract(short, int, &r, 7, &out));
+  triax_expect_true(avl_remove(short, int, &a, 7));
+  triax_expect_true(bst_remove(short, int, &b, 7));
+  triax_expect_false(rbt_contains(short, int, &r, 7));
+  triax_expect_eq(tree_count(&a), 19u);
+  triax_expect_eq(tree_min(&b).key, 0);
+  rbt_release(short, int, &r);
+  avl_release(short, int, &a);
+  bst_release(short, int, &b);
+}
+
 triax_test(rbt, erase_if_empty_is_noop) {
   Rbt(int, char) r = rbt_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        pred_calls = 0;
   rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
@@ -360,7 +440,7 @@ triax_test(rbt, erase_if_evaluates_predicate_once_per_entry) {
   rbt_set(int, char, &r, 2, 'b');
   rbt_set(int, char, &r, 3, 'c');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        pred_calls = 0;
   rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, false));
   triax_expect_eq(pred_calls, 3);
@@ -477,7 +557,7 @@ triax_test(rbt, remove_two_children) {
   triax_expect_eq(*rbt_get(int, char, &r, 8), 'h');
 
   // BST property: in-order traversal must still be sorted
-  tree_node* stack[8];
+  TreeNode* stack[8];
   int        keys[5];
   int        i = 0;
   rbt_foreach(&r, stack, 8, e) { keys[i++] = e->key; }
@@ -501,7 +581,7 @@ triax_test(rbt, large_sorted_order_stays_balanced) {
   triax_expect_eq(rbt_min(&r).key, 1);
   triax_expect_eq(rbt_max(&r).key, 32);
 
-  tree_node* stack[10];
+  TreeNode* stack[10];
   int        prev = -1, count = 0;
   rbt_foreach(&r, stack, 10, e) {
     triax_expect_gt(e->key, prev);
@@ -571,7 +651,7 @@ triax_test(rbt, foreach_stack_too_small_asserts, .isolation = TRIAX_ISOLATION_ON
   rbt_set(int, char, &r, 2, 'b');
   rbt_set(int, char, &r, 3, 'c');
 
-  tree_node* stack[1]; // deliberately smaller than the tree's height
+  TreeNode* stack[1]; // deliberately smaller than the tree's height
   triax_assert_fault(TRIAX_FAULT_ABORT, {
     rbt_foreach(&r, stack, 1, e) { (void)e;
 }

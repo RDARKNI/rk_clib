@@ -5,7 +5,7 @@
 /// @brief Type-safe, generic binary search trees for C: a plain unbalanced `Bst`, a height-balanced
 /// `Avl`, and a left-leaning red-black `Rbt`. All three share the same node-walking, release, and
 /// iteration primitives (the `tree_*` names below) and expose the same shaped API (`_init`,
-/// `_set`, `_add`, `_get`, `_get_or_add` for Bst, `_contains`, `_extract`, `_remove`, `_min`,
+/// `_set`, `_add`, `_get`, `_get_or_add`, `_contains`, `_extract`, `_remove`, `_min`,
 /// `_max`, `_release`, `_foreach`, `_foreach_reversed`, `_erase_if`), differing only in their
 /// rebalancing strategy and therefore their worst-case complexity.
 ///
@@ -43,7 +43,7 @@
 ///
 /// 5. Iterate in sorted order:
 ///    ```c
-///    tree_node* stack[64];
+///    TreeNode* stack[64];
 ///    bst_foreach(&tree, stack, 64, entry) {
 ///        printf("%d -> %s\n", entry->key, entry->val);
 ///    }
@@ -65,50 +65,36 @@
 #include "rk_alloc.h"
 RKI_HEADER_BEGIN
 
-/// @brief Type-erased node header shared by every tree type's concrete node (`RKI_BstNode`,
-/// `RKI_AvlNode`, `RKI_RbtNode` all start with the same `l`/`r` layout). This is the type a caller
-/// declares a traversal stack buffer as, e.g. `tree_node* stack[64];` for `bst_foreach()`.
-/// @note Deliberately just the two pointers, with no `alignas_max`-forced over-alignment: the
-/// shared primitives below only ever touch `l`/`r` through this type (entry data is reached via an
-/// explicit byte offset into the real, per-(K,V) node -- see `rki_tree_min_off`/`rki_tree_max_off`
-/// -- never via a member of `tree_node` itself). A concrete node's actual allocation is only ever
-/// guaranteed to meet *its own* alignment (e.g. `alignof(RKI_AvlNode(K, V))`, which can be less
-/// than `align_max`), so giving `tree_node` a stricter alignment than plain pointers would make
-/// every `(tree_node*)` cast of such a node technically misaligned.
-typedef struct tree_node { struct tree_node *l, *r; } tree_node;
-
-/// @brief Type-erased tree header (allocator, count, root), aliased with each concrete tree
-/// struct's own typed view. Not normally constructed directly.
-typedef struct tree_data {
-  RK_IFALLOC(Allocator alloc;)
-  size_t     count;
-  tree_node* root;
-} tree_data;
-
-/// @brief In-order traversal state used by `bst_foreach()`/`avl_foreach()`/`rbt_foreach()`. Not
-/// normally constructed directly; the `_foreach` macros build one internally from the stack buffer
-/// and capacity you pass in.
-typedef struct tree_iter {
-  tree_node **stack, *curr;
-  size_t      cap, top;
-} tree_iter;
+/// @brief Shared node header embedded as the first member of every concrete tree node.
+/// A caller uses `TreeNode* stack[64]` as traversal workspace. The links point to actual
+/// embedded headers; concrete algorithms convert their values back to concrete node pointers.
+/// @note Keep this header first in every node. No additional allocation or over-alignment is used.
+/// Concrete C++ node types must be standard-layout; the instantiation macros enforce this.
+/// The shared state is an actual `base` member: access fields as `tree.base.root`,
+/// `tree.base.count`, and (with custom allocators) `tree.base.alloc`.
+/// Tree roots store TreeNode* values. Convert a root to the concrete node type before accessing
+/// its entry. A tree's rki_node_type member is type metadata for sizeof/typeof only and must
+/// never be read or written at runtime.
+typedef struct TreeNode { struct TreeNode *l, *r; } TreeNode;
 
 /// @brief Frees all nodes in the tree and resets it to an empty state. Identical across
 /// `Bst`/`Avl`/`Rbt` (also reachable as `bst_release`/`avl_release`/`rbt_release`) since it only
 /// ever needs to walk `l`/`r` and deallocate -- no rebalancing-specific logic applies here.
+/// @note `self` is evaluated once. Preserves the stored allocator.
 #define tree_release(self)                                                                         \
-  rki_tree_release(sizeof(*(self)->root), alignof(typeof(*(self)->root)), &(self)->_tree)
+  rki_tree_release(sizeof(*(self)->rki_node_type), alignof(typeof(*(self)->rki_node_type)),        \
+                   &(self)->base)
 
 /// @brief `size_t tree_count(self)` - Returns the number of key-value pairs stored. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_count`/`avl_count`/`rbt_count`); lookup and
 /// mutation are the only operations that differ by rebalancing strategy and therefore stay
 /// variant-prefixed.
-#define tree_count(self)     ((size_t)(self)->count)
+#define tree_count(self)     ((size_t)(self)->base.count)
 
 /// @brief `Allocator tree_allocator(self)` - Returns the Allocator the tree was constructed with,
 /// or `alloc_ctx` if the tree was never initialized or custom allocators are disabled. Identical
 /// across `Bst`/`Avl`/`Rbt` (also reachable as `bst_allocator`/`avl_allocator`/`rbt_allocator`).
-#define tree_allocator(self) RKI_allocatorof(self)
+#define tree_allocator(self) RKI_allocatorof(&(self)->base)
 
 /// @brief `bool tree_is_empty(self)` - Returns `true` iff the tree contains no elements.
 #define tree_is_empty(self)  (tree_count(self) == 0)
@@ -122,33 +108,35 @@ typedef struct tree_iter {
 /// @note Works identically for `Bst`/`Avl`/`Rbt` (also reachable as `bst_min`/`avl_min`/`rbt_min`):
 /// the real entry offset is computed via `offsetof` rather than assumed, so it doesn't matter that
 /// `Avl`/`Rbt` nodes carry extra bookkeeping (height/color) that `Bst` nodes don't.
-/// @note Invalidated when the entry is removed. O(height).
+/// @note For Bst/Rbt, removal or extraction can invalidate references to other entries too:
+/// deletion may copy a successor's entry and free its node. For Avl, only references to the
+/// removed entry are invalidated. Releasing any tree invalidates all its entries. O(height).
 /// @see tree_peek_min
 #define tree_min(self)                                                                             \
   (*(typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_check_min_off(                                      \
-      (self)->_tree.root, offsetof(typeof(*(self)->root), entry)))
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
 
 /// @brief Like `tree_min()`, but for the largest key.
 /// @pre The tree is nonempty; use `tree_peek_max()` to check safely.
 /// @see tree_peek_max
 #define tree_max(self)                                                                             \
   (*(typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_check_max_off(                                      \
-      (self)->_tree.root, offsetof(typeof(*(self)->root), entry)))
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
 
 /// @brief Returns a pointer to the entry with the smallest key, or `NULL` if the tree is empty.
 /// @param self Pointer to a `Bst`, `Avl`, or `Rbt`. Evaluated more than once.
 /// @return `Entry*` for a mutable tree, `const Entry*` for a const tree.
-/// @note Invalidated when the entry is removed. O(height).
+/// @note Inherits the reference invalidation rules of `tree_min()`. O(height).
 /// @see tree_min
 #define tree_peek_min(self)                                                                        \
-  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_min_off((self)->_tree.root,                          \
-                                                      offsetof(typeof(*(self)->root), entry)))
+  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_min_off(                                             \
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
 
 /// @brief Like `tree_peek_min()`, but for the largest key.
 /// @see tree_max
 #define tree_peek_max(self)                                                                        \
-  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_max_off((self)->_tree.root,                          \
-                                                      offsetof(typeof(*(self)->root), entry)))
+  ((typeof(RKI_TREE_ENTRY_PTR(self)))rki_tree_max_off(                                             \
+      (self)->base.root, offsetof(typeof(*(self)->rki_node_type), entry)))
 
 /// @brief Iterates over all entries in ascending key order.
 ///
@@ -157,9 +145,10 @@ typedef struct tree_iter {
 ///
 /// The loop variable is a pointer to the tree's corresponding entry type: `BstEntry(K, V)*`,
 /// `AvlEntry(K, V)*`, or `RbtEntry(K, V)*`.
+/// Entries are const when traversing a pointer to a const tree.
 ///
 /// @param self      Pointer to the tree. If NULL, the loop body is not executed.
-/// @param stack_buf Writable array of `tree_node*` used as traversal workspace.
+/// @param stack_buf Writable array of `TreeNode*` used as traversal workspace.
 /// @param stack_cap Number of pointer slots available in `stack_buf`. Must be at least the tree
 ///                  height, measured in nodes.
 /// @param entry     Name of the entry-pointer variable declared by the macro.
@@ -181,7 +170,7 @@ typedef struct tree_iter {
 /// Example:
 /// ```c
 /// // Assumes the tree height is at most 64 nodes.
-/// tree_node* stack[64];
+/// TreeNode* stack[64];
 /// tree_foreach(&tree, stack, 64, entry) {
 ///     printf("%d -> %s\n", entry->key, entry->val);
 /// }
@@ -312,7 +301,7 @@ typedef struct tree_iter {
 /// is a `const BstEntry(K, V)*` pointing to each entry in turn.
 ///
 /// @param self          Pointer to the `Bst(K, V)` to iterate
-/// @param stack_buf     Array of `tree_node*` used as the traversal stack
+/// @param stack_buf     Array of `TreeNode*` used as the traversal stack
 /// @param stack_cap     Number of elements in `stack_buf`; must be at least the number of nodes on
 /// the tree's longest root-to-leaf path (its height, counting nodes rather than edges) to avoid
 /// writing past `stack_buf`. Checked via `rk_assert` in debug builds only; violating this in a
@@ -325,7 +314,7 @@ typedef struct tree_iter {
 ///
 /// Example:
 /// ```c
-/// tree_node* stack[64];
+/// TreeNode* stack[64];
 /// bst_foreach(&tree, stack, 64, e) {
 ///     printf("%d -> %s\n", e->key, e->val);
 /// }
@@ -343,7 +332,7 @@ typedef struct tree_iter {
 /// to find every entry satisfying `pred`, then removes each one by key.
 /// @param K,V             Key/value types, as passed to `BST_DEFINE()`
 /// @param self            Pointer to a mutable `Bst(K, V)`
-/// @param stack_buf       Array of `tree_node*` used as the traversal stack (see `bst_foreach()`)
+/// @param stack_buf       Array of `TreeNode*` used as the traversal stack (see `bst_foreach()`)
 /// @param stack_cap       Number of elements in `stack_buf`
 /// @param entry           Name for the loop variable (a `const BstEntry(K, V)*`)
 /// @param pred            Predicate expression, evaluated once per entry present at the start of
@@ -352,7 +341,7 @@ typedef struct tree_iter {
 ///
 /// Usage:
 /// ```c
-/// tree_node* stack[64];
+/// TreeNode* stack[64];
 /// bst_erase_if(int, cstr, &tree, stack, 64, e, e->val[0] == 'x');
 /// ```
 #define bst_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
@@ -557,49 +546,59 @@ typedef struct tree_iter {
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
+// Internal: actual shared state embedded in every concrete tree as `base`.
+typedef struct RKI_TreeData {
+  RK_IFALLOC(Allocator alloc;)
+  size_t    count;
+  TreeNode* root;
+} RKI_TreeData;
+
+// Internal: in-order traversal state used by `bst_foreach()`/`avl_foreach()`/`rbt_foreach()`. The
+// `_foreach` macros build one internally from the stack buffer and capacity you pass in.
+typedef struct RKI_TreeIter {
+  TreeNode **stack, *curr;
+  size_t     cap, top;
+} RKI_TreeIter;
 
 ////////////////////////////// Shared node/iterator primitives (`tree_*`) //////////////////////////
 
-/// @brief Type-erased view of any of this file's concrete node types (`RKI_BstNode`,
-/// `RKI_AvlNode`, `RKI_RbtNode`), used by the shared release/iteration primitives below, which only
-/// ever need to walk `l`/`r` -- never touch `data`/`entry` directly (that's only ever done after
-/// re-casting to the real, per-(K,V) node type, since the entry's offset differs by node type: it
-/// sits right after `l`/`r` for `Bst`, but after an extra height/color bookkeeping field for
-/// `Avl`/`Rbt`). Where the entry itself must be reached generically (`_min`/`_max`), the real
-/// offset is passed explicitly rather than assumed -- see `rki_tree_min_off`/`rki_tree_max_off`.
+/// @brief Shared release primitive operating on the embedded TreeNode headers.
+/// Every header is at offset zero, so its address is also the allocation's start address.
 rklib_fun void rki_tree_release_nodes(size_t nodesize, size_t nodealign,
-                                      tree_node* restrict node RK_IFALLOC(, Allocator alloc)) {
+                                      TreeNode* restrict node RK_IFALLOC(, Allocator alloc)) {
   while (node) {
     if (node->l) {
-      tree_node* left = node->l;
-      node->l         = left->r;
-      left->r         = node;
-      node            = left;
+      TreeNode* left = node->l;
+      node->l        = left->r;
+      left->r        = node;
+      node           = left;
     } else {
-      tree_node* right = node->r;
+      TreeNode* right = node->r;
       alloc_deallocate(node, nodesize, nodealign RK_IFALLOC(, alloc));
       node = right;
     }
   }
 }
 
-rklib_fun void rki_tree_release(size_t nodesize, size_t nodealign, tree_data* self) {
+// Operates on the actual embedded base object; no state overlay or field offsets.
+rklib_fun void rki_tree_release(size_t nodesize, size_t nodealign, RKI_TreeData* self) {
   rki_tree_release_nodes(nodesize, nodealign, self->root RK_IFALLOC(, self->alloc));
-  self->root = rk_null, self->count = 0;
+  self->root  = rk_null;
+  self->count = 0;
 }
 
 /// @brief Returns a pointer to the leftmost (minimum) node's entry, `entry_off` bytes into the
 /// node. Passing the real offset (rather than assuming entry data sits right after `l`/`r`, as a
-/// bare `tree_node*` would) is what makes this safe to reuse for node types that carry extra
+/// bare `TreeNode*` would) is what makes this safe to reuse for node types that carry extra
 /// bookkeeping (e.g. an AVL height or a red-black color bit) between the pointers and the entry.
-rklib_fun rk_pure void* rki_tree_min_off(tree_node* node, size_t entry_off) {
+rklib_fun rk_pure void* rki_tree_min_off(TreeNode* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->l) { node = node->l; }
   return (char*)node + entry_off;
 }
 
 /// @brief Like `rki_tree_min_off()`, but for the rightmost (maximum) node.
-rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
+rklib_fun rk_pure void* rki_tree_max_off(TreeNode* node, size_t entry_off) {
   if (!node) { return rk_null; }
   while (node->r) { node = node->r; }
   return (char*)node + entry_off;
@@ -607,12 +606,12 @@ rklib_fun rk_pure void* rki_tree_max_off(tree_node* node, size_t entry_off) {
 
 // Not rk_pure: the asserts are side effects, and a pure call whose result is discarded (e.g.
 // `(void)tree_min(t)`) may be removed entirely, silently skipping the emptiness check.
-rklib_fun void* rki_tree_check_min_off(tree_node* node, size_t entry_off) {
+rklib_fun void* rki_tree_check_min_off(TreeNode* node, size_t entry_off) {
   rk_assert(node && "Cannot access min of empty tree");
   return rki_tree_min_off(node, entry_off);
 }
 
-rklib_fun void* rki_tree_check_max_off(tree_node* node, size_t entry_off) {
+rklib_fun void* rki_tree_check_max_off(TreeNode* node, size_t entry_off) {
   rk_assert(node && "Cannot access max of empty tree");
   return rki_tree_max_off(node, entry_off);
 }
@@ -620,32 +619,32 @@ rklib_fun void* rki_tree_check_max_off(tree_node* node, size_t entry_off) {
 // Entry pointer type matching the tree's constness. Constness is detected through `count`, a
 // member of a named type, as for the Dict/Deque iteration pointers (avoids `const const`, C4114).
 #define RKI_TREE_ENTRY_PTR(self)                                                                   \
-  _Generic(&(self)->count,                                                                         \
-      const size_t*: (const typeof((self)->root->entry)*)0,                                        \
-      default: (typeof((self)->root->entry)*)0)
+  _Generic(&(self)->base.count,                                                                    \
+      const size_t*: (const typeof((self)->rki_node_type->entry)*)0,                               \
+      default: (typeof((self)->rki_node_type->entry)*)0)
 
-rklib_fun tree_node* rki_tree_iter_next(tree_iter* restrict it) {
+rklib_fun TreeNode* rki_tree_iter_next(RKI_TreeIter* restrict it) {
   while (it->curr) {
     rk_assert(it->top < it->cap && "Tree iterator stack overflow");
     it->stack[it->top++] = it->curr;
     it->curr             = it->curr->l;
   }
   if (!it->top) { return rk_null; }
-  tree_node* node = it->stack[--it->top];
-  it->curr        = node->r;
+  TreeNode* node = it->stack[--it->top];
+  it->curr       = node->r;
   return node;
 }
 
 /// @brief Like `rki_tree_iter_next()`, but walks the tree right-to-left (descending order).
-rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
+rklib_fun TreeNode* rki_tree_iter_next_reversed(RKI_TreeIter* restrict it) {
   while (it->curr) {
     rk_assert(it->top < it->cap && "Tree iterator stack overflow");
     it->stack[it->top++] = it->curr;
     it->curr             = it->curr->r;
   }
   if (!it->top) { return rk_null; }
-  tree_node* node = it->stack[--it->top];
-  it->curr        = node->l;
+  TreeNode* node = it->stack[--it->top];
+  it->curr       = node->l;
   return node;
 }
 
@@ -665,36 +664,36 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 #define RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_)                                       \
   for (struct {                                                                                    \
          typeof(*(self))* tree;                                                                    \
-         tree_iter        it;                                                                      \
-         tree_node*       node;                                                                    \
+         RKI_TreeIter     it;                                                                      \
+         TreeNode*        node;                                                                    \
        } RKI_state = {(self), {0}, rk_null};                                                       \
        RKI_state.tree                                                                              \
-       && (RKI_state.it = (tree_iter){.stack = (stack_buf),                                        \
-                                      .curr  = (tree_node*)RKI_state.tree->root,                   \
-                                      .cap   = (stack_cap),                                        \
-                                      .top   = 0},                                                 \
+       && (RKI_state.it = (RKI_TreeIter){.stack = (stack_buf),                                     \
+                                         .curr  = (TreeNode*)RKI_state.tree->base.root,            \
+                                         .cap   = (stack_cap),                                     \
+                                         .top   = 0},                                              \
           1);                                                                                      \
        RKI_state.tree = rk_null)                                                                   \
-    for (typeof(RKI_state.tree->root->entry)* entry_ = rk_null;                                    \
+    for (typeof(RKI_TREE_ENTRY_PTR(RKI_state.tree)) entry_ = rk_null;                              \
          (RKI_state.node = rki_tree_iter_next(&RKI_state.it))                                      \
-         && (entry_ = &((typeof(RKI_state.tree->root))RKI_state.node)->entry, 1);)
+         && (entry_ = &((typeof(RKI_state.tree->rki_node_type))(void*)RKI_state.node)->entry, 1);)
 
 #define RKI_TREE_FOREACH_REVERSED(self, stack_buf, stack_cap, entry_)                              \
   for (struct {                                                                                    \
          typeof(*(self))* tree;                                                                    \
-         tree_iter        it;                                                                      \
-         tree_node*       node;                                                                    \
+         RKI_TreeIter     it;                                                                      \
+         TreeNode*        node;                                                                    \
        } RKI_state = {(self), {0}, rk_null};                                                       \
        RKI_state.tree                                                                              \
-       && (RKI_state.it = (tree_iter){.stack = (stack_buf),                                        \
-                                      .curr  = (tree_node*)RKI_state.tree->root,                   \
-                                      .cap   = (stack_cap),                                        \
-                                      .top   = 0},                                                 \
+       && (RKI_state.it = (RKI_TreeIter){.stack = (stack_buf),                                     \
+                                         .curr  = (TreeNode*)RKI_state.tree->base.root,            \
+                                         .cap   = (stack_cap),                                     \
+                                         .top   = 0},                                              \
           1);                                                                                      \
        RKI_state.tree = rk_null)                                                                   \
-    for (typeof(RKI_state.tree->root->entry)* entry_ = rk_null;                                    \
+    for (typeof(RKI_TREE_ENTRY_PTR(RKI_state.tree)) entry_ = rk_null;                              \
          (RKI_state.node = rki_tree_iter_next_reversed(&RKI_state.it))                             \
-         && (entry_ = &((typeof(RKI_state.tree->root))RKI_state.node)->entry, 1);)
+         && (entry_ = &((typeof(RKI_state.tree->rki_node_type))(void*)RKI_state.node)->entry, 1);)
 
 /// @brief Shared erase_if implementation backing `bst_erase_if`/`avl_erase_if`/`rbt_erase_if`. Not
 /// normally used directly.
@@ -708,10 +707,11 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 #define RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry_, pred, remove_fn)                     \
   do {                                                                                             \
     typeof(*(self))* const RKI_eif_self = (self);                                                  \
-    if (!RKI_eif_self->count) { break; }                                                           \
-    typeof(RKI_eif_self->root->entry_mod.key)* const RKI_eif_keys                                  \
-        = alloc_new(typeof(RKI_eif_self->root->entry_mod.key),                                     \
-                    RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));                        \
+    if (!RKI_eif_self->base.count) { break; }                                                      \
+    const size_t RKI_eif_count = RKI_eif_self->base.count;                                         \
+    typeof(RKI_eif_self->rki_node_type->entry_mod.key)* const RKI_eif_keys                         \
+        = alloc_new(typeof(RKI_eif_self->rki_node_type->entry_mod.key),                            \
+                    RKI_eif_count RK_IFALLOC(, RKI_eif_self->base.alloc));                         \
     size_t RKI_eif_n = 0;                                                                          \
     tree_foreach(RKI_eif_self, stack_buf, stack_cap, entry_) {                                     \
       if (pred) { RKI_eif_keys[RKI_eif_n++] = entry_->key; }                                       \
@@ -719,14 +719,31 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
     for (size_t RKI_eif_i = 0; RKI_eif_i < RKI_eif_n; ++RKI_eif_i) {                               \
       remove_fn(RKI_eif_self, RKI_eif_keys[RKI_eif_i]);                                            \
     }                                                                                              \
-    alloc_delete(RKI_eif_keys, RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));             \
+    alloc_delete(RKI_eif_keys, RKI_eif_count RK_IFALLOC(, RKI_eif_self->base.alloc));              \
   } while (0)
 
-//////////////////////////////////////////// Bst internals /////////////////////////////////////////
+///// These macros convert pointer values only. The stored links and root remain TreeNode*.
+#define RKI_TREE_LEFT(node)             ((typeof(node))(void*)(node)->links.l)
+#define RKI_TREE_RIGHT(node)            ((typeof(node))(void*)(node)->links.r)
+#define RKI_TREE_ROOT(self)             ((typeof((self)->rki_node_type))(void*)(self)->base.root)
+#define RKI_TREE_SET_LEFT(node, child)  ((node)->links.l = (TreeNode*)(child))
+#define RKI_TREE_SET_RIGHT(node, child) ((node)->links.r = (TreeNode*)(child))
+#define RKI_TREE_SET_ROOT(self, node)   ((self)->base.root = (TreeNode*)(node))
 
-#define RKI_BstEntryPriv(K, V)   RKI_bst_entry_##K##_##V
+#ifdef __cplusplus
+# define RKI_TREE_CHECK_NODE_LAYOUT(Node)                                                          \
+   static_assert(std::is_standard_layout<Node>::value, "Tree nodes must be standard-layout")
+#else
+# define RKI_TREE_CHECK_NODE_LAYOUT(Node)                                                          \
+   static_assert(offsetof(Node, links) == 0, "Tree node header must be the first member")
+#endif
 
-#define RKI_BST_INIT(K, V, A)    ((Bst(K, V)){RK_IFALLOC(.alloc = A, ).count = 0})
+///////////////////////////////////////// Bst internals /////////////////////////////////////////
+
+#define RKI_BstEntryPriv(K, V) RKI_bst_entry_##K##_##V
+
+#define RKI_BST_INIT(K, V, A)                                                                      \
+  ((Bst(K, V)){.base = {RK_IFALLOC(.alloc = A, ).count = 0, .root = rk_null}})
 #define RKI_BST_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, A))
 #define RKI_BST_INIT2(K, V)      RKI_BST_INIT(K, V, alloc_ctx)
 
@@ -745,22 +762,24 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
     V val;                                                                                         \
   } RKI_BstEntryPriv(K, V);                                                                        \
   struct RKI_BstNode(K, V) {                                                                       \
-    struct RKI_BstNode(K, V) * l, *r;                                                              \
+    TreeNode links;                                                                                \
     union {                                                                                        \
       RKI_BstEntryPriv(K, V) entry_mod;                                                            \
       BstEntry(K, V) entry;                                                                        \
     };                                                                                             \
   };                                                                                               \
+  RKI_TREE_CHECK_NODE_LAYOUT(struct RKI_BstNode(K, V));                                            \
   typedef struct Bst(K, V) {                                                                       \
     union {                                                                                        \
-      tree_data _tree;                                                                             \
-      struct {                                                                                     \
-        RK_IFALLOC(Allocator alloc;)                                                               \
-        size_t count;                                                                              \
-        struct RKI_BstNode(K, V) * root;                                                           \
-      };                                                                                           \
+      RKI_TreeData base;                                                                           \
+      struct RKI_BstNode(K, V) * rki_node_type; /* Unevaluated type metadata only. */              \
     };                                                                                             \
   } Bst(K, V);                                                                                     \
+  /* The only call site of the user's comparator: its parameters use reserved names, so a  */      \
+  /* comparator named like a local of the functions below (c, key, n, ...) is not shadowed. */     \
+  rklib_fun int RKI_BST_PRI(K, V, cmp)(K rki_var_a, K rki_var_b) {                                 \
+    return CMP_FUN(rki_var_a, rki_var_b);                                                          \
+  }                                                                                                \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); bst_count()/bst_is_empty()/bst_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
@@ -773,40 +792,39 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   rklib_fun rk_pure Allocator RKI_BST_PUB(K, V, allocator)(const Bst(K, V) * self) {               \
     return tree_allocator(self);                                                                   \
   }                                                                                                \
-  rklib_fun rk_pure struct RKI_BstNode(K, V)                                                       \
-      * *RKI_BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {                                  \
+  rklib_fun rk_pure TreeNode** RKI_BST_PRI(K, V, search_ptr)(Bst(K, V) * self, K key) {            \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** curr = &self->root;                                                                   \
-    for (; *curr;) {                                                                               \
-      int cmp_res = CMP_FUN(key, (*curr)->entry.key);                                              \
-      if (cmp_res == 0) { break; }                                                                 \
-      curr = cmp_res < 0 ? &((*curr)->l) : &((*curr)->r);                                          \
+    TreeNode** curr = &self->base.root;                                                            \
+    while (*curr) {                                                                                \
+      node_t* node    = (node_t*)(void*)*curr;                                                     \
+      int     cmp_res = RKI_BST_PRI(K, V, cmp)(key, node->entry.key);                              \
+      if (!cmp_res) { break; }                                                                     \
+      curr = cmp_res < 0 ? &node->links.l : &node->links.r;                                        \
     }                                                                                              \
     return curr;                                                                                   \
   }                                                                                                \
   rklib_fun rk_pure V* RKI_BST_PUB(K, V, get)(Bst(K, V) * self, K key) {                           \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** node = RKI_BST_PRI(K, V, search_ptr)(self, key);                                      \
-    return *node ? &((*node)->entry.val) : rk_null;                                                \
+    node_t* node = (node_t*)(void*)*RKI_BST_PRI(K, V, search_ptr)(self, key);                      \
+    return node ? &node->entry_mod.val : rk_null;                                                  \
   }                                                                                                \
   rklib_fun rk_pure bool RKI_BST_PUB(K, V, contains)(Bst(K, V) * self, K key) {                    \
-    return !!(*RKI_BST_PRI(K, V, search_ptr)(self, key));                                          \
+    return !!*RKI_BST_PRI(K, V, search_ptr)(self, key);                                            \
   }                                                                                                \
-  rklib_fun V* RKI_BST_PRI(K, V, set_add)(const bool always_insert, Bst(K, V) * self, K key,       \
-                                          V val) {                                                 \
+  rklib_fun V* RKI_BST_PRI(K, V, set_add)(bool always_insert, Bst(K, V) * self, K key, V val) {    \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
+    TreeNode** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                     \
     if (*lnk) {                                                                                    \
-      if (always_insert) { (*lnk)->entry.val = val; }                                              \
+      if (always_insert) { ((node_t*)(void*)*lnk)->entry_mod.val = val; }                          \
       return rk_null;                                                                              \
     }                                                                                              \
-    RKI_set_alloc_fallback(self->alloc);                                                           \
-    node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
-    n->r = n->l  = rk_null;                                                                        \
-    n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
-    *lnk         = n;                                                                              \
-    ++self->count;                                                                                 \
-    return &(n->entry_mod.val);                                                                    \
+    RKI_set_alloc_fallback(self->base.alloc);                                                      \
+    node_t* node  = alloc_new(node_t, 1 RK_IFALLOC(, self->base.alloc));                           \
+    node->links.l = node->links.r = rk_null;                                                       \
+    node->entry_mod               = (typeof(node->entry_mod)){.key = key, .val = val};             \
+    *lnk                          = &node->links;                                                  \
+    ++self->base.count;                                                                            \
+    return &node->entry_mod.val;                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_BST_PUB(K, V, set)(Bst(K, V) * self, K key, V val) {                          \
     return !!RKI_BST_PRI(K, V, set_add)(true, self, key, val);                                     \
@@ -817,50 +835,51 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   rklib_fun V* RKI_BST_PUB(K, V, get_or_add)(Bst(K, V) * self, K key, V val,                       \
                                              bool* restrict inserted_out) {                        \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
+    TreeNode** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                     \
     if (*lnk) {                                                                                    \
       if (inserted_out) { *inserted_out = false; }                                                 \
-      return &((*lnk)->entry_mod.val);                                                             \
+      return &((node_t*)(void*)*lnk)->entry_mod.val;                                               \
     }                                                                                              \
-    RKI_set_alloc_fallback(self->alloc);                                                           \
-    node_t* n = alloc_new(node_t, 1 RK_IFALLOC(, self->alloc));                                    \
-    n->r = n->l  = rk_null;                                                                        \
-    n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                                 \
-    *lnk         = n;                                                                              \
-    ++self->count;                                                                                 \
+    RKI_set_alloc_fallback(self->base.alloc);                                                      \
+    node_t* node  = alloc_new(node_t, 1 RK_IFALLOC(, self->base.alloc));                           \
+    node->links.l = node->links.r = rk_null;                                                       \
+    node->entry_mod               = (typeof(node->entry_mod)){.key = key, .val = val};             \
+    *lnk                          = &node->links;                                                  \
+    ++self->base.count;                                                                            \
     if (inserted_out) { *inserted_out = true; }                                                    \
-    return &(n->entry_mod.val);                                                                    \
+    return &node->entry_mod.val;                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_BST_PUB(K, V, extract)(Bst(K, V) * self, K key, V * val_out) {                \
     rk_assert_ptr_nonnull(val_out);                                                                \
     typedef struct RKI_BstNode(K, V) node_t;                                                       \
-    node_t** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                       \
+    TreeNode** lnk = RKI_BST_PRI(K, V, search_ptr)(self, key);                                     \
     if (!*lnk) { return false; }                                                                   \
-    --self->count;                                                                                 \
-    node_t* curr = *lnk;                                                                           \
-    *val_out     = curr->entry.val;                                                                \
-    if (curr->l && curr->r) {                                                                      \
-      lnk = (node_t**)&curr->r;                                                                    \
-      while ((*lnk)->l) { lnk = (node_t**)(&(*lnk)->l); }                                          \
-      node_t* succ    = *lnk;                                                                      \
+    --self->base.count;                                                                            \
+    node_t* curr = (node_t*)(void*)*lnk;                                                           \
+    *val_out     = curr->entry_mod.val;                                                            \
+    if (curr->links.l && curr->links.r) {                                                          \
+      lnk = &curr->links.r;                                                                        \
+      while ((*lnk)->l) { lnk = &(*lnk)->l; }                                                      \
+      node_t* succ    = (node_t*)(void*)*lnk;                                                      \
       curr->entry_mod = succ->entry_mod;                                                           \
-      *lnk            = (node_t*)(succ->r);                                                        \
-      alloc_delete(succ, 1 RK_IFALLOC(, self->alloc));                                             \
+      *lnk            = succ->links.r;                                                             \
+      alloc_delete(succ, 1 RK_IFALLOC(, self->base.alloc));                                        \
       return true;                                                                                 \
     }                                                                                              \
-    *lnk = (node_t*)(curr->l ? curr->l : curr->r);                                                 \
-    alloc_delete(curr, 1 RK_IFALLOC(, self->alloc));                                               \
+    *lnk = curr->links.l ? curr->links.l : curr->links.r;                                          \
+    alloc_delete(curr, 1 RK_IFALLOC(, self->base.alloc));                                          \
     return true;                                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_BST_PUB(K, V, remove)(Bst(K, V) * self, K key) {                              \
-    V _;                                                                                           \
-    return RKI_BST_PUB(K, V, extract)(self, key, &_);                                              \
+    V ignored;                                                                                     \
+    return RKI_BST_PUB(K, V, extract)(self, key, &ignored);                                        \
   }                                                                                                \
   RK_EXTERNC_END
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){RK_IFALLOC(.alloc = A, ).count = 0})
+#define RKI_AVL_INIT(K, V, A)                                                                      \
+  ((Avl(K, V)){.base = {RK_IFALLOC(.alloc = A, ).count = 0, .root = rk_null}})
 #define RKI_AVL_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_AVL_INIT(K, V, A))
 #define RKI_AVL_INIT2(K, V)      RKI_AVL_INIT(K, V, alloc_ctx)
 
@@ -879,23 +898,25 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
     V val;                                                                                         \
   } RKI_AVL_PRI(K, V, entry);                                                                      \
   typedef struct RKI_AvlNode(K, V) {                                                               \
-    struct RKI_AvlNode(K, V) * l, *r;                                                              \
-    int height;                                                                                    \
+    TreeNode links;                                                                                \
+    int      height;                                                                               \
     union {                                                                                        \
       RKI_AVL_PRI(K, V, entry) entry_mod;                                                          \
       AvlEntry(K, V) entry;                                                                        \
     };                                                                                             \
   } RKI_AvlNode(K, V);                                                                             \
+  RKI_TREE_CHECK_NODE_LAYOUT(RKI_AvlNode(K, V));                                                   \
   typedef struct Avl(K, V) {                                                                       \
     union {                                                                                        \
-      tree_data _tree;                                                                             \
-      struct {                                                                                     \
-        RK_IFALLOC(Allocator alloc;)                                                               \
-        size_t count;                                                                              \
-        RKI_AvlNode(K, V) * root;                                                                  \
-      };                                                                                           \
+      RKI_TreeData base;                                                                           \
+      RKI_AvlNode(K, V) * rki_node_type; /* Unevaluated type metadata only. */                     \
     };                                                                                             \
   } Avl(K, V);                                                                                     \
+  /* The only call site of the user's comparator: its parameters use reserved names, so a  */      \
+  /* comparator named like a local of the functions below (c, key, n, ...) is not shadowed. */     \
+  rklib_fun int RKI_AVL_PRI(K, V, cmp)(K rki_var_a, K rki_var_b) {                                 \
+    return CMP_FUN(rki_var_a, rki_var_b);                                                          \
+  }                                                                                                \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); avl_count()/avl_is_empty()/avl_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
@@ -910,37 +931,39 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   }                                                                                                \
   rklib_fun rk_pure int RKI_AVL_PRI(K, V, h)(RKI_AvlNode(K, V) * n) { return n ? n->height : 0; }  \
   rklib_fun void        RKI_AVL_PRI(K, V, fixh)(RKI_AvlNode(K, V) * n) {                           \
-    int a = RKI_AVL_PRI(K, V, h)(n->l), b = RKI_AVL_PRI(K, V, h)(n->r);                            \
+    int a = RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(n)), b = RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(n));   \
     n->height = 1 + (a > b ? a : b);                                                               \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotl)(RKI_AvlNode(K, V) * x) {                   \
-    RKI_AvlNode(K, V)* y = x->r;                                                                   \
-    x->r                 = y->l;                                                                   \
-    y->l                 = x;                                                                      \
+    RKI_AvlNode(K, V)* y = RKI_TREE_RIGHT(x);                                                      \
+    RKI_TREE_SET_RIGHT(x, RKI_TREE_LEFT(y));                                                       \
+    RKI_TREE_SET_LEFT(y, x);                                                                       \
     RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
     RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
     return y;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, rotr)(RKI_AvlNode(K, V) * y) {                   \
-    RKI_AvlNode(K, V)* x = y->l;                                                                   \
-    y->l                 = x->r;                                                                   \
-    x->r                 = y;                                                                      \
+    RKI_AvlNode(K, V)* x = RKI_TREE_LEFT(y);                                                       \
+    RKI_TREE_SET_LEFT(y, RKI_TREE_RIGHT(x));                                                       \
+    RKI_TREE_SET_RIGHT(x, y);                                                                      \
     RKI_AVL_PRI(K, V, fixh)(y);                                                                    \
     RKI_AVL_PRI(K, V, fixh)(x);                                                                    \
     return x;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V) * RKI_AVL_PRI(K, V, balance)(RKI_AvlNode(K, V) * n) {                \
     RKI_AVL_PRI(K, V, fixh)(n);                                                                    \
-    int bf = RKI_AVL_PRI(K, V, h)(n->l) - RKI_AVL_PRI(K, V, h)(n->r);                              \
+    int bf = RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(n)) - RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(n));     \
     if (bf > 1) {                                                                                  \
-      if (RKI_AVL_PRI(K, V, h)(n->l->l) < RKI_AVL_PRI(K, V, h)(n->l->r)) {                         \
-        n->l = RKI_AVL_PRI(K, V, rotl)(n->l);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(RKI_TREE_LEFT(n)))                                    \
+          < RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(RKI_TREE_LEFT(n)))) {                              \
+        RKI_TREE_SET_LEFT(n, RKI_AVL_PRI(K, V, rotl)(RKI_TREE_LEFT(n)));                           \
       }                                                                                            \
       return RKI_AVL_PRI(K, V, rotr)(n);                                                           \
     }                                                                                              \
     if (bf < -1) {                                                                                 \
-      if (RKI_AVL_PRI(K, V, h)(n->r->r) < RKI_AVL_PRI(K, V, h)(n->r->l)) {                         \
-        n->r = RKI_AVL_PRI(K, V, rotr)(n->r);                                                      \
+      if (RKI_AVL_PRI(K, V, h)(RKI_TREE_RIGHT(RKI_TREE_RIGHT(n)))                                  \
+          < RKI_AVL_PRI(K, V, h)(RKI_TREE_LEFT(RKI_TREE_RIGHT(n)))) {                              \
+        RKI_TREE_SET_RIGHT(n, RKI_AVL_PRI(K, V, rotr)(RKI_TREE_RIGHT(n)));                         \
       }                                                                                            \
       return RKI_AVL_PRI(K, V, rotl)(n);                                                           \
     }                                                                                              \
@@ -950,43 +973,46 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
       * RKI_AVL_PRI(K, V, put)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V val,              \
                                bool overwrite, V** out, bool* added) {                             \
     if (!n) {                                                                                      \
-      RKI_set_alloc_fallback(self->alloc);                                                         \
-      n    = alloc_new(RKI_AvlNode(K, V), 1 RK_IFALLOC(, self->alloc));                            \
-      n->l = n->r  = rk_null;                                                                      \
-      n->height    = 1;                                                                            \
-      n->entry_mod = (typeof(n->entry_mod)){.key = key, .val = val};                               \
-      *out         = &n->entry_mod.val;                                                            \
-      *added       = true;                                                                         \
+      RKI_set_alloc_fallback(self->base.alloc);                                                    \
+      n          = alloc_new(RKI_AvlNode(K, V), 1 RK_IFALLOC(, self->base.alloc));                 \
+      n->links.l = n->links.r = rk_null;                                                           \
+      n->height               = 1;                                                                 \
+      n->entry_mod            = (typeof(n->entry_mod)){.key = key, .val = val};                    \
+      *out                    = &n->entry_mod.val;                                                 \
+      *added                  = true;                                                              \
       return n;                                                                                    \
     }                                                                                              \
-    int c = CMP_FUN(key, n->entry.key);                                                            \
+    int c = RKI_AVL_PRI(K, V, cmp)(key, n->entry.key);                                             \
     if (!c) {                                                                                      \
       if (overwrite) { n->entry_mod.val = val; }                                                   \
       *out = &n->entry_mod.val;                                                                    \
       return n;                                                                                    \
     }                                                                                              \
     if (c < 0) {                                                                                   \
-      n->l = RKI_AVL_PRI(K, V, put)(self, n->l, key, val, overwrite, out, added);                  \
+      RKI_TREE_SET_LEFT(                                                                           \
+          n, RKI_AVL_PRI(K, V, put)(self, RKI_TREE_LEFT(n), key, val, overwrite, out, added));     \
     } else {                                                                                       \
-      n->r = RKI_AVL_PRI(K, V, put)(self, n->r, key, val, overwrite, out, added);                  \
+      RKI_TREE_SET_RIGHT(                                                                          \
+          n, RKI_AVL_PRI(K, V, put)(self, RKI_TREE_RIGHT(n), key, val, overwrite, out, added));    \
     }                                                                                              \
     return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
   rklib_fun rk_pure V* RKI_AVL_PUB(K, V, get)(Avl(K, V) * self, K key) {                           \
-    RKI_AvlNode(K, V)* n = self->root;                                                             \
+    RKI_AvlNode(K, V)* n = RKI_TREE_ROOT(self);                                                    \
     while (n) {                                                                                    \
-      int c = CMP_FUN(key, n->entry.key);                                                          \
+      int c = RKI_AVL_PRI(K, V, cmp)(key, n->entry.key);                                           \
       if (!c) { return &n->entry_mod.val; }                                                        \
-      n = c < 0 ? n->l : n->r;                                                                     \
+      n = c < 0 ? RKI_TREE_LEFT(n) : RKI_TREE_RIGHT(n);                                            \
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
   rklib_fun V* RKI_AVL_PRI(K, V, setadd)(Avl(K, V) * self, K key, V val, bool overwrite,           \
                                          bool* added) {                                            \
-    V* out     = rk_null;                                                                          \
-    *added     = false;                                                                            \
-    self->root = RKI_AVL_PRI(K, V, put)(self, self->root, key, val, overwrite, &out, added);       \
-    if (*added) { ++self->count; }                                                                 \
+    V* out = rk_null;                                                                              \
+    *added = false;                                                                                \
+    RKI_TREE_SET_ROOT(self, RKI_AVL_PRI(K, V, put)(self, RKI_TREE_ROOT(self), key, val, overwrite, \
+                                                   &out, added));                                  \
+    if (*added) { ++self->base.count; }                                                            \
     return out;                                                                                    \
   }                                                                                                \
   rklib_fun bool RKI_AVL_PUB(K, V, set)(Avl(K, V) * self, K key, V val) {                          \
@@ -1007,35 +1033,35 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V)                                                                      \
       * RKI_AVL_PRI(K, V, detach_min)(RKI_AvlNode(K, V) * n, RKI_AvlNode(K, V) * *out) {           \
-    if (!n->l) {                                                                                   \
+    if (!RKI_TREE_LEFT(n)) {                                                                       \
       *out = n;                                                                                    \
-      return n->r;                                                                                 \
+      return RKI_TREE_RIGHT(n);                                                                    \
     }                                                                                              \
-    n->l = RKI_AVL_PRI(K, V, detach_min)(n->l, out);                                               \
+    RKI_TREE_SET_LEFT(n, RKI_AVL_PRI(K, V, detach_min)(RKI_TREE_LEFT(n), out));                    \
     return RKI_AVL_PRI(K, V, balance)(n);                                                          \
   }                                                                                                \
   rklib_fun RKI_AvlNode(K, V)                                                                      \
       * RKI_AVL_PRI(K, V, erase)(Avl(K, V) * self, RKI_AvlNode(K, V) * n, K key, V * out,          \
                                  bool* removed) {                                                  \
     if (!n) return rk_null;                                                                        \
-    int c = CMP_FUN(key, n->entry.key);                                                            \
+    int c = RKI_AVL_PRI(K, V, cmp)(key, n->entry.key);                                             \
     if (c < 0) {                                                                                   \
-      n->l = RKI_AVL_PRI(K, V, erase)(self, n->l, key, out, removed);                              \
+      RKI_TREE_SET_LEFT(n, RKI_AVL_PRI(K, V, erase)(self, RKI_TREE_LEFT(n), key, out, removed));   \
     } else if (c > 0) {                                                                            \
-      n->r = RKI_AVL_PRI(K, V, erase)(self, n->r, key, out, removed);                              \
+      RKI_TREE_SET_RIGHT(n, RKI_AVL_PRI(K, V, erase)(self, RKI_TREE_RIGHT(n), key, out, removed)); \
     } else {                                                                                       \
       *out                 = n->entry_mod.val;                                                     \
       *removed             = true;                                                                 \
-      RKI_AvlNode(K, V)* l = n->l, *r = n->r;                                                      \
+      RKI_AvlNode(K, V)* l = RKI_TREE_LEFT(n), *r = RKI_TREE_RIGHT(n);                             \
       if (!r) {                                                                                    \
-        alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                              \
+        alloc_delete(n, 1 RK_IFALLOC(, self->base.alloc));                                         \
         return l;                                                                                  \
       }                                                                                            \
       RKI_AvlNode(K, V) * m;                                                                       \
-      r    = RKI_AVL_PRI(K, V, detach_min)(r, &m);                                                 \
-      m->l = l;                                                                                    \
-      m->r = r;                                                                                    \
-      alloc_delete(n, 1 RK_IFALLOC(, self->alloc));                                                \
+      r = RKI_AVL_PRI(K, V, detach_min)(r, &m);                                                    \
+      RKI_TREE_SET_LEFT(m, l);                                                                     \
+      RKI_TREE_SET_RIGHT(m, r);                                                                    \
+      alloc_delete(n, 1 RK_IFALLOC(, self->base.alloc));                                           \
       return RKI_AVL_PRI(K, V, balance)(m);                                                        \
     }                                                                                              \
     return *removed ? RKI_AVL_PRI(K, V, balance)(n) : n;                                           \
@@ -1043,8 +1069,9 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   rklib_fun bool RKI_AVL_PUB(K, V, extract)(Avl(K, V) * self, K key, V * out) {                    \
     rk_assert_ptr_nonnull(out);                                                                    \
     bool removed = false;                                                                          \
-    self->root   = RKI_AVL_PRI(K, V, erase)(self, self->root, key, out, &removed);                 \
-    if (removed) { --self->count; }                                                                \
+    RKI_TREE_SET_ROOT(self,                                                                        \
+                      RKI_AVL_PRI(K, V, erase)(self, RKI_TREE_ROOT(self), key, out, &removed));    \
+    if (removed) { --self->base.count; }                                                           \
     return removed;                                                                                \
   }                                                                                                \
   rklib_fun bool RKI_AVL_PUB(K, V, remove)(Avl(K, V) * self, K key) {                              \
@@ -1055,7 +1082,8 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){RK_IFALLOC(.alloc = A, ).count = 0})
+#define RKI_RBT_INIT(K, V, A)                                                                      \
+  ((Rbt(K, V)){.base = {RK_IFALLOC(.alloc = A, ).count = 0, .root = rk_null}})
 #define RKI_RBT_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_RBT_INIT(K, V, A))
 #define RKI_RBT_INIT2(K, V)      RKI_RBT_INIT(K, V, alloc_ctx)
 
@@ -1076,23 +1104,25 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
     V val;                                                                                         \
   } RKI_RBT_PRI(K, V, E);                                                                          \
   typedef struct RKI_RbtNode(K, V) {                                                               \
-    struct RKI_RbtNode(K, V) * l, *r;                                                              \
-    bool red;                                                                                      \
+    TreeNode links;                                                                                \
+    bool     red;                                                                                  \
     union {                                                                                        \
       RKI_RBT_PRI(K, V, E) entry_mod;                                                              \
       RbtEntry(K, V) entry;                                                                        \
     };                                                                                             \
   } RKI_RbtNode(K, V);                                                                             \
+  RKI_TREE_CHECK_NODE_LAYOUT(RKI_RbtNode(K, V));                                                   \
   typedef struct Rbt(K, V) {                                                                       \
     union {                                                                                        \
-      tree_data _tree;                                                                             \
-      struct {                                                                                     \
-        RK_IFALLOC(Allocator alloc;)                                                               \
-        size_t count;                                                                              \
-        RKI_RbtNode(K, V) * root;                                                                  \
-      };                                                                                           \
+      RKI_TreeData base;                                                                           \
+      RKI_RbtNode(K, V) * rki_node_type; /* Unevaluated type metadata only. */                     \
     };                                                                                             \
   } Rbt(K, V);                                                                                     \
+  /* The only call site of the user's comparator: its parameters use reserved names, so a  */      \
+  /* comparator named like a local of the functions below (c, key, n, ...) is not shadowed. */     \
+  rklib_fun int RKI_RBT_PRI(K, V, cmp)(K rki_var_a, K rki_var_b) {                                 \
+    return CMP(rki_var_a, rki_var_b);                                                              \
+  }                                                                                                \
   /* Real, typed functions purely for discoverability/direct use (IDE completion, taking their  */ \
   /* address, cross-container generic dispatch); rbt_count()/rbt_is_empty()/rbt_allocator() */     \
   /* remain the untyped macros meant for everyday use. */                                          \
@@ -1107,48 +1137,49 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   }                                                                                                \
   rklib_fun rk_pure bool RKI_RBT_PRI(K, V, red)(RKI_RbtNode(K, V) * n) { return n && n->red; }     \
   rklib_fun              RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rl)(RKI_RbtNode(K, V) * h) {        \
-    RKI_RbtNode(K, V)* x = h->r;                                                                   \
-    h->r                 = x->l;                                                                   \
-    x->l                 = h;                                                                      \
-    x->red               = h->red;                                                                 \
-    h->red               = true;                                                                   \
+    RKI_RbtNode(K, V)* x = RKI_TREE_RIGHT(h);                                                      \
+    RKI_TREE_SET_RIGHT(h, RKI_TREE_LEFT(x));                                                       \
+    RKI_TREE_SET_LEFT(x, h);                                                                       \
+    x->red = h->red;                                                                               \
+    h->red = true;                                                                                 \
     return x;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, rr)(RKI_RbtNode(K, V) * h) {                     \
-    RKI_RbtNode(K, V)* x = h->l;                                                                   \
-    h->l                 = x->r;                                                                   \
-    x->r                 = h;                                                                      \
-    x->red               = h->red;                                                                 \
-    h->red               = true;                                                                   \
+    RKI_RbtNode(K, V)* x = RKI_TREE_LEFT(h);                                                       \
+    RKI_TREE_SET_LEFT(h, RKI_TREE_RIGHT(x));                                                       \
+    RKI_TREE_SET_RIGHT(x, h);                                                                      \
+    x->red = h->red;                                                                               \
+    h->red = true;                                                                                 \
     return x;                                                                                      \
   }                                                                                                \
   rklib_fun void RKI_RBT_PRI(K, V, flip)(RKI_RbtNode(K, V) * h) {                                  \
-    h->red    = !h->red;                                                                           \
-    h->l->red = !h->l->red;                                                                        \
-    h->r->red = !h->r->red;                                                                        \
+    h->red                 = !h->red;                                                              \
+    RKI_TREE_LEFT(h)->red  = !RKI_TREE_LEFT(h)->red;                                               \
+    RKI_TREE_RIGHT(h)->red = !RKI_TREE_RIGHT(h)->red;                                              \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, fix)(RKI_RbtNode(K, V) * h) {                    \
-    if (RKI_RBT_PRI(K, V, red)(h->r)) { h = RKI_RBT_PRI(K, V, rl)(h); }                            \
-    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->l->l)) {                         \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(h))) { h = RKI_RBT_PRI(K, V, rl)(h); }               \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))                                                   \
+        && RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                              \
       h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
     }                                                                                              \
-    if (RKI_RBT_PRI(K, V, red)(h->l) && RKI_RBT_PRI(K, V, red)(h->r)) {                            \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h)) && RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(h))) {   \
       RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, ml)(RKI_RbtNode(K, V) * h) {                     \
     RKI_RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RKI_RBT_PRI(K, V, red)(h->r->l)) {                                                         \
-      h->r = RKI_RBT_PRI(K, V, rr)(h->r);                                                          \
-      h    = RKI_RBT_PRI(K, V, rl)(h);                                                             \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_RIGHT(h)))) {                                \
+      RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, rr)(RKI_TREE_RIGHT(h)));                             \
+      h = RKI_RBT_PRI(K, V, rl)(h);                                                                \
       RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
     return h;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mr)(RKI_RbtNode(K, V) * h) {                     \
     RKI_RBT_PRI(K, V, flip)(h);                                                                    \
-    if (RKI_RBT_PRI(K, V, red)(h->l->l)) {                                                         \
+    if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                                 \
       h = RKI_RBT_PRI(K, V, rr)(h);                                                                \
       RKI_RBT_PRI(K, V, flip)(h);                                                                  \
     }                                                                                              \
@@ -1158,20 +1189,20 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
       * RKI_RBT_PRI(K, V, put)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V v, bool ow, V** out,   \
                                bool* added) {                                                      \
     if (!h) {                                                                                      \
-      RKI_set_alloc_fallback(s->alloc);                                                            \
-      h    = alloc_new(RKI_RbtNode(K, V), 1 RK_IFALLOC(, s->alloc));                               \
-      h->l = h->r  = rk_null;                                                                      \
-      h->red       = true;                                                                         \
-      h->entry_mod = (typeof(h->entry_mod)){.key = k, .val = v};                                   \
-      *out         = &h->entry_mod.val;                                                            \
-      *added       = true;                                                                         \
+      RKI_set_alloc_fallback(s->base.alloc);                                                       \
+      h          = alloc_new(RKI_RbtNode(K, V), 1 RK_IFALLOC(, s->base.alloc));                    \
+      h->links.l = h->links.r = rk_null;                                                           \
+      h->red                  = true;                                                              \
+      h->entry_mod            = (typeof(h->entry_mod)){.key = k, .val = v};                        \
+      *out                    = &h->entry_mod.val;                                                 \
+      *added                  = true;                                                              \
       return h;                                                                                    \
     }                                                                                              \
-    int c = CMP(k, h->entry.key);                                                                  \
+    int c = RKI_RBT_PRI(K, V, cmp)(k, h->entry.key);                                               \
     if (c < 0) {                                                                                   \
-      h->l = RKI_RBT_PRI(K, V, put)(s, h->l, k, v, ow, out, added);                                \
+      RKI_TREE_SET_LEFT(h, RKI_RBT_PRI(K, V, put)(s, RKI_TREE_LEFT(h), k, v, ow, out, added));     \
     } else if (c > 0) {                                                                            \
-      h->r = RKI_RBT_PRI(K, V, put)(s, h->r, k, v, ow, out, added);                                \
+      RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, put)(s, RKI_TREE_RIGHT(h), k, v, ow, out, added));   \
     } else {                                                                                       \
       if (ow) { h->entry_mod.val = v; }                                                            \
       *out = &h->entry_mod.val;                                                                    \
@@ -1179,20 +1210,20 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
     return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
   rklib_fun rk_pure V* RKI_RBT_PUB(K, V, get)(Rbt(K, V) * s, K k) {                                \
-    RKI_RbtNode(K, V)* n = s->root;                                                                \
+    RKI_RbtNode(K, V)* n = RKI_TREE_ROOT(s);                                                       \
     while (n) {                                                                                    \
-      int c = CMP(k, n->entry.key);                                                                \
+      int c = RKI_RBT_PRI(K, V, cmp)(k, n->entry.key);                                             \
       if (!c) { return &n->entry_mod.val; }                                                        \
-      n = c < 0 ? n->l : n->r;                                                                     \
+      n = c < 0 ? RKI_TREE_LEFT(n) : RKI_TREE_RIGHT(n);                                            \
     }                                                                                              \
     return rk_null;                                                                                \
   }                                                                                                \
   rklib_fun V* RKI_RBT_PRI(K, V, insert)(Rbt(K, V) * s, K k, V v, bool ow, bool* added) {          \
-    V* out       = rk_null;                                                                        \
-    *added       = false;                                                                          \
-    s->root      = RKI_RBT_PRI(K, V, put)(s, s->root, k, v, ow, &out, added);                      \
-    s->root->red = false;                                                                          \
-    if (*added) { ++s->count; }                                                                    \
+    V* out = rk_null;                                                                              \
+    *added = false;                                                                                \
+    RKI_TREE_SET_ROOT(s, RKI_RBT_PRI(K, V, put)(s, RKI_TREE_ROOT(s), k, v, ow, &out, added));      \
+    RKI_TREE_ROOT(s)->red = false;                                                                 \
+    if (*added) { ++s->base.count; }                                                               \
     return out;                                                                                    \
   }                                                                                                \
   rklib_fun bool RKI_RBT_PUB(K, V, set)(Rbt(K, V) * s, K k, V v) {                                 \
@@ -1211,51 +1242,54 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
     return RKI_RBT_PRI(K, V, insert)(s, k, v, false, inserted_out ? inserted_out : &ignored);      \
   }                                                                                                \
   rklib_fun rk_pure RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, mn)(RKI_RbtNode(K, V) * h) {             \
-    while (h->l) { h = h->l; }                                                                     \
+    while (RKI_TREE_LEFT(h)) { h = RKI_TREE_LEFT(h); }                                             \
     return h;                                                                                      \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V) * RKI_RBT_PRI(K, V, dm)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h) {      \
-    if (!h->l) {                                                                                   \
-      alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                   \
+    if (!RKI_TREE_LEFT(h)) {                                                                       \
+      alloc_delete(h, 1 RK_IFALLOC(, s->base.alloc));                                              \
       return rk_null;                                                                              \
     }                                                                                              \
-    if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                       \
+    if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))                                                  \
+        && !RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                             \
       h = RKI_RBT_PRI(K, V, ml)(h);                                                                \
     }                                                                                              \
-    h->l = RKI_RBT_PRI(K, V, dm)(s, h->l);                                                         \
+    RKI_TREE_SET_LEFT(h, RKI_RBT_PRI(K, V, dm)(s, RKI_TREE_LEFT(h)));                              \
     return RKI_RBT_PRI(K, V, fix)(h);                                                              \
   }                                                                                                \
   rklib_fun RKI_RbtNode(K, V)                                                                      \
       * RKI_RBT_PRI(K, V, del)(Rbt(K, V) * s, RKI_RbtNode(K, V) * h, K k, V * out, bool* gone) {   \
-    if (CMP(k, h->entry.key) < 0) {                                                                \
-      if (h->l) {                                                                                  \
-        if (!RKI_RBT_PRI(K, V, red)(h->l) && !RKI_RBT_PRI(K, V, red)(h->l->l)) {                   \
+    if (RKI_RBT_PRI(K, V, cmp)(k, h->entry.key) < 0) {                                             \
+      if (RKI_TREE_LEFT(h)) {                                                                      \
+        if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))                                              \
+            && !RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_LEFT(h)))) {                         \
           h = RKI_RBT_PRI(K, V, ml)(h);                                                            \
         }                                                                                          \
-        h->l = RKI_RBT_PRI(K, V, del)(s, h->l, k, out, gone);                                      \
+        RKI_TREE_SET_LEFT(h, RKI_RBT_PRI(K, V, del)(s, RKI_TREE_LEFT(h), k, out, gone));           \
       }                                                                                            \
     } else {                                                                                       \
-      if (RKI_RBT_PRI(K, V, red)(h->l)) { h = RKI_RBT_PRI(K, V, rr)(h); }                          \
-      int c = CMP(k, h->entry.key);                                                                \
-      if (!c && !h->r) {                                                                           \
+      if (RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(h))) { h = RKI_RBT_PRI(K, V, rr)(h); }              \
+      int c = RKI_RBT_PRI(K, V, cmp)(k, h->entry.key);                                             \
+      if (!c && !RKI_TREE_RIGHT(h)) {                                                              \
         *out  = h->entry_mod.val;                                                                  \
         *gone = true;                                                                              \
-        alloc_delete(h, 1 RK_IFALLOC(, s->alloc));                                                 \
+        alloc_delete(h, 1 RK_IFALLOC(, s->base.alloc));                                            \
         return rk_null;                                                                            \
       }                                                                                            \
-      if (h->r) {                                                                                  \
-        if (!RKI_RBT_PRI(K, V, red)(h->r) && !RKI_RBT_PRI(K, V, red)(h->r->l)) {                   \
+      if (RKI_TREE_RIGHT(h)) {                                                                     \
+        if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(h))                                             \
+            && !RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_RIGHT(h)))) {                        \
           h = RKI_RBT_PRI(K, V, mr)(h);                                                            \
         }                                                                                          \
-        c = CMP(k, h->entry.key);                                                                  \
+        c = RKI_RBT_PRI(K, V, cmp)(k, h->entry.key);                                               \
         if (!c) {                                                                                  \
-          RKI_RbtNode(K, V)* m = RKI_RBT_PRI(K, V, mn)(h->r);                                      \
+          RKI_RbtNode(K, V)* m = RKI_RBT_PRI(K, V, mn)(RKI_TREE_RIGHT(h));                         \
           *out                 = h->entry_mod.val;                                                 \
           *gone                = true;                                                             \
           h->entry_mod         = m->entry_mod;                                                     \
-          h->r                 = RKI_RBT_PRI(K, V, dm)(s, h->r);                                   \
+          RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, dm)(s, RKI_TREE_RIGHT(h)));                      \
         } else {                                                                                   \
-          h->r = RKI_RBT_PRI(K, V, del)(s, h->r, k, out, gone);                                    \
+          RKI_TREE_SET_RIGHT(h, RKI_RBT_PRI(K, V, del)(s, RKI_TREE_RIGHT(h), k, out, gone));       \
         }                                                                                          \
       }                                                                                            \
     }                                                                                              \
@@ -1263,14 +1297,15 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   }                                                                                                \
   rklib_fun bool RKI_RBT_PUB(K, V, extract)(Rbt(K, V) * s, K k, V * out) {                         \
     rk_assert_ptr_nonnull(out);                                                                    \
-    if (!s->root || !RKI_RBT_PUB(K, V, get)(s, k)) { return false; }                               \
+    if (!RKI_TREE_ROOT(s) || !RKI_RBT_PUB(K, V, get)(s, k)) { return false; }                      \
     bool gone = false;                                                                             \
-    if (!RKI_RBT_PRI(K, V, red)(s->root->l) && !RKI_RBT_PRI(K, V, red)(s->root->r)) {              \
-      s->root->red = true;                                                                         \
+    if (!RKI_RBT_PRI(K, V, red)(RKI_TREE_LEFT(RKI_TREE_ROOT(s)))                                   \
+        && !RKI_RBT_PRI(K, V, red)(RKI_TREE_RIGHT(RKI_TREE_ROOT(s)))) {                            \
+      RKI_TREE_ROOT(s)->red = true;                                                                \
     }                                                                                              \
-    s->root = RKI_RBT_PRI(K, V, del)(s, s->root, k, out, &gone);                                   \
-    if (s->root) { s->root->red = false; }                                                         \
-    if (gone) { --s->count; }                                                                      \
+    RKI_TREE_SET_ROOT(s, RKI_RBT_PRI(K, V, del)(s, RKI_TREE_ROOT(s), k, out, &gone));              \
+    if (RKI_TREE_ROOT(s)) { RKI_TREE_ROOT(s)->red = false; }                                       \
+    if (gone) { --s->base.count; }                                                                 \
     return gone;                                                                                   \
   }                                                                                                \
   rklib_fun bool RKI_RBT_PUB(K, V, remove)(Rbt(K, V) * s, K k) {                                   \

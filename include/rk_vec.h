@@ -25,6 +25,13 @@
 /// (e.g., `Vec(int) v = NULL; vec_push(v, 5)` initializes the Vec and adds the element 5). Once
 /// initialized, vecs maintain the invariant that capacity is always >= length.
 ///
+/// Allocator binding: the constructors (`vec_init()`, `vec_from()`, `vec_init_list()`) always
+/// return a non-NULL Vec bound to the given allocator (default `alloc_ctx`), even for a capacity or
+/// count of 0. A non-NULL Vec always has capacity >= 1: a requested capacity of 0 is rounded up to
+/// 1, and shrinking an empty Vec keeps one slot. `NULL` means never constructed, or released by
+/// `vec_release()`; such a Vec grows lazily from the current `alloc_ctx`. Use `Vec(T) v = NULL`
+/// for an empty Vec that performs no allocation.
+///
 /// Features:
 /// - Automatic resizing and capacity management
 /// - Optional custom allocator support
@@ -61,18 +68,18 @@ RKI_HEADER_BEGIN
 /// @brief `Vec(T) vec_init(T, size_t cap, Allocator alloc = alloc_ctx)`
 /// - Initialises a Vec from an initial capacity and an optional Allocator.
 /// @param T           The desired type of the Vec's elements
-/// @param init_cap    The initial capacity of the Vec (in elements)
+/// @param init_cap    The initial capacity of the Vec (in elements); 0 is rounded up to 1.
 /// @param allocator   Optional allocator; defaults to `alloc_ctx`.
-/// @return Vec(T) the vec
-/// @note Zero-Capacity vecs are always uninitialised
+/// @return A non-NULL, empty Vec bound to `allocator`.
+/// @note Always allocates, so the allocator stays bound even for a capacity of 0. For an empty Vec
+/// without any allocation, use `Vec(T) v = NULL` instead; it grows from `alloc_ctx`.
 ///
 /// Usage:
 /// ```c
-/// Vec(int) v1  = vec_init(int, 10);           // create an int-Vec with 10 cap
-///                                                using alloc_ctx
-/// Vec(int) v2 = vec_init(int, 2, my_alloc);   // creates an int Vec with 2 cap
-///                                             // using my_alloc as allocator
-/// Vec(int) v3 = vec_init(int, 0);             // does nothing (0 cap)
+/// Vec(int) v1 = vec_init(int, 10);            // int Vec with capacity 10, using alloc_ctx
+/// Vec(int) v2 = vec_init(int, 2, my_alloc);   // int Vec with capacity 2, using my_alloc
+/// Vec(int) v3 = vec_init(int, 0, my_alloc);   // capacity 1; later growth still uses my_alloc
+/// Vec(int) v4 = NULL;                         // no allocation; grows from alloc_ctx
 /// ```
 #define vec_init(T, init_cap, ...)                                                                 \
   ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
@@ -106,7 +113,8 @@ RKI_HEADER_BEGIN
 /// type (via `typeof(*arr)`)
 /// @param count Number of elements to copy
 /// @param alloc Allocator Optional, defaults to `alloc_ctx`
-/// @return A Vec containing a copy of `arr`'s first `count` elements, or `NULL` if `count == 0`
+/// @return A non-NULL Vec bound to `alloc`, containing a copy of `arr`'s first `count` elements.
+/// For `count == 0` it is empty with capacity 1, and `arr` is not accessed (it may be NULL).
 /// @note To clone an existing Vec while preserving its own allocator, pass it directly along with
 /// its own count/allocator: `vec_from(v, vec_count(v), vec_allocator(v))`. Unlike a Vec, a plain
 /// array has no allocator of its own to default to, so `vec_from()` always defaults to `alloc_ctx`
@@ -123,6 +131,9 @@ RKI_HEADER_BEGIN
 
 /// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
 /// NULL.
+/// @note The allocator binding is released too: if the Vec is used again, it grows from the current
+/// `alloc_ctx`. This is the only operation that returns a constructed Vec to NULL. Safe to call on
+/// a NULL Vec.
 #define vec_release(self) ((void)RKI_VEC_RELEASE(self))
 
 /// @brief Returns the number of elements in the vec, 0 if `self` is NULL.
@@ -174,14 +185,16 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// two greater than or equal to its length (matching `str_shrink_to_fit()`'s convention), leaving
 /// some slack to reduce reallocation on subsequent growth.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
+/// @note Reassigns `self`, if necessary. An empty Vec shrinks to capacity 1 rather than being
+/// deallocated, so it keeps its allocator; use `vec_release()` to free it entirely.
 /// @note Use `vec_shrink_to_fit_exact()` for an exact-capacity shrink.
 #define vec_shrink_to_fit(self)       ((void)RKI_VEC_SHRINK_TO_FIT(self))
 
 /// @brief `void vec_shrink_to_fit_exact(Vec(T)& self)` - Shrinks the Vec's capacity to be exactly
-/// equal to its length.
+/// equal to its length, or 1 if it is empty.
 /// @attention **Arguments with side effects are not safe in vec_ macros**
-/// @note Reassigns `self`, if necessary; deallocates the Vec if it is empty.
+/// @note Reassigns `self`, if necessary. An empty Vec keeps one slot rather than being
+/// deallocated, so it keeps its allocator; use `vec_release()` to free it entirely.
 #define vec_shrink_to_fit_exact(self) ((void)RKI_VEC_SHRINK_TO_FIT_EXACT(self))
 
 /// @brief `void vec_assign(Vec(T)& self, T* arr, size_t count)` - Assigns `count` objects of `arr`
@@ -504,8 +517,12 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
   ((typeof(T)*)(void*)(rki_vec_init(cap, offsetof(RKI_VecHdr, data) + sizeof_n(T, cap),            \
                                     count RK_IFALLOC(, alloc))                                     \
                            ->data))
+// Invariant: a non-NULL Vec always has capacity >= 1, so growth by doubling never needs a zero
+// check. Constructors round a requested capacity of 0 up to 1 (keeping the allocator bound to the
+// Vec), and shrinking an empty Vec keeps one slot; only vec_release() returns a Vec to NULL.
+rklib_fun rk_const rk_forceinline size_t rki_vec_cap_min1(size_t cap) { return cap ? cap : 1; }
 #define RKI_VEC_NEW(T, cap, count, alloc)                                                          \
-  ((cap) ? RKI_VEC_NEW_NONZERO(T, cap, count, alloc) : rk_null)
+  RKI_VEC_NEW_NONZERO(T, rki_vec_cap_min1(cap), count, alloc)
 
 // initialises a Vec with positive cap (no cap 0 check) and assigns it to V
 #define RKI_VEC_INIT_ASSIGN_NONZERO(V, C, A) ((V) = RKI_VEC_NEW_NONZERO(*(V), (C), 0, (A)))
@@ -515,7 +532,7 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
 #define RKI_VEC_INIT2(T, C)                  RKI_VEC_INIT(T, C, alloc_ctx)
 
 #define RKI_VEC_FROM(arr, count, alloc)                                                            \
-  ((count) ? rk_copy(RKI_VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count)) : rk_null)
+  rk_copy(RKI_VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count))
 #define RKI_VEC_FROM3(arr, count, alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_FROM(arr, count, alloc))
 #define RKI_VEC_FROM2(arr, count) RKI_VEC_FROM(arr, count, alloc_ctx)
@@ -546,15 +563,15 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
 
 #define RKI_VEC_RESIZE(V, C) (RKI_VEC_RESERVE(V, C), (V) && (RKI_VEC_COUNT(V) = (C)))
 
+// Shrinking never releases: an empty Vec keeps one slot, preserving its allocator and the
+// capacity >= 1 invariant. stdc_bit_ceil(0) is 1, so SHRINK_TO_FIT needs no special case.
 #define RKI_VEC_SHRINK_TO_FIT_EXACT(V)                                                             \
-  ((V) && RKI_VEC_COUNT(V) < RKI_VEC_CAP(V)                                                        \
-   && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, RKI_VEC_COUNT(V))                                  \
-                        : (vec_release(V), (V) = rk_null)))
+  ((V) && rki_vec_cap_min1(RKI_VEC_COUNT(V)) < RKI_VEC_CAP(V)                                      \
+   && RKI_VEC_CHANGE_CAP(V, rki_vec_cap_min1(RKI_VEC_COUNT(V))))
 
 #define RKI_VEC_SHRINK_TO_FIT(V)                                                                   \
-  ((V) && (RKI_VEC_COUNT(V) ? stdc_bit_ceil(RKI_VEC_COUNT(V)) : 0) < RKI_VEC_CAP(V)                \
-   && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, stdc_bit_ceil(RKI_VEC_COUNT(V)))                   \
-                        : (vec_release(V), (V) = rk_null)))
+  ((V) && stdc_bit_ceil(RKI_VEC_COUNT(V)) < RKI_VEC_CAP(V)                                         \
+   && RKI_VEC_CHANGE_CAP(V, stdc_bit_ceil(RKI_VEC_COUNT(V))))
 
 #define RKI_VEC_PUSH_U(V, O)      ((V)[RKI_VEC_COUNT(rki_check_vec_push_u(V))++] = (O))
 #define RKI_VEC_PUSH(V, O)        (RKI_VEC_RESERVE_1(V), RKI_VEC_PUSH_U(V, O))

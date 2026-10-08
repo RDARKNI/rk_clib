@@ -232,6 +232,45 @@ triax_test(string, str_allocator) {
   }
 }
 
+triax_test(string, clone_zero_initialized) {
+  Str empty = {0};
+  Str copy = str_from(empty);
+  triax_expect_eq(copy.len, 0u);
+  triax_expect_true(str_is_null_terminated(&copy));
+  RK_IFALLOC(triax_expect_memeq((Allocator[]){str_allocator(&copy)}, &alloc_ctx, sizeof(alloc_ctx));)
+  str_release(&copy);
+}
+
+triax_test(string, mayalias_terminator) {
+  for (int grow = 0; grow < 2; ++grow) {
+    Str appended = str_from("a");
+    if (!grow) { str_reserve(&appended, 8); }
+    Strv terminator = {appended.str + appended.len, 1};
+    str_cat_mayalias(&appended, terminator);
+    triax_expect_eq(appended.len, 2u);
+    triax_expect_memeq(appended.str, "a\0", 3);
+    str_release(&appended);
+
+    Str inserted = str_from("a");
+    if (!grow) { str_reserve(&inserted, 8); }
+    terminator = (Strv){inserted.str + inserted.len, 1};
+    str_insert_at_mayalias(&inserted, 0, terminator);
+    triax_expect_eq(inserted.len, 2u);
+    triax_expect_memeq(inserted.str, "\0a", 3);
+    str_release(&inserted);
+  }
+}
+
+triax_test(string, mayalias_append_overlapping_view) {
+  Str s = str_from("ab");
+  str_reserve(&s, 16);
+  Strv including_terminator = {s.str, s.len + 1};
+  str_cat_mayalias(&s, including_terminator);
+  triax_expect_eq(s.len, 5u);
+  triax_expect_memeq(s.str, "abab\0", 6);
+  str_release(&s);
+}
+
 triax_test(string, str_clone_and_assign) {
   Str s  = str_from_literal("abc");
   Str s2 = str_from(s);

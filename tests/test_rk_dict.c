@@ -365,10 +365,11 @@ triax_test(dict, foreach_key_break_stops_iteration) {
   dict_set(int, cstr, &d, 3, "three");
 
   int visits = 0;
+  // Data-dependent break (every key is positive), as in the other containers' break tests: an
+  // unconditional one makes the loop's increment unreachable, which MSVC /W4 reports as C4702.
   dict_foreach_key(&d, k) {
-    (void)k;
     ++visits;
-    break;
+    if (*k > 0) { break; }
   }
   triax_expect_eq(visits, 1);
 
@@ -403,10 +404,10 @@ triax_test(dict, foreach_val_break_stops_iteration) {
   dict_set(int, cstr, &d, 3, "three");
 
   int visits = 0;
+  // Data-dependent break (every value is non-null); see foreach_key_break_stops_iteration.
   dict_foreach_val(&d, v) {
-    (void)v;
     ++visits;
-    break;
+    if (*v) { break; }
   }
   triax_expect_eq(visits, 1);
 
@@ -957,10 +958,10 @@ triax_test(set, foreach_break_stops_iteration) {
   set_add(int, &s, 3);
 
   int visits = 0;
+  // Data-dependent break (every member is positive); see dict foreach_key_break_stops_iteration.
   set_foreach(&s, k) {
-    (void)k;
     ++visits;
-    break;
+    if (*k > 0) { break; }
   }
   triax_expect_eq(visits, 1);
 

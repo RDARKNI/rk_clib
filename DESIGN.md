@@ -224,6 +224,8 @@ This matters for correctness as well as configurability. Memory must be released
 
 `alloc_ctx` exists only as a construction-time default. APIs that omit an explicit allocator use its current value, after which the created object owns a copy of that allocator handle. Changing `alloc_ctx` affects future constructions, not existing objects.
 
+The rule is uniform across containers: a constructor (`*_init`, `*_from`) binds an allocator whether or not one is passed explicitly and regardless of the requested capacity, while a zero-initialized container (`= {0}`, or `= NULL` for a `Vec`) is unbound and grows lazily from the current `alloc_ctx`. `Vec` keeps its allocator in a header in front of the elements, so it must always allocate to stay bound: its constructors round a capacity of 0 up to 1, and shrinking an empty `Vec` keeps one slot. A non-NULL `Vec` therefore always has capacity ≥ 1, which also lets growth-by-doubling run without a zero check. `vec_release()` is the one operation that returns a `Vec` to the unbound NULL state.
+
 When `RK_ALLOC_MULTITHREADED` is enabled, `alloc_ctx` is thread-local. This allows different threads to establish different default allocation strategies without threading an allocator argument through every construction call, while explicit allocator arguments remain available where allocation policy should be visible at the call site.
 
 This is a deliberate compromise between two extremes:
@@ -406,7 +408,7 @@ This header uses local ad-hoc polymorphism where it improves ergonomics without 
 ### `rk_trees.h` — BST, AVL, and left-leaning red-black trees
 The three tree variants expose parallel typed APIs but share the parts that do not depend on balancing strategy.
 
-Concrete node types contain typed entries and variant-specific metadata. A small type-erased `tree_node` prefix represents only left/right links, allowing release, min/max lookup, and in-order traversal machinery to be shared safely across variants.
+Concrete node types contain typed entries and variant-specific metadata. A small type-erased `TreeNode` prefix represents only left/right links, allowing release, min/max lookup, and in-order traversal machinery to be shared safely across variants.
 
 Comparators are bound at specialization time, keeping search and rotation code fully typed. The three structures then differ only where balancing actually matters:
 

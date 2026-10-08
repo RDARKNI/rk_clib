@@ -229,7 +229,6 @@
 #endif
 
 /// @}
-
 #endif // RK_CONFIG_H
 
 // MIT License

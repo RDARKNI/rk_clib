@@ -88,10 +88,13 @@ triax_test(vec, vec_from) {
     vec_release(v);
   }
 
-  // count == 0 yields an empty (NULL) Vec, without touching arr
+  // count == 0 yields an empty, non-NULL Vec with capacity 1, without touching arr
   {
     Vec(int) v = vec_from((int*)rk_null, 0);
-    triax_expect_null(v);
+    triax_expect_nonnull(v);
+    triax_expect_eq(vec_count(v), 0u);
+    triax_expect_eq(vec_cap(v), 1u);
+    vec_release(v);
   }
 
   // constructing from a plain array with an explicit allocator
@@ -693,7 +696,9 @@ triax_test(vec, vec_shrink_to_fit_empty) {
   Vec(int) v = vec_init(int, 16);
   triax_expect_eq(vec_count(v), 0u);
   vec_shrink_to_fit(v);
-  triax_expect_null(v); // empty vec deallocated entirely
+  triax_expect_nonnull(v); // an empty vec keeps one slot (and its allocator)
+  triax_expect_eq(vec_cap(v), 1u);
+  vec_release(v);
 }
 
 triax_test(vec, vec_shrink_to_fit_exact) {
@@ -717,7 +722,9 @@ triax_test(vec, vec_shrink_to_fit_exact_empty) {
   Vec(int) v = vec_init(int, 16);
   triax_expect_eq(vec_count(v), 0u);
   vec_shrink_to_fit_exact(v);
-  triax_expect_null(v); // empty vec deallocated entirely
+  triax_expect_nonnull(v); // an empty vec keeps one slot (and its allocator)
+  triax_expect_eq(vec_cap(v), 1u);
+  vec_release(v);
 }
 
 triax_test(vec, vec_assign) {
@@ -750,6 +757,94 @@ triax_test(vec, vec_end) {
 
   vec_release(v);
 }
+
+// ---- allocator binding: constructors always allocate; a non-NULL Vec has capacity >= 1 ----
+
+// Growth from a header-only Vec must not need a zero check: capacity starts at 1 and doubles.
+triax_test(vec, push_into_zero_capacity_vec_grows) {
+  Vec(int) v = vec_init(int, 0);
+  triax_assert_nonnull(v);
+  triax_expect_eq(vec_cap(v), 1u);
+  for (int i = 0; i < 100; ++i) { vec_push(v, i); }
+  triax_expect_eq(vec_count(v), 100u);
+  for (int i = 0; i < 100; ++i) { triax_expect_eq(v[i], i); }
+  vec_release(v);
+  triax_expect_null(v);
+}
+
+triax_test(vec, shrink_empty_then_push_reuses_vec) {
+  Vec(int) v = vec_init(int, 0);
+  vec_push(v, 1);
+  vec_clear(v);
+  vec_shrink_to_fit(v);
+  triax_expect_eq(vec_cap(v), 1u);
+  vec_push(v, 2);
+  vec_push(v, 3);
+  triax_expect_eq(vec_count(v), 2u);
+  triax_expect_eq(v[1], 3);
+  vec_release(v);
+}
+
+#if RK_CUSTOM_ALLOCATORS
+// The allocator passed to a constructor stays bound for the Vec's whole life, including when it is
+// constructed empty, grown, and shrunk while empty. An arena makes this observable: every
+// allocation through it lands inside its buffer.
+static unsigned char vec_binding_buf[1 << 12];
+static bool          vec_in_binding_buf(const void* p) {
+  return (const unsigned char*)p >= vec_binding_buf
+      && (const unsigned char*)p < vec_binding_buf + sizeof vec_binding_buf;
+}
+
+triax_test(vec, init_zero_capacity_binds_allocator) {
+  Arena     ar = arena_init(vec_binding_buf, sizeof vec_binding_buf);
+  Allocator a  = arena_to_alloc(&ar);
+  Vec(int)  v  = vec_init(int, 0, a);
+  triax_assert_nonnull(v);
+  triax_expect_true(vec_in_binding_buf(v));
+  triax_expect_true(vec_allocator(v).ctx == &ar);
+  for (int i = 0; i < 40; ++i) { vec_push(v, i); } // growth goes through the bound allocator
+  triax_expect_true(vec_in_binding_buf(v));
+  triax_expect_eq(v[39], 39);
+  vec_release(v);
+}
+
+triax_test(vec, from_zero_count_binds_allocator) {
+  Arena     ar = arena_init(vec_binding_buf, sizeof vec_binding_buf);
+  Allocator a  = arena_to_alloc(&ar);
+  Vec(int)  v  = vec_from((int*)rk_null, 0, a);
+  triax_assert_nonnull(v);
+  triax_expect_true(vec_allocator(v).ctx == &ar);
+  vec_push(v, 5);
+  triax_expect_true(vec_in_binding_buf(v));
+  vec_release(v);
+}
+
+triax_test(vec, shrink_empty_keeps_allocator) {
+  Arena     ar = arena_init(vec_binding_buf, sizeof vec_binding_buf);
+  Allocator a  = arena_to_alloc(&ar);
+  Vec(int)  v  = vec_init(int, 16, a);
+  vec_shrink_to_fit(v);
+  triax_assert_nonnull(v);
+  triax_expect_true(vec_allocator(v).ctx == &ar);
+  vec_shrink_to_fit_exact(v);
+  triax_expect_true(vec_allocator(v).ctx == &ar);
+  for (int i = 0; i < 20; ++i) { vec_push(v, i); }
+  triax_expect_true(vec_in_binding_buf(v));
+  vec_release(v);
+}
+
+// Release is the one operation that drops the binding: a released Vec is NULL again.
+triax_test(vec, release_drops_allocator_binding) {
+  Arena     ar = arena_init(vec_binding_buf, sizeof vec_binding_buf);
+  Allocator a  = arena_to_alloc(&ar);
+  Vec(int)  v  = vec_init(int, 4, a);
+  vec_release(v);
+  triax_expect_null(v);
+  vec_push(v, 1); // grows from alloc_ctx (malloc by default), not the arena
+  triax_expect_false(vec_in_binding_buf(v));
+  vec_release(v);
+}
+#endif
 
 RKI_IGNWARN_CLANG_END()
 

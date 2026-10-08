@@ -451,6 +451,41 @@ triax_test(pool, foreach_through_const_pointer_variable) {
   pool_release(&p);
 }
 
+triax_test(pool, foreach_const_elements_dynamic) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 2);
+  pool_put(&p, 7);
+  pool_foreach(&p, it) {
+    static_assert(_Generic(it, int*: 1, default: 0), "Mutable pool yields mutable elements");
+    *it = 8;
+  }
+  const Pool(int)* cp = &p;
+  int sum = 0;
+  pool_foreach(cp, it) {
+    static_assert(_Generic(it, const int*: 1, default: 0), "Const pool yields const elements");
+    sum += *it;
+  }
+  triax_expect_eq(sum, 8);
+  pool_release(&p);
+}
+
+triax_test(pool, foreach_const_elements_static) {
+  POOL_DEFINE(int, 2);
+  Pool(int, 2) p = staticpool_init;
+  pool_put(&p, 7);
+  pool_foreach(&p, it) {
+    static_assert(_Generic(it, int*: 1, default: 0), "Mutable pool yields mutable elements");
+    *it = 8;
+  }
+  const Pool(int, 2)* cp = &p;
+  int sum = 0;
+  pool_foreach(cp, it) {
+    static_assert(_Generic(it, const int*: 1, default: 0), "Const pool yields const elements");
+    sum += *it;
+  }
+  triax_expect_eq(sum, 8);
+}
+
 triax_test(pool, foreach_on_zero_initialized_pool_is_noop_dynamic) {
   POOL_DEFINE(int);
   Pool(int) p = (Pool(int)){RKI_ZINIT};

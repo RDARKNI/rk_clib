@@ -105,10 +105,10 @@ triax_test(avl, min_max_follow_tree_constness) {
   Avl(int, char) a = avl_init(int, char);
   avl_set(int, char, &a, 2, 'b');
   const Avl(int, char)* c = &a;
-  static_assert(_Generic(&avl_min(&a), AvlEntry(int, char)*: 1, default: 0), "mutable: mutable");
-  static_assert(_Generic(&avl_max(c), const AvlEntry(int, char)*: 1, default: 0), "const: const");
-  static_assert(_Generic(avl_peek_min(&a), AvlEntry(int, char)*: 1, default: 0), "mutable: mutable");
-  static_assert(_Generic(avl_peek_max(c), const AvlEntry(int, char)*: 1, default: 0), "const: const");
+  static_assert(_Generic(&avl_min(&a), AvlEntry(int, char)*: 1, default: 0), "mutable");
+  static_assert(_Generic(&avl_max(c), const AvlEntry(int, char)*: 1, default: 0), "const");
+  static_assert(_Generic(avl_peek_min(&a), AvlEntry(int, char)*: 1, default: 0), "mutable");
+  static_assert(_Generic(avl_peek_max(c), const AvlEntry(int, char)*: 1, default: 0), "const");
   static_assert(_Generic(&avl_min(&a).key, const int*: 1, default: 0), "keys are always const");
   triax_expect_eq(avl_min(c).key, 2);
   triax_expect_eq(avl_peek_max(c)->val, 'b');
@@ -178,7 +178,7 @@ triax_test(avl, get_or_add) {
 
 triax_test(avl, foreach_empty) {
   Avl(int, char) a = avl_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visited = 0;
   avl_foreach(&a, stack, 4, e) {
     (void)e;
@@ -195,7 +195,7 @@ triax_test(avl, foreach_inorder) {
   avl_set(int, char, &a, 4, 'd');
   avl_set(int, char, &a, 2, 'B');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        keys[4] = {0};
   char       vals[4] = {0};
   int        i       = 0;
@@ -217,7 +217,7 @@ triax_test(avl, foreach_inorder) {
 
 triax_test(avl, foreach_reversed_empty) {
   Avl(int, char) a = avl_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visited = 0;
   avl_foreach_reversed(&a, stack, 4, e) {
     (void)e;
@@ -234,7 +234,7 @@ triax_test(avl, foreach_reversed_visits_descending) {
   avl_set(int, char, &a, 4, 'd');
   avl_set(int, char, &a, 2, 'b');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        keys[4] = {0};
   int        i       = 0;
   avl_foreach_reversed(&a, stack, 4, e) { keys[i++] = e->key; }
@@ -253,7 +253,7 @@ triax_test(avl, foreach_break_stops_iteration) {
   avl_set(int, char, &a, 3, 'c');
   avl_set(int, char, &a, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   avl_foreach(&a, stack, 4, e) {
     if (e->key == 2) { break; }
@@ -271,7 +271,7 @@ triax_test(avl, foreach_continue_skips_entry) {
   avl_set(int, char, &a, 3, 'c');
   avl_set(int, char, &a, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   avl_foreach(&a, stack, 4, e) {
     if (e->key == 2) { continue; }
@@ -289,7 +289,7 @@ triax_test(avl, foreach_reversed_break_stops_iteration) {
   avl_set(int, char, &a, 3, 'c');
   avl_set(int, char, &a, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   avl_foreach_reversed(&a, stack, 4, e) {
     if (e->key == 3) { break; }
@@ -307,7 +307,7 @@ triax_test(avl, foreach_reversed_continue_skips_entry) {
   avl_set(int, char, &a, 3, 'c');
   avl_set(int, char, &a, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        visits = 0;
   avl_foreach_reversed(&a, stack, 4, e) {
     if (e->key == 3) { continue; }
@@ -325,7 +325,7 @@ triax_test(avl, erase_if_removes_matching_entries) {
   avl_set(int, char, &a, 3, 'c');
   avl_set(int, char, &a, 4, 'd');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   avl_erase_if(int, char, &a, stack, 4, e, e->key % 2 == 0);
 
   triax_expect_eq(avl_count(&a), 2u);
@@ -344,9 +344,56 @@ triax_test(avl, erase_if_removes_matching_entries) {
   avl_release(int, char, &a);
 }
 
+triax_test(avl, foreach_const_entries) {
+  Avl(int, char) t = avl_init(int, char);
+  avl_set(int, char, &t, 1, 'a');
+  TreeNode* stack[2];
+  tree_foreach(&t, stack, 2, e) {
+    static_assert(_Generic(e, AvlEntry(int, char)*: 1, default: 0), "Mutable tree entry");
+    e->val = 'b';
+  }
+  const Avl(int, char)* ct = &t;
+  int seen = 0;
+  tree_foreach(ct, stack, 2, e) {
+    static_assert(_Generic(e, const AvlEntry(int, char)*: 1, default: 0), "Const tree entry");
+    triax_expect_eq(e->val, 'b');
+    ++seen;
+  }
+  tree_foreach_reversed(ct, stack, 2, e) {
+    static_assert(_Generic(e, const AvlEntry(int, char)*: 1, default: 0), "Const tree entry");
+    triax_expect_eq(e->val, 'b');
+    ++seen;
+  }
+  triax_expect_eq(seen, 2);
+  avl_release(int, char, &t);
+}
+
+triax_test(avl, erase_if_changes_root_then_release) {
+  Avl(int, char) t = avl_init(int, char);
+  avl_set(int, char, &t, 2, 'b');
+  avl_set(int, char, &t, 1, 'a');
+  avl_set(int, char, &t, 3, 'c');
+  TreeNode* stack[3];
+  avl_erase_if(int, char, &t, stack, 3, e, e->key < 3);
+  triax_expect_eq(tree_count(&t), 1u);
+  triax_expect_eq(tree_min(&t).key, 3);
+  avl_release(int, char, &t);
+  triax_expect_null(t.root);
+}
+
+triax_test(avl, erase_if_removes_all) {
+  Avl(int, char) t = avl_init(int, char);
+  for (int i = 1; i <= 4; ++i) { avl_set(int, char, &t, i, 'a'); }
+  TreeNode* stack[4];
+  avl_erase_if(int, char, &t, stack, 4, e, ((void)e, true));
+  triax_expect_true(tree_is_empty(&t));
+  triax_expect_null(t.root);
+  avl_release(int, char, &t);
+}
+
 triax_test(avl, erase_if_empty_is_noop) {
   Avl(int, char) a = avl_init(int, char);
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        pred_calls = 0;
   avl_erase_if(int, char, &a, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
@@ -360,7 +407,7 @@ triax_test(avl, erase_if_evaluates_predicate_once_per_entry) {
   avl_set(int, char, &a, 2, 'b');
   avl_set(int, char, &a, 3, 'c');
 
-  tree_node* stack[4];
+  TreeNode* stack[4];
   int        pred_calls = 0;
   avl_erase_if(int, char, &a, stack, 4, e, (++pred_calls, (void)e, false));
   triax_expect_eq(pred_calls, 3);
@@ -477,7 +524,7 @@ triax_test(avl, remove_two_children) {
   triax_expect_eq(*avl_get(int, char, &a, 8), 'h');
 
   // BST property: in-order traversal must still be sorted
-  tree_node* stack[8];
+  TreeNode* stack[8];
   int        keys[5];
   int        i = 0;
   avl_foreach(&a, stack, 8, e) { keys[i++] = e->key; }
@@ -500,7 +547,7 @@ triax_test(avl, large_sorted_order_stays_balanced) {
   triax_expect_eq(avl_min(&a).key, 1);
   triax_expect_eq(avl_max(&a).key, 32);
 
-  tree_node* stack[8];
+  TreeNode* stack[8];
   int        prev = -1, count = 0;
   avl_foreach(&a, stack, 8, e) {
     triax_expect_gt(e->key, prev);
@@ -570,7 +617,7 @@ triax_test(avl, foreach_stack_too_small_asserts, .isolation = TRIAX_ISOLATION_ON
   avl_set(int, char, &a, 2, 'b');
   avl_set(int, char, &a, 3, 'c');
 
-  tree_node* stack[1]; // deliberately smaller than the tree's height
+  TreeNode* stack[1]; // deliberately smaller than the tree's height
   triax_assert_fault(TRIAX_FAULT_ABORT, {
     avl_foreach(&a, stack, 1, e) { (void)e;
 }

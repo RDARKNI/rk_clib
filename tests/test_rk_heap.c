@@ -395,10 +395,19 @@ triax_test(heap, adopt) {
 
   // adopting an empty (NULL) Vec yields an empty Heap
   {
-    Vec(int) v = vec_init(int, 0);
-    triax_expect_null(v);
+    Vec(int)  v = rk_null;
     Heap(int) h = heap_adopt(int, v);
     triax_expect_true(heap_is_empty(&h));
+    heap_release(&h);
+  }
+
+  // adopting an empty but constructed Vec keeps its storage (and so its allocator)
+  {
+    Vec(int) v = vec_init(int, 0);
+    triax_expect_nonnull(v);
+    Heap(int) h = heap_adopt(int, v);
+    triax_expect_true(heap_is_empty(&h));
+    triax_expect_true(h.data == v);
     heap_release(&h);
   }
 
@@ -484,6 +493,38 @@ triax_test(heap, large_worst_case_order) {
 
   heap_release(&h);
 }
+
+#if RK_CUSTOM_ALLOCATORS
+// heap_init/heap_from with zero elements still bind the given allocator (via the backing Vec), so
+// later growth goes through it. An arena makes this observable.
+static unsigned char heap_binding_buf[1 << 12];
+static bool          heap_in_binding_buf(const void* p) {
+  return (const unsigned char*)p >= heap_binding_buf
+      && (const unsigned char*)p < heap_binding_buf + sizeof heap_binding_buf;
+}
+
+triax_test(heap, init_zero_capacity_binds_allocator) {
+  Arena     ar = arena_init(heap_binding_buf, sizeof heap_binding_buf);
+  Allocator a  = arena_to_alloc(&ar);
+  Heap(int) h  = heap_init(int, 0, a);
+  triax_expect_true(heap_allocator(&h).ctx == &ar);
+  for (int i = 20; i > 0; --i) { heap_push(int, &h, i); }
+  triax_expect_true(heap_in_binding_buf(h.data));
+  triax_expect_eq(heap_top(int, &h), 1);
+  heap_release(&h);
+}
+
+triax_test(heap, from_zero_count_binds_allocator) {
+  Arena     ar = arena_init(heap_binding_buf, sizeof heap_binding_buf);
+  Allocator a  = arena_to_alloc(&ar);
+  Heap(int) h  = heap_from(int, (int*)rk_null, 0, a);
+  triax_expect_true(heap_is_empty(&h));
+  triax_expect_true(heap_allocator(&h).ctx == &ar);
+  heap_push(int, &h, 3);
+  triax_expect_true(heap_in_binding_buf(h.data));
+  heap_release(&h);
+}
+#endif
 
 RKI_IGNWARN_CLANG_END()
 RKI_HEADER_END
