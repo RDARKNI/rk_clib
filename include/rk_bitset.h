@@ -43,7 +43,7 @@
 #ifndef RK_BITSET_H
 #define RK_BITSET_H
 #include "rk_defs.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Storage word used by all bitset operations.
 typedef unsigned long long bitset_word;
@@ -685,13 +685,15 @@ rklib_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len
 /// @param nbits Logical bit count. Evaluated once.
 /// @param idx   Name of the size_t index variable.
 /// @note break stops traversal; continue advances to the next set bit.
-/// @note Clearing the current bit is supported.
+/// @note Clearing the current bit is supported. Each storage word is cached when reached;
+/// changes to other bits in that word are not reflected in traversal. Words not yet
+/// reached are read when traversal advances to them.
 ///
 /// Usage:
 /// ```c
 /// bitset_foreach(bs, 128, i) { printf("set bit: %zu\n", i); }
 /// ```
-#define bitset_foreach(self, nbits, idx) RKI_BITSET_FOREACH(self, nbits, idx)
+#define bitset_foreach(self, nbits, idx)          RKI_BITSET_FOREACH(self, nbits, idx)
 
 /// @brief Like `bitset_foreach()`, but iterates in decreasing order. Same parameters and contract.
 #define bitset_foreach_reversed(self, nbits, idx) RKI_BITSET_FOREACH_REVERSED(self, nbits, idx)
@@ -707,7 +709,7 @@ rklib_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len
 /// ```c
 /// bitset_clear_if(bs, 128, i, i % 2 == 0); // clear even-indexed bits
 /// ```
-#define bitset_clear_if(self, nbits, idx, pred) RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)
+#define bitset_clear_if(self, nbits, idx, pred)   RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -715,40 +717,67 @@ rklib_fun bitset bitset_fromstr(bitset dst, const char* restrict src, size_t len
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
+// Each word is loaded once. Mutations to other bits in a cached word are not observed.
+typedef struct RKI_BitsetIter {
+  cbitset     bits;
+  size_t      count, word;
+  bitset_word remaining;
+} RKI_BitsetIter;
+
+rklib_fun rk_forceinline size_t rki_bitset_iter_next(RKI_BitsetIter* state) {
+  enum { W = bitsof(bitset_word) }; // NOLINT
+  while (!state->remaining) {
+    if (state->word >= state->count / W + (state->count % W != 0)) { return BITSET_NPOS; }
+    state->remaining  = state->bits[state->word++];
+    const size_t rest = state->count % W;
+    if (rest && state->word - 1 == state->count / W) {
+      state->remaining &= ((bitset_word)1 << rest) - 1;
+    }
+  }
+  const size_t bit  = stdc_first_trailing_one(state->remaining) - 1;
+  state->remaining &= state->remaining - 1;
+  return (state->word - 1) * W + bit;
+}
+
+rklib_fun rk_forceinline size_t rki_bitset_iter_prev(RKI_BitsetIter* state) {
+  enum { W = bitsof(bitset_word) }; // NOLINT
+  while (!state->remaining) {
+    if (!state->word) { return BITSET_NPOS; }
+    state->remaining  = state->bits[--state->word];
+    const size_t rest = state->count % W;
+    if (rest && state->word == state->count / W) {
+      state->remaining &= ((bitset_word)1 << rest) - 1;
+    }
+  }
+  const size_t bit  = W - stdc_first_leading_one(state->remaining);
+  state->remaining &= ~((bitset_word)1 << bit);
+  return state->word * W + bit;
+}
+
 #define RKI_BITSET_FOREACH(self, nbits, idx)                                                       \
-  for (struct {                                                                                    \
-         cbitset bits;                                                                             \
-         size_t  count, cursor;                                                                    \
-       } rki_var_state                        = {(self), (nbits), BITSET_NPOS};                    \
-       rki_var_state.bits; rki_var_state.bits = rk_null)                                           \
-    for (size_t idx = 0; (rki_var_state.cursor = bitset_find_next_set(                             \
-                              rki_var_state.bits, rki_var_state.count, rki_var_state.cursor))      \
-                             < rki_var_state.count                                                 \
-                         && (idx = rki_var_state.cursor, (void)idx, 1);)
+  for (RKI_BitsetIter rki_var_state = {(self), (nbits), 0, 0}; rki_var_state.bits;                 \
+       rki_var_state.bits           = rk_null)                                                     \
+    for (size_t idx = 0;                                                                           \
+         (idx = rki_bitset_iter_next(&rki_var_state)) != BITSET_NPOS && ((void)idx, 1);)
 
 #define RKI_BITSET_FOREACH_REVERSED(self, nbits, idx)                                              \
-  for (struct {                                                                                    \
-         cbitset bits;                                                                             \
-         size_t  count, cursor;                                                                    \
-       } rki_var_state = {(self), (nbits), 0};                                                     \
-       rki_var_state.bits && (rki_var_state.cursor = rki_var_state.count, 1);                      \
+  for (RKI_BitsetIter rki_var_state = {(self), (nbits), 0, 0};                                     \
+       rki_var_state.bits                                                                          \
+       && (rki_var_state.word = rki_var_state.count / bitsof(bitset_word)                          \
+                              + (rki_var_state.count % bitsof(bitset_word) != 0),                  \
+          1);                                                                                      \
        rki_var_state.bits = rk_null)                                                               \
-    for (size_t idx = 0; (rki_var_state.cursor = bitset_find_prev_set(                             \
-                              rki_var_state.bits, rki_var_state.count, rki_var_state.cursor))      \
-                             != BITSET_NPOS                                                        \
-                         && (idx = rki_var_state.cursor, (void)idx, 1);)
+    for (size_t idx = 0;                                                                           \
+         (idx = rki_bitset_iter_prev(&rki_var_state)) != BITSET_NPOS && ((void)idx, 1);)
 
 #define RKI_BITSET_CLEAR_IF(self, nbits, idx, pred)                                                \
   do {                                                                                             \
     bitset const rki_var_bits  = (self);                                                           \
     const size_t rki_var_count = (nbits);                                                          \
-    if (!rki_var_bits) { break; }                                                                  \
-    for (size_t rki_var_cursor = BITSET_NPOS;                                                      \
-         (rki_var_cursor = bitset_find_next_set(rki_var_bits, rki_var_count, rki_var_cursor))      \
-         < rki_var_count;) {                                                                       \
+    RKI_BITSET_FOREACH(rki_var_bits, rki_var_count, rki_var_cursor) {                              \
       const size_t idx = rki_var_cursor;                                                           \
       (void)idx;                                                                                   \
-      if (pred) { bitset_clear(rki_var_bits, rki_var_count, rki_var_cursor); }                     \
+      if (pred) { bitset_clear(rki_var_bits, rki_var_count, idx); }                                \
     }                                                                                              \
   } while (0)
 
@@ -798,7 +827,7 @@ rklib_fun rk_forceinline bitset rki_bitset_range_op(bitset bs, size_t nbits, siz
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_BITSET_H
 

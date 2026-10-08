@@ -36,7 +36,7 @@
 #endif
 
 #if defined(__has_c_attribute) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-# define rk_has_c_attribute(x) (__has_c_attribute(x))
+# define rk_has_c_attribute(x) __has_c_attribute(x)
 #else
 # define rk_has_c_attribute(x) 0
 #endif
@@ -50,9 +50,9 @@
 #define rk_has_c_cpp_attribute(x) (rk_has_c_attribute(x) || rk_has_cpp_attribute(x))
 
 #if defined(__has_attribute)
-# define rk_attribute(attr) __attribute__((attr))
+# define rk_attribute(...) __attribute__((__VA_ARGS__))
 #else
-# define rk_attribute(attr)
+# define rk_attribute(...)
 #endif
 
 #ifdef _MSC_VER
@@ -169,9 +169,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #if !defined(_WIN32) && defined(RK_MULTI_TU)
-# define RK_HIDDEN __attribute__((visibility("hidden")))
+# define RKI_HIDDEN __attribute__((visibility("hidden")))
 #else
-# define RK_HIDDEN
+# define RKI_HIDDEN
 #endif
 
 #define static_fun static inline
@@ -229,13 +229,13 @@
 #   define extern_def(...)
 #  endif
 # endif
-# define rklib_fun RK_HIDDEN extern_fun
+# define rklib_fun RKI_HIDDEN extern_fun
 #endif
 
-#define RK_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
-#define RK_HEADER_END   RK_EXTERNC_END RKI_SILENCE_WARNINGS_END
+#define RKI_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
+#define RKI_HEADER_END   RK_EXTERNC_END RKI_SILENCE_WARNINGS_END
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @name Attribute Wrappers
 /// @brief Portable wrappers for common attributes and compiler-specific extensions. These macros
@@ -253,18 +253,24 @@ RK_HEADER_BEGIN
 ///
 /// @{
 
-#if rk_has_gnu_attribute(malloc)
-# define rk_malloc_fun __attribute__((malloc))
-#elif defined(_MSC_VER)
-# define rk_malloc_fun __declspec(restrict)
+#if defined(__GNUC__) || defined(__clang__)
+# define rk_malloc_fun            rk_attribute(__malloc__)
+# define rk_attr_printf(beg, end) rk_attribute(__format__(__printf__, beg, end))
+# define rk_pure                  rk_attribute(__pure__)
+# define rk_const                 rk_attribute(__const__)
+# define rk_forceinline           rk_attribute(__always_inline__)
 #else
-# define rk_malloc_fun
-#endif
+# define rk_attr_printf(beg, end)
+# define rk_pure
+# define rk_const rk_unsequenced
 
-#ifdef __GNUC__
-# define rk_attr_printf(_beg, _end) __attribute__((format(printf, _beg, _end)))
-#else
-# define rk_attr_printf(...)
+# ifdef _MSC_VER
+#  define rk_malloc_fun  __declspec(restrict)
+#  define rk_forceinline __forceinline
+# else
+#  define rk_malloc_fun
+#  define rk_forceinline
+# endif
 #endif
 
 #if rk_has_gnu_attribute(alloc_size)
@@ -279,11 +285,7 @@ RK_HEADER_BEGIN
 # define rk_alloc_align(align)
 #endif
 
-#if rk_has_gnu_attribute(alloc_align) && rk_has_gnu_attribute(alloc_size)
-# define rk_alloc_alignsize(align, ...) __attribute__((alloc_align(align), alloc_size(__VA_ARGS__)))
-#else
-# define rk_alloc_alignsize(align, ...)
-#endif
+#define rk_alloc_alignsize(align, ...) rk_alloc_align(align) rk_alloc_size(__VA_ARGS__)
 
 #if rk_has_c_cpp_attribute(deprecated)
 # define rk_deprecated(...) [[deprecated("" __VA_ARGS__)]]
@@ -329,18 +331,6 @@ RK_HEADER_BEGIN
 # define rk_unsequenced
 #endif
 
-#if rk_has_gnu_attribute(pure)
-# define rk_pure __attribute__((pure))
-#else
-# define rk_pure
-#endif
-
-#if rk_has_gnu_attribute(const)
-# define rk_const __attribute__((const))
-#else
-# define rk_const rk_unsequenced
-#endif
-
 #if rk_has_c_cpp_attribute(likely)
 # define rk_attr_likely   [[likely]]
 # define rk_attr_unlikely [[unlikely]]
@@ -355,14 +345,6 @@ RK_HEADER_BEGIN
 #else
 # define rk_likely(...)   ((__VA_ARGS__))
 # define rk_unlikely(...) ((__VA_ARGS__))
-#endif
-
-#if rk_has_gnu_attribute(always_inline)
-# define rk_forceinline __attribute__((always_inline))
-#elif defined(_MSC_VER)
-# define rk_forceinline __forceinline
-#else
-# define rk_forceinline
 #endif
 
 #if rk_has_c_cpp_attribute(noreturn)
@@ -407,7 +389,7 @@ RK_HEADER_BEGIN
 
 #if !defined(typeof) && (defined(__cplusplus) || __STDC_VERSION__ < 202311L)
 # ifdef __cplusplus
-#  define typeof(...) std::remove_reference<__typeof__(__VA_ARGS__)>::type
+#  define typeof(...) rki_remove_reference_t<__typeof__(__VA_ARGS__)>
 # else
 #  define typeof __typeof__
 # endif
@@ -418,7 +400,7 @@ RK_HEADER_BEGIN
 #  define rk_COUNTOF(...) (sizeof(__VA_ARGS__) / sizeof((__VA_ARGS__)[0]))
 #  define countof(...)    (static_assert_expr(rk_is_array((__VA_ARGS__))) + rk_COUNTOF(__VA_ARGS__))
 # else
-#  define countof(...)    RKI_countof(__VA_ARGS__)
+#  define countof(...)    rki_countof(__VA_ARGS__)
 #  define rk_COUNTOF(...) countof(__VA_ARGS__)
 # endif
 #else
@@ -459,7 +441,7 @@ rklib_fun __forceinline rk_noreturn void rki_unreachable_impl(void) {
 #endif
 
 /// @brief The maximum fundamental alignment.
-#define align_max     alignof(RKI_max_align_t)
+#define align_max     alignof(rki_max_align_t)
 
 /// @brief Aligns an object to the maximum fundamental alignment.
 #define alignas_max   alignas(align_max)
@@ -497,64 +479,50 @@ rklib_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
   (static_assert_expr(sizeof(T) == 0 || (count) <= SIZE_MAX / sizeof(T), "overflow")               \
    + (sizeof(T) * (count)))
 
-#ifndef __cplusplus
-/// @brief static_assert-like check within expressions, evaluates to 0 if true and causes
-/// compile-time error if false.
-/// @param condition The condition to check for; must be a constant expression
-/// @param msg The message to show upon compile error (optional since C23/C++17)
-# define static_assert_expr(...)                                                                   \
-   (0 * sizeof(union {                                                                             \
-     static_assert(__VA_ARGS__);                                                                   \
-     char _;                                                                                       \
-    }))
-
-#elif __cplusplus >= 202002L
-# define static_assert_expr(...) (0 * sizeof([]() { static_assert(__VA_ARGS__); }))
-#else
-# define static_assert_expr(first, ...) (0 * sizeof(char[1 - 2 * !(first)]) && "" __VA_ARGS__)
-#endif
-
-#ifdef __GNUC__
-# define try_static_assert_expr(expr, ...)                                                         \
-   static_assert_expr((!__builtin_constant_p(expr) || !!(expr)), ##__VA_ARGS__)
-#else
-# define try_static_assert_expr(expr, ...) ((void)0)
-#endif
-
 /// @brief For static expression dispatch.
-#if defined(__GNUC__) && !defined(__cplusplus)
+#if rk_has_builtin(__builtin_choose_expr)
 # define rk_static_if(cond, _if, _else) __builtin_choose_expr(cond, _if, _else)
 #else
 # define rk_static_if(cond, _if, _else)                                                            \
    _Generic(((char (*)[1 + !!(cond)])0), char (*)[2]: _if, char (*)[1]: _else)
 #endif
 
-#ifndef __cplusplus
-# define RKI_pun_cast(to_type, expr)                                                               \
-   rk_static_if(!rk_is_array(expr),                                                                \
-                (union {                                                                           \
-                 static_assert(sizeof(typeof(expr)) == sizeof(to_type),                            \
-                               "Types must be the same size.");                                    \
-                 typeof_decayed(expr) f;                                                           \
-                 to_type t;                                                                        \
-                }){(expr)}                                                                         \
-                    .t,                                                                            \
-                *(to_type*)rk_memcpy(&(to_type){RK_ZINIT},                                         \
-                                     (union {                                                      \
-                                      typeof_decayed(expr) _v2;                                    \
-                                      void* _v;                                                    \
-                                     }){(expr)}                                                    \
-                                         ._v,                                                      \
-                                     sizeof(to_type)))
+/// @brief static_assert-like check within expressions, evaluates to 0 if true and causes
+/// compile-time error if false.
+/// @param condition The condition to check for; must be a constant expression
+/// @param msg The message to show upon compile error (optional since C23/C++17)
+#define static_assert_expr(...) RKI_STATIC_ASSERT_EXPR(__VA_ARGS__)
 
-# ifndef _MSC_VER
-#  define pun_cast(to_type, ...) RKI_pun_cast(to_type, (__VA_ARGS__))
-# else
-#  define pun_cast(to_type, expr) RKI_IGNWARN_MSC(4116, RKI_pun_cast(to_type, expr))
-# endif
+// todo fix
+#if rk_has_builtin(__builtin_constant_p)
+# define try_static_assert_expr(expr, ...)                                                         \
+   static_assert_expr(rk_static_if(__builtin_constant_p(expr), !!(expr), 1), ##__VA_ARGS__)
+#else
+# define try_static_assert_expr(expr, ...) ((void)0)
+#endif
+
+#ifndef __cplusplus
+# define pun_cast(to_type, expr)                                                                   \
+   RKI_IGNWARN_MSC(4116, rk_static_if(!rk_is_array(expr),                                          \
+                                      (union {                                                     \
+                                       static_assert(sizeof(typeof(expr)) == sizeof(to_type),      \
+                                                     "Types must be the same size.");              \
+                                       typeof_decayed(expr) f;                                     \
+                                       to_type t;                                                  \
+                                      }){(expr)}                                                   \
+                                          .t,                                                      \
+                                      *(to_type*)rk_memcpy(&(to_type){RKI_ZINIT},                  \
+                                                           (union {                                \
+                                                            typeof_decayed(expr) _v2;              \
+                                                            const void* _v;                        \
+                                                           }){(expr)}                              \
+                                                               ._v,                                \
+                                                           sizeof(to_type))))
 
 #elif __cplusplus >= 202002L
 # define pun_cast(to_type, expr) (std::bit_cast<to_type>((expr)))
+#elif rk_has_builtin(__builtin_bit_cast)
+# define pun_cast(to_type, expr) __builtin_bit_cast(to_type, expr)
 #else
 # define pun_cast(to_type, expr)                                                                   \
    ([](const typename std::remove_reference<decltype(expr)>::type& _e) {                           \
@@ -602,8 +570,10 @@ __extension__ typedef __int128          s128;
 ///////////////////////////////////   Function Wrappers   //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// @brief round a size to a power of two alignment
 rklib_fun rk_const size_t      rk_align_up(size_t size, size_t align);
 
+/// @brief todo docs
 rklib_fun rk_const size_t      rk_align_pad(const void* ptr, size_t align);
 
 rklib_fun rk_const bool        rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
@@ -642,10 +612,10 @@ rklib_fun rk_pure rk_forceinline int rk_memcmp(const void* a, const void* b, siz
 
 #ifdef RKLIB_DEBUG
 # define rk_assert(...)                                                                            \
-   (rk_likely((__VA_ARGS__)) ? (void)0 : RK_assertfail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
+   (rk_likely((__VA_ARGS__)) ? (void)0 : rki_assertfail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
 /// print to stderr if RKLIB_DEBUG is defined
-rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int line,
-                                         const char* func) {
+rk_noreturn rklib_fun void rki_assertfail(const char* expr, const char* file, int line,
+                                          const char* func) {
   fprintf(stderr, "Assertion failed: (%s), function %s, file %s, line %d.\n", expr, func, file,
           line);
   abort();
@@ -745,7 +715,7 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////Implementation Details///////////////////////////////////////
+////////////////////////////////////// Implementation Details //////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @cond INTERNAL
 
@@ -770,37 +740,33 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 #endif
 
 #ifndef __cplusplus
-# define RK_ZINIT 0
+# define RKI_ZINIT 0
 #else
-# define RK_ZINIT
+# define RKI_ZINIT
 #endif
 
 #define RKI_GENCASE(T, N, fun_name) , T : fun_name##N
-
-#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RK_ZINIT})
+#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RKI_ZINIT})
 #define RKI_contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
 
-#ifndef __cplusplus
-# define rk_dummyof(v)     ((typeof(v)){RK_ZINIT})
-# define rk_dummyofp(v)    ((typeof(v)*)0)
-# define typeof_decayed(v) typeof((void)0, rk_dummyof(v))
-#else
-# define rk_dummyof(v)     ((std::remove_reference<decltype(v)>::type*)0)
-# define rk_dummyofp(v)    ((typeof(v)*)0)
-# define typeof_decayed(v) std::decay<typeof(v)>::type
-#endif
+#define rk_dummyofp(v)              ((typeof(v)*)0)
 
 #ifndef __cplusplus
+# define typeof_decayed(v) typeof((void)0, (v))
 # define rk_to_rvalue(obj) ((void)0, (obj))
 #else
+# define typeof_decayed(v) typename std::decay<typeof(v)>::type
 # define rk_to_rvalue(obj) ((typeof(obj))(obj))
 #endif
 
-// Real MSVC (not clang-cl) never implemented `_Atomic` as a core-language
-// type qualifier -- it only partially supports the separate <stdatomic.h>
-// library -- so `_Atomic`-qualified types are simply inexpressible there.
-// Since nothing can ever reach those _Generic associations on that
-// compiler, omitting them is exact, not an approximation.
+#define rk_is_const(v)    _Generic(rk_dummyofp(v), const typeof(v)*: 1, default: 0)
+#define rk_is_volatile(v) _Generic(rk_dummyofp(v), volatile typeof(v)*: 1, default: 0)
+#if defined(_MSC_VER) && !defined(__clang__)
+# define rk_is_atomic(v) ((void)rk_dummyofp(v), 0)
+#else
+# define rk_is_atomic(v) _Generic(rk_dummyofp(v), _Atomic typeof(v)*: 1, default: 0)
+#endif
+
 #if defined(_MSC_VER) && !defined(__clang__)
 # define rk_is_array(v)                                                                            \
    _Generic(rk_dummyofp(v),                                                                        \
@@ -823,14 +789,6 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
        default: 1)
 #endif
 
-#define rk_is_const(v)    _Generic(rk_dummyofp(v), const typeof(v)*: 1, default: 0)
-#define rk_is_volatile(v) _Generic(rk_dummyofp(v), volatile typeof(v)*: 1, default: 0)
-#if defined(_MSC_VER) && !defined(__clang__)
-# define rk_is_atomic(v) ((void)rk_dummyofp(v), 0)
-#else
-# define rk_is_atomic(v) _Generic(rk_dummyofp(v), _Atomic typeof(v)*: 1, default: 0)
-#endif
-
 #define rk_is_same_type(T, U) _Generic(rk_dummyofp(T), typeof(U)*: 1, default: 0)
 
 #define rk_ptrs_copy_compatible(dst, src)                                                          \
@@ -846,8 +804,8 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
   static_assert_expr(RK_numclassof(x) & RK_numclassof(y), "Incompatible numeric types")
 
 #define rk_ensure_malloc_align(T)                                                                  \
-  static_assert_expr(alignof(T) <= RK_malloc_align, "Type alignment too "                          \
-                                                    "large.")
+  static_assert_expr(alignof(T) <= RKI_MALLOC_ALIGN, "Type alignment too "                         \
+                                                     "large.")
 
 /// ensures the backing array is legitimate storage, evaluates to 0
 #define rk_ensure_valid_storage_type(arr)                                                          \
@@ -855,9 +813,9 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
                      "Backing storage must be an unsigned char array")
 
 /// Function overloading by argument count
-#define rk_overload(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
-#define rk_overload_(m, ...)  rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
-#define rk_overload__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_OVERLOAD(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_OVERLOAD_(m, ...)  rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_OVERLOAD__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 
 rklib_fun rk_const bool rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
                                         const void* end2) {
@@ -871,19 +829,19 @@ rklib_fun rk_const bool rk_ptr_in_range(const void* ptr, const void* beg, const 
 
 #if defined(_MSC_VER)
 # if defined(_WIN64)
-#  define RK_malloc_align 16u
+#  define RKI_MALLOC_ALIGN 16u
 # endif
 #elif defined(__GLIBC__)
 # if defined(__LP64__) || defined(_LP64)
-#  define RK_malloc_align 16u
+#  define RKI_MALLOC_ALIGN 16u
 # endif
 #elif defined(__APPLE__) && defined(__MACH__)
 # if defined(__LP64__) || defined(_LP64)
-#  define RK_malloc_align 16u
+#  define RKI_MALLOC_ALIGN 16u
 # endif
 #endif
-#ifndef RK_malloc_align
-# define RK_malloc_align align_max
+#ifndef RKI_MALLOC_ALIGN
+# define RKI_MALLOC_ALIGN align_max
 #endif
 
 #if defined(_MSC_VER) || defined(__TINYC__)
@@ -891,9 +849,9 @@ typedef struct {
   long double ld;
   long long   ll;
   void*       vp;
-} RKI_max_align_t;
+} rki_max_align_t;
 #else
-typedef max_align_t RKI_max_align_t;
+typedef max_align_t rki_max_align_t;
 #endif
 
 /// bug prior to 17.44 that treated char == (un)signed char for _Generic
@@ -1024,7 +982,6 @@ RKI_IFHAS_INT128(rklib_fun rk_const rk_forceinline s128 abs_llx(s128 x) {
     return rk_CLAMP(arg, low, high);                                                               \
   }
 
-// RKI_INT_TYPES
 RKI_INT_TYPES(RKI_DEFINE_STUFF)
 #undef RKI_UNSEQUENCED_NOW
 #define RKI_UNSEQUENCED_NOW
@@ -1113,6 +1070,8 @@ RKI_U_TYPES(RKI_DEF_SAT_U)
   }
 
 RKI_S_TYPES(RKI_DEF_SAT_S)
+#undef RKI_CHELPER
+#undef RKI_UNSEQUENCED_NOW
 #undef RKI_DEF_SS_S_
 #undef RKI_DEF_SA_S_
 #undef RKI_DEF_SM_S_
@@ -1218,13 +1177,15 @@ RKI_S_TYPES(RKI_DEF_SAT_S)
 # endif
 
 # define RKI_DEF_STDCBIT_FUNS(T, N)                                                                \
-   rklib_fun rk_const unsigned stdc_leading_zeros_##N(T value) rk_unsequenced{                     \
-       RKI_DEF_LZ_(T, value)} rklib_fun rk_const unsigned stdc_trailing_zeros_##N(T value)         \
-       rk_unsequenced{RKI_DEF_TZ_(value)} rklib_fun rk_const unsigned stdc_count_ones_##N(T value) \
-           rk_unsequenced{RKI_DEF_CO_(value)} rklib_fun rk_const unsigned stdc_count_zeros_##N(    \
-               T value) rk_unsequenced {                                                           \
+   rklib_fun rk_const unsigned stdc_leading_zeros_##N(T value)                                     \
+       rk_unsequenced{RKI_DEF_LZ_(T, value)} /**/                                                  \
+   rklib_fun rk_const unsigned stdc_trailing_zeros_##N(T value) rk_unsequenced{RKI_DEF_TZ_(value)} \
+   /**/                                                                                            \
+   rklib_fun rk_const unsigned stdc_count_ones_##N(T value) rk_unsequenced{RKI_DEF_CO_(value)}     \
+   /**/                                                                                            \
+   rklib_fun rk_const unsigned stdc_count_zeros_##N(T value) rk_unsequenced {                      \
      return bitsof(T) - stdc_count_ones_##N(value);                                                \
-   }                                                                                               \
+   } /**/                                                                                          \
    rklib_fun rk_const unsigned stdc_first_trailing_one_##N(T value) rk_unsequenced {               \
      return value ? stdc_trailing_zeros_##N(value) + 1u : 0u;                                      \
    }                                                                                               \
@@ -1292,13 +1253,36 @@ rklib_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
 
-RK_HEADER_END
-
+RKI_HEADER_END
 #ifdef __cplusplus
 template <class T, size_t N>
-constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
+constexpr inline size_t rki_countof(T (&)[N]) noexcept {
   return N;
 }
+#endif
+
+#ifndef __cplusplus
+# define RKI_STATIC_ASSERT_EXPR(...)                                                               \
+   (0 * sizeof(union {                                                                             \
+     static_assert(__VA_ARGS__);                                                                   \
+     char _;                                                                                       \
+    }))
+
+#elif __cplusplus >= 202002L
+# define RKI_STATIC_ASSERT_EXPR(...) (0 * sizeof([]() { static_assert(__VA_ARGS__); }))
+#else
+template <bool Condition>
+struct rki_static_assert_expr_check {
+  static_assert(Condition, "static_assert_expr: condition is false");
+};
+# define RKI_STATIC_ASSERT_EXPR_(condition, message, ...)                                          \
+   (0 * sizeof(rki_static_assert_expr_check<!!(condition)>) + 0 * sizeof("" message))
+# define RKI_STATIC_ASSERT_EXPR(...) RKI_STATIC_ASSERT_EXPR_(__VA_ARGS__, "", unused)
+#endif
+
+#ifdef __cplusplus
+template <class T>
+using rki_remove_reference_t = typename std::remove_reference<T>::type;
 #endif
 
 /// @endcond

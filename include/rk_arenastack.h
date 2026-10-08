@@ -2,45 +2,31 @@
 /// @file rk_arenastack.h
 /// @version 1.0.0
 /// @defgroup rk_arenastack ArenaStack Allocator Interface
-/// @brief Dynamic stack of arena allocators for growable, stack-like memory management with stable
-/// allocation addresses.
-///
-/// The ArenaStack type manages a growable collection of fixed-size Arena allocators. It provides
-/// convenience macros and functions for allocating, reallocating, clearing, and rewinding memory
-/// from this stack of arenas.
-///
-/// Typical usage:
-///   - Create an ArenaStack with arenastack_init(), specifying arena size and an optional
-///     allocator.
-///   - Allocate typed memory blocks using arenastack_new() or arenastack_new_aligned().
-///   - Reclaim memory by rewinding with arenastack_rewind_to(), or by clearing all arenas via
-///     `arenastack_clear()`.
-///   - Release resources with arenastack_release().
-///
-/// Layout:
-///   - Internally stores a Vec of Arena objects and a pointer to the currently active arena for
-///     fast allocations.
-///   - Designed for fast, stack-like allocation patterns with occasional rewinds and bulk clears.
-///
-/// Notes:
-///   - Alignment arguments must be a power of two; undefined behaviour otherwise.
-///   - Only one active ArenaStack instance is expected per intended allocation pool.
-///
+/// @brief Growable collection of arenas for temporary allocations and bulk reuse.
+/// @details Stores a Vec of Arena objects and the index of the active arena. Growth allocates or
+/// reuses backing buffers without moving existing allocations; reallocation may move an allocation.
+/// Initialize with arenastack_init(), allocate with arenastack_allocate() or the typed macros,
+/// reclaim storage with arenastack_clear() or arenastack_rewind_to(), and release it with
+/// arenastack_release().
+/// @note Concurrent access involving allocation, resizing, clearing, rewinding, or release requires
+/// external synchronization. Independent stacks may be used independently, subject to their
+/// allocator's thread-safety requirements.
 /// @see rk_alloc.h
-/// @see rk_defs.h
 /// @see rk_arena.h
 /// @see rk_vec.h
 /// @{
-
 #ifndef RK_ARENASTACK_H
 #define RK_ARENASTACK_H
 #include "rk_arena.h"
 #include "rk_vec.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
-/// @brief A dynamic stack of arenas used for memory allocation. Each arena is a fixed-size memory
-/// block managed by the Arena allocator. The ArenaStack tracks a vec of arenas and the current
-/// arena for allocation.
+/// @brief Owns arena backing buffers and a vector of arena descriptors, with an active arena index.
+/// @note ArenaStack pointer arguments must be non-null and refer to initialized objects. A
+/// zero-initialized stack supports lazy allocation and has no backing buffers initially.
+/// Copying this structure does not duplicate its owned resources; do not treat copies as
+/// independent owners. Allocator handles borrowing the stack require it to remain at the same
+/// address.
 typedef struct ArenaStack {
   size_t     arena_size;
   Vec(Arena) arenas;
@@ -48,66 +34,168 @@ typedef struct ArenaStack {
 } ArenaStack;
 
 /// @brief `ArenaStack arenastack_init(size_t arena_size, Allocator alloc = alloc_ctx)` -
-/// Initialises and returns a new ArenaStack with the desired capacity and allocator.
-/// @param arena_size  The desired size of each arena
-/// @param alloc       Optional allocator; defaults to `alloc_ctx`
-/// @return A new ArenaStack
-#define arenastack_init(arena_size, ...) rk_overload(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
+/// Initializes an owning stack and allocates its first arena.
+/// @param arena_size Minimum backing-buffer size for new arenas, rounded up to a power of two; zero
+/// selects one byte. The rounded size must be representable in size_t.
+/// @param alloc Backing allocator; defaults to alloc_ctx. Explicit selection requires custom
+/// allocators.
+/// @return An initialized ArenaStack owning its first buffer and descriptor vector.
+/// @note Larger requests can create larger arenas; this is not a fixed size for every arena.
+/// Allocation failures follow the backing allocator's failure policy.
+#define arenastack_init(arena_size, ...)                                                           \
+  RKI_OVERLOAD(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
-/// @brief Releases all arenas within the ArenaStack.
+/// @brief Releases every arena backing buffer and the descriptor vector, resetting the stack.
+/// @note Invalidates all allocations and marks. A zero-initialized stack is supported. A subsequent
+/// allocation lazily initializes the stack using alloc_ctx; the previous allocator is not retained.
 rklib_fun void              arenastack_release(ArenaStack* self);
 
-/// @brief Returns the allocator backing the ArenaStack's arenas, or `alloc_ctx` if `self` was never
-/// initialized, or custom allocators are disabled.
+/// @brief Returns the backing allocator associated with the arena descriptor vector.
+/// @note Returns alloc_ctx for a zero-initialized stack or when custom allocators are disabled.
+/// This is the allocator used to obtain buffers, not an Allocator adapter allocating within this
+/// stack.
+/// @see arenastack_to_alloc
 rklib_fun rk_pure Allocator arenastack_allocator(const ArenaStack* self) {
   return vec_allocator(self->arenas);
 }
 
-/// @brief Marks all Memory in the ArenaStack as reusable Clears all currently active arenas and
-/// resets the current arena index. Memory in all arenas becomes available for reuse; arenas beyond
-/// the current index are left unchanged until reused.
-/// @return `self`, for chaining.
+/// @brief Reclaims all allocations for reuse without releasing backing storage.
+/// @return self, for chaining.
+/// @note Clears arenas through the active index and resets that index to zero. Later arenas are
+/// retained and cleared when reused. Invalidates previous allocations and marks; does not clear
+/// their bytes. A zero-initialized stack is supported.
 rklib_fun ArenaStack*       arenastack_clear(ArenaStack* self);
 
-/// @brief Returns the current position of the active arena as an opaque marker. Pass to
-/// `arenastack_rewind_to` to restore the ArenaStack to this state.
-/// @note Returns a null marker if `self` was never initialized.
+/// @brief Saves the active arena's cursor for arenastack_rewind_to().
+/// @return A marker for the current position, or a null-position marker for a zero-initialized
+/// stack.
+/// @note Does not allocate or keep allocations alive. A null-position mark denotes the stack's
+/// starting position: rewinding to it clears the stack, even if it has since been lazily
+/// initialized.
 rklib_fun rk_pure ArenaMark arenastack_mark(const ArenaStack* self) {
   return self->arena_size ? arena_mark(&self->arenas[self->cur]) : (ArenaMark){rk_null};
 }
-/// @brief Rewinds the ArenaStack to a specific mark returned by `arenastack_mark()`, marking every
-/// allocation in every Arena of the Stack as free until the mark is reached.
-/// @return `self`, for chaining.
+/// @brief Reclaims allocations made after a saved position, retaining backing buffers for reuse.
+/// @param self Stack from which the mark was obtained.
+/// @param mark A mark from arenastack_mark() on this stack, still valid for its current state and
+/// not beyond its current allocation position. A null-position mark (from a zero-initialized
+/// stack) rewinds to the start, equivalent to arenastack_clear().
+/// @return self, for chaining.
+/// @note Invalidates allocations and marks in the discarded region. Rewinding to an empty later
+/// arena may make the preceding arena active. Foreign or invalidated non-null marks are
+/// unsupported.
 rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark);
 
 /// @brief `void* arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self)` - Allocates
-/// `nbytes` bytes with the given alignment from the ArenaStack, growing into a new arena if
-/// necessary. Prefer `arenastack_new` for typed allocations.
-/// @param nbytes Number of bytes to allocate
-/// @param align  Desired alignment; must be a power of two
-/// @param self   ArenaStack to allocate from
-/// @return Pointer to the allocated memory
+/// aligned storage, reusing or adding an arena if necessary.
+/// @param nbytes Payload size in bytes; may be zero. The size plus align - 1, and its required
+/// power-of-two backing-buffer size, must be representable in size_t.
+/// @param align Required alignment; must be a nonzero power of two.
+/// @param self Initialized or zero-initialized stack to allocate from.
+/// @return A non-null aligned pointer on success; failures follow the applicable allocator/arena
+/// failure policy rather than returning a normal null failure result.
+/// @note A zero-initialized stack is lazily initialized using alloc_ctx. A zero-size request
+/// returns an aligned cursor position and consumes only alignment padding; it may initialize or
+/// grow the stack. The result may be an end pointer and must not be dereferenced for a zero-size
+/// request.
+/// @note Existing allocation addresses remain stable when backing buffers or the descriptor vector
+/// grow. Unlike generic alloc_allocate(), this direct API does not normalize zero-size requests to
+/// NULL; such a zero-size position must not be passed to alloc_deallocate()/alloc_reallocate().
+/// @see arenastack_new
+/// @see arenastack_to_alloc
 rklib_fun void*       arenastack_allocate(size_t nbytes, size_t align, ArenaStack* self);
 
-/// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Create a new allocation
-/// in the arena for a given type T and count.
-/// @param  T           The type to allocate
-/// @param  count       Number of elements of type T to allocate
-/// @param  arena_stack Pointer to the ArenaStack to allocate from
-/// @return Pointer to the allocated memory
+/// @brief `T* arenastack_new(T, size_t count, ArenaStack* arena_stack)` - Allocates raw storage for
+/// count elements with the type's required alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation and backing-size requirements
+/// of arenastack_allocate() must be representable.
+/// @param arena_stack Stack to allocate from.
+/// @return A typed pointer to the allocated storage.
+/// @note Does not invoke C++ constructors. Zero count follows arenastack_allocate() semantics.
+/// @see arenastack_allocate
 #define arenastack_new(T, count, arena_stack) RKI_ARENASTACK_NEW(T, count, arena_stack)
 
 /// @brief `T* arenastack_new_aligned(T, size_t count, size_t align, ArenaStack* arena_stack)` -
-/// Create a new, allocation in the ArenaStack for a given type T and count with a given alignment.
-/// @param T           The type to allocate
-/// @param count       Number of elements of type T to allocate
-/// @param align       The desired alignment (must be a power of two)
-/// @param arena_stack Pointer to the ArenaStack to allocate from
-/// @return Pointer to the allocated memory.
-/// @note If alignment is not a power of two, behaviour is undefined
+/// Like arenastack_new(), with explicitly requested alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. Byte-size and backing-size calculations must be
+/// representable.
+/// @param align A nonzero power of two, at least the alignment required by T.
+/// @param arena_stack Stack to allocate from.
+/// @return A typed pointer to the allocated raw storage.
+/// @see arenastack_new
+/// @see arenastack_allocate
 #define arenastack_new_aligned(T, count, align, arena_stack)                                       \
   RKI_ARENASTACK_ALIGNED_NEW(T, count, align, arena_stack)
 
+/// @brief `void* arenastack_try_resize_top(size_t old_size, size_t new_size, ArenaStack* self)` -
+/// Resizes the active arena's top allocation without moving its start, like
+/// arena_try_resize_top().
+/// @param old_size Current payload size of the active arena's top allocation in bytes; may be zero
+/// for a valid zero-size position at the active cursor.
+/// @param new_size Desired payload size in bytes; may be zero.
+/// @param self Stack owning the top allocation or zero-size position. For a zero-initialized or
+/// released stack, `old_size` must be zero and the request fails, including when `new_size` is
+/// zero.
+/// @return The unchanged start pointer on success, including when `new_size` is zero; `NULL` if
+/// the requested size does not fit in the active arena.
+/// @note Failure leaves the stack unchanged. Never moves data, adds an arena, or invokes failure
+/// handlers. A zero new size reclaims the payload but not preceding alignment padding; the
+/// returned pointer then denotes only a zero-size position and must not be dereferenced.
+/// @note Only the active arena's top can be resized. An allocation that ends an earlier arena is
+/// not the stack's top, even if it was the most recent allocation before the stack grew.
+/// @note Operates on the implicit top allocation, so `old_size` correctly describing it is a
+/// precondition, not a checked failure. To resize a specific allocation that may not be on top,
+/// use arenastack_try_resize() or arenastack_try_extend().
+/// @see arenastack_try_resize
+rklib_fun void* arenastack_try_resize_top(size_t old_size, size_t new_size, ArenaStack* self);
+
+/// @brief `void* arenastack_try_resize(void* ptr, size_t old_size, size_t new_size,
+/// ArenaStack* self)` - Attempts to resize a specific allocation in place without moving it, like
+/// arena_try_resize(); it can grow or shrink.
+/// @param ptr Non-null pointer to an allocation or zero-size position owned by this stack; it need
+/// not be the top allocation.
+/// @param old_size Current payload size in bytes; must match the allocation.
+/// @param new_size Desired payload size in bytes; may be zero.
+/// @param self Stack owning the allocation.
+/// @return `ptr` on success, including when `new_size` is zero. `NULL` if `ptr` is not the active
+/// arena's top allocation (including the top of an earlier arena), the requested size does not
+/// fit in the active arena, or the stack is zero-initialized or released.
+/// @note Failure leaves the stack unchanged; a non-top allocation is an ordinary failure, not a
+/// contract violation. Ownership and a correct `old_size` remain preconditions. Never moves data
+/// or adds an arena. Preserves the retained bytes. A zero new size reclaims the payload but not
+/// preceding alignment padding; the returned pointer then denotes only a zero-size position and
+/// must not be dereferenced.
+/// @see arenastack_try_extend
+/// @see arenastack_try_resize_top
+rklib_fun void* arenastack_try_resize(void* ptr, size_t old_size, size_t new_size,
+                                      ArenaStack* self);
+
+/// @brief `T* arenastack_try_extend(T* ptr, size_t old_count, size_t new_count,
+/// ArenaStack* arena_stack)` - Typed arenastack_try_resize() using element counts; despite the
+/// name, it can also shrink.
+/// @param ptr Non-null pointer to an allocation or zero-size position owned by this stack; it need
+/// not be the top allocation.
+/// @param old_count Current payload element count; must match the allocation.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param arena_stack Stack owning the allocation.
+/// @return `ptr` on success, cast to the same pointer type, including when `new_count` is zero.
+/// `NULL` under the same conditions as arenastack_try_resize(), including a non-top `ptr`.
+/// @note Inherits arenastack_try_resize() semantics. Does not construct or destroy C++ objects.
+/// @see arenastack_try_resize
+#define arenastack_try_extend(ptr, old_count, new_count, arena_stack)                              \
+  ((typeof(ptr))arenastack_try_resize((ptr), sizeof_n(*(ptr), old_count),                          \
+                                      sizeof_n(*(ptr), new_count), (arena_stack)))
+
+/// @brief Internal allocation callback for the ArenaStack allocator adapter.
+/// @note Generic alloc_* wrappers normalize zero-size and null-pointer cases before dispatch:
+/// allocation callbacks receive positive sizes; reallocation/deallocation callbacks receive valid
+/// non-null existing allocations with matching sizes and alignment, and reallocation receives a
+/// positive new size. Allocation and reallocation callbacks must return valid storage or handle
+/// failure locally. The allocation callback also serves arenastack_allocate(), whose direct
+/// zero-size contract is broader.
 rklib_fun alloc_allocation_f   rki_arenastack_allocate;
 rklib_fun alloc_reallocation_f rki_arenastack_reallocate;
 rklib_fun alloc_deallocation_f rki_arenastack_deallocate;
@@ -115,6 +203,20 @@ static const AllocatorVTable arenastack_allocator_vtable = {.alloc_f   = rki_are
                                                             .realloc_f = rki_arenastack_reallocate,
                                                             .dealloc_f = rki_arenastack_deallocate};
 
+/// @brief Returns an Allocator handle borrowing the ArenaStack as its context.
+/// @param self Initialized or zero-initialized stack; must remain at the same address while used.
+/// @return An adapter allocating within the stack, not its backing allocator.
+/// @note Only useful with custom allocators enabled: otherwise alloc_* wrappers accept no explicit
+/// allocator and alloc_ctx cannot be replaced, so the handle cannot be passed anywhere.
+/// @note Generic alloc_* wrappers return NULL for zero-size allocation, deallocate and return NULL
+/// for zero-size reallocation, route null-input reallocation to allocation, and ignore null
+/// deallocation. These cases are normalized before callback dispatch.
+/// @note Only the active arena's top allocation can reclaim payload storage on deallocation or
+/// resize. Other deallocations and shrinks reclaim no storage. Growth may allocate and copy,
+/// retaining the old storage until bulk reclamation. Preceding alignment padding is not reclaimed
+/// by deallocation.
+/// @note Clearing, rewinding, or releasing must not discard storage still used through this handle.
+/// @see arenastack_allocator
 static_fun rk_const Allocator arenastack_to_alloc(ArenaStack* self) {
   return (Allocator){.vtab = &arenastack_allocator_vtable, .ctx = self};
 }
@@ -149,7 +251,8 @@ rklib_fun ArenaStack* arenastack_clear(ArenaStack* self) {
 
 rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark mark) {
   const unsigned char* ptr = mark.pos;
-  if rk_unlikely (!ptr) { return self; }
+  // A null mark was taken before lazy initialization, i.e. at the starting position.
+  if rk_unlikely (!ptr) { return arenastack_clear(self); }
   for (size_t i = self->cur + 1; i-- > 0;) {
     Arena* arena = &self->arenas[i];
     if (ptr == arena->cur || rk_ptr_in_range(ptr, arena->beg, arena->cur)) {
@@ -162,6 +265,28 @@ rklib_fun ArenaStack* arenastack_rewind_to(ArenaStack* restrict self, ArenaMark 
   rk_assert(0 && "Pointer was not allocated by this stack");
   unreachable();
 }
+// The end-position check alone is not enough here: when the active arena is empty and its buffer
+// directly follows the previous arena's buffer, a top allocation of the previous arena also ends at
+// the active cursor. Require the allocation to start inside the active arena as well; a zero-size
+// position may equal the cursor.
+rklib_fun rk_pure bool rki_arenastack_is_active_top(const Arena* arena, const void* ptr,
+                                                    size_t size) {
+  return (uptr)ptr >= (uptr)arena->beg && arena_is_top_allocation(arena, ptr, size);
+}
+
+rklib_fun rk_alloc_size(2) void* arenastack_try_resize_top(size_t old_size, size_t new_size,
+                                                           ArenaStack* self) {
+  if rk_unlikely (!self->arena_size) { return rk_null; }
+  return arena_try_resize_top(old_size, new_size, &self->arenas[self->cur]);
+}
+
+rklib_fun rk_alloc_size(3) void* arenastack_try_resize(void* ptr, size_t old_size, size_t new_size,
+                                                       ArenaStack* self) {
+  if (!self->arena_size || !rki_arenastack_is_active_top(&self->arenas[self->cur], ptr, old_size)) {
+    return rk_null;
+  }
+  return arenastack_try_resize_top(old_size, new_size, self);
+}
 
 rklib_fun ArenaStack rki_arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);
@@ -173,10 +298,9 @@ rklib_fun ArenaStack rki_arenastack_init(size_t cap RK_IFALLOC(, Allocator alloc
                      (unsigned char*)alloc_allocate(cap, align_max RK_IFALLOC(, alloc)), cap)),
       .cur = 0};
 }
-#define RKI_ARENASTACK_INIT(cap, alloc) rki_arenastack_init(cap RK_IFALLOC(, alloc))
-#define RKI_ARENASTACK_INIT2(cap, _alloc)                                                          \
-  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ARENASTACK_INIT(cap, alloc))
-#define RKI_ARENASTACK_INIT1(cap) RKI_ARENASTACK_INIT(cap, alloc_ctx)
+#define RKI_ARENASTACK_INIT2(cap, alloc)                                                           \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_arenastack_init(cap, alloc))
+#define RKI_ARENASTACK_INIT1(cap) rki_arenastack_init(cap RK_IFALLOC(, alloc_ctx))
 
 #define RKI_ARENA_ALLOC_INIT(_SIZE, _ALIGN, _ALLOC)                                                \
   arena_init((unsigned char*)alloc_allocate(_SIZE, _ALIGN RK_IFALLOC(, _ALLOC)), _SIZE)
@@ -208,27 +332,32 @@ rklib_fun rk_alloc_alignsize(2, 1) void* rki_arenastack_allocate(size_t nbytes, 
   return arena_allocate(nbytes, align, &self->arenas[self->cur]);
 }
 
-rklib_fun void rki_arenastack_deallocate(void* ptr, size_t old_size, size_t align, void* ctx) {
-  ArenaStack* self = (ArenaStack*)ctx;
-  rki_arena_deallocate(ptr, old_size, align, &self->arenas[self->cur]);
+rklib_fun void rki_arenastack_deallocate(void* ptr, size_t old_size, size_t align rk_unused,
+                                         void* ctx) {
+  ArenaStack* self  = (ArenaStack*)ctx;
+  Arena*      arena = &self->arenas[self->cur];
+  if (rki_arenastack_is_active_top(arena, ptr, old_size)) {
+    (void)arena_try_resize_top(old_size, 0, arena);
+  }
 }
 
 rklib_fun rk_alloc_alignsize(4, 3) void* rki_arenastack_reallocate(void* ptr, size_t old_size,
                                                                    size_t new_size, size_t align,
                                                                    void* ctx) {
   rk_assert_align_pow2(align);
-  ArenaStack* self = (ArenaStack*)ctx;
-  if (!old_size) { return arenastack_allocate(new_size, align, self); }
-  if ((arena_is_top_allocation(&self->arenas[self->cur], ptr, old_size)
-       && arena_try_resize_top(old_size, new_size, &self->arenas[self->cur]))
+  ArenaStack* self  = (ArenaStack*)ctx;
+  Arena*      arena = &self->arenas[self->cur];
+
+  if ((rki_arenastack_is_active_top(arena, ptr, old_size)
+       && arena_try_resize_top(old_size, new_size, arena))
       || new_size <= old_size) {
     return ptr;
   }
+
   void* res = arenastack_allocate(new_size, align, self);
-  rk_memcpy(res, ptr, rk_MIN(old_size, new_size));
+  rk_memcpy(res, ptr, old_size);
   return res;
 }
-
 rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size_t align,
                                                              ArenaStack* self) {
   return rki_arenastack_allocate(nbytes, align, self);
@@ -238,7 +367,7 @@ rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_ARENASTACK_H
 

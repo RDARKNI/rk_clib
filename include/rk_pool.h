@@ -20,21 +20,21 @@
 #define RK_POOL_H
 #include "rk_alloc.h"
 #include "rk_bitset.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Defines a pool type and associated functions for type `T` Depending on the arguments,
 /// this macro defines either a dynamic pool (`Pool(T)`) or a static/fixed pool (`Pool(T, C)`).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
-#define POOL_DEFINE(T, ...)             RKI_STATOVERLOAD(RKI_POOL_DEFINE, T, ##__VA_ARGS__)
+#define POOL_DEFINE(T, ...)           RKI_STATOVERLOAD(RKI_POOL_DEFINE, T, ##__VA_ARGS__)
 
 /// @brief Alias for the pool type (dynamic or static).
 /// @param T Type of elements stored in the pool
 /// @param C Capacity of the pool if static
 /// @note Static Pools take a second capacity parameter
-#define Pool(T, ...)                    RKI_STATOVERLOAD__(RKI_POOL, T, ##__VA_ARGS__)
-#define StaticPool(T, CAP)              Pool_##CAP##_##T
-#define DynPool(T)                      Pool_##T
+#define Pool(T, ...)                  RKI_STATOVERLOAD__(RKI_POOL, T, ##__VA_ARGS__)
+#define StaticPool(T, CAP)            Pool_##CAP##_##T
+#define DynPool(T)                    Pool_##T
 
 /// @brief `Pool(T)* pool_init(T, size_t cap, Allocator alloc = alloc_ctx)` - Initializes a dynamic
 /// pool with given capacity.
@@ -42,64 +42,64 @@ RK_HEADER_BEGIN
 /// @param cap Desired capacity
 /// @param alloc Optional allocator
 /// @return Initialized pool struct
-#define pool_init(T, _cap, ...)         rk_overload(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
+#define pool_init(T, _cap, ...)       RKI_OVERLOAD(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
 
 /// @brief Compile-time zero-initializer for a `Pool(T, C)` (`StaticPool`). Suitable for global and
 /// static variables. No memory is allocated.
 /// @note Named after `StaticPool`, the type it initializes — not to be confused with the (removed)
 /// `_init_static` convention other containers used for static-storage-duration-safe initializers.
-#define staticpool_init                 {RK_ZINIT}
+#define staticpool_init               {RKI_ZINIT}
 
 /// @brief `void pool_release(Pool(T, ...)* self)` - Releases the associated resources of the pool
 /// (if the pool is dynamic) and resets its members. For static pools, this resets the allocation
 /// bitset but does not modify the underlying element storage.
-#define pool_release(self)              ((void)RKI_POOL_RELEASE(self))
+#define pool_release(self)            ((void)RKI_POOL_RELEASE(self))
 
 /// @brief `size_t pool_cap(Pool(T, ...)* self)` - Returns the total capacity of the pool.
-#define pool_cap(self)                  ((size_t)RKI_POOL_CAP(self))
+#define pool_cap(self)                ((size_t)RKI_POOL_CAP(self))
 
 /// @brief `Allocator pool_allocator(Pool(T)* self)` - Returns the Allocator the (dynamic) pool was
 /// constructed with, or `alloc_ctx` if the pool was never initialized or custom allocators are
 /// disabled.
-#define pool_allocator(self)            RKI_allocatorof(self)
+#define pool_allocator(self)          RKI_allocatorof(self)
 
 /// @brief `size_t pool_used(Pool(T)* self)` - Returns the number of active (allocated) elements in
 /// the pool.
-#define pool_used(self)                 ((size_t)RKI_POOL_USED(self))
+#define pool_used(self)               ((size_t)RKI_POOL_USED(self))
 
 /// @brief `size_t pool_remaining(Pool(T)* self)` - Returns the number of free slots remaining in
 /// the pool.
-#define pool_remaining(self)            ((size_t)RKI_POOL_REMAINING(self))
+#define pool_remaining(self)          ((size_t)RKI_POOL_REMAINING(self))
 
 /// @brief Returns `true` iff the pool is empty.
-#define pool_is_empty(self)             ((bool)(pool_used(self) == 0))
+#define pool_is_empty(self)           ((bool)(pool_used(self) == 0))
 
 /// @brief Returns `true` iff the pool is full.
-#define pool_is_full(self)              ((bool)(pool_remaining(self) == 0))
+#define pool_is_full(self)            ((bool)(pool_remaining(self) == 0))
 
 /// @brief `Pool(T)* pool_clear(Pool(T)* self)` - Marks all elements in the pool as reusable.
 /// @return `self`, for chaining
-#define pool_clear(self)                ((typeof(self))RKI_POOL_CLEAR(self))
+#define pool_clear(self)              ((typeof(self))RKI_POOL_CLEAR(self))
 
 /// @brief `T* pool_new(Pool(T)* self)` - Allocates a new element in the pool.
 /// @return Pointer to the newly allocated element
-#define pool_new(self)                  ((RKI_POOL_T(self)*)RKI_POOL_NEW(self))
+#define pool_new(self)                ((RKI_POOL_T(self)*)RKI_POOL_NEW(self))
 
 /// @brief `T* pool_try_new(Pool(T)* self)` - Like `pool_new()`, but returns `NULL` if full instead
 /// of running `RK_POOL_FAIL()`.
-#define pool_try_new(self)              ((RKI_POOL_T(self)*)RKI_POOL_TRY_NEW(self))
+#define pool_try_new(self)            ((RKI_POOL_T(self)*)RKI_POOL_TRY_NEW(self))
 
 /// @brief `T* pool_put(Pool(T)* self, T el)` - Allocates a new element and stores a copy of the
 /// value.
 /// @return Pointer to the inserted element
-#define pool_put(self, el)              ((RKI_POOL_T(self)*)RKI_POOL_PUT(self, el))
+#define pool_put(self, el)            ((RKI_POOL_T(self)*)RKI_POOL_PUT(self, el))
 
 /// @brief `T* pool_try_put(Pool(T)* self, T el)` - Like `pool_put()`, but returns `NULL` if full
 /// instead of running `RK_POOL_FAIL()`.
-#define pool_try_put(self, el)          ((RKI_POOL_T(self)*)RKI_POOL_TRY_PUT(self, el))
+#define pool_try_put(self, el)        ((RKI_POOL_T(self)*)RKI_POOL_TRY_PUT(self, el))
 
 /// @brief `void pool_delete(Pool(T)* self, T* ptr)` - Frees an element in the pool.
-#define pool_delete(self, ptr)          ((void)RKI_POOL_DELETE(self, ptr))
+#define pool_delete(self, ptr)        ((void)RKI_POOL_DELETE(self, ptr))
 
 /// @brief Visits every allocated element in the pool.
 /// @param self Pointer to the Pool. Evaluated once.
@@ -117,7 +117,7 @@ RK_HEADER_BEGIN
 ///     printf("%d\n", *elem);
 /// }
 /// ```
-#define pool_foreach(self, it) RKI_POOL_FOREACH(self, it)
+#define pool_foreach(self, it)        RKI_POOL_FOREACH(self, it)
 
 /// @brief Erases every allocated element satisfying `pred`.
 /// @param self Pointer to a mutable Pool. Evaluated once.
@@ -192,7 +192,7 @@ rklib_fun rk_forceinline void* rki_dpool_init(size_t elsize, size_t elalign, RKI
   return self;
 }
 #define RKI_DPOOL_INIT(T, _cap, _alloc)                                                            \
-  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RK_ZINIT}),       \
+  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RKI_ZINIT}),      \
                               _cap RK_IFALLOC(, _alloc))))
 #define RKI_DPOOL_INIT3(T, _cap, _alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DPOOL_INIT(T, _cap, _alloc))
@@ -365,34 +365,31 @@ rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_dpool_put(size_t els
 // ever exited that already-terminating inner loop and silently behaved like `continue`.
 #define RKI_POOL_FOREACH(self, it)                                                                 \
   for (struct {                                                                                    \
-         typeof(self) pool;                                                                        \
-         size_t       cap, idx;                                                                    \
-       } rki_var_state = {(self), 0, 0};                                                           \
+         typeof(*(self))* pool;                                                                    \
+         RKI_BitsetIter bits;                                                                      \
+         size_t         idx;                                                                       \
+       } rki_var_state = {(self), {rk_null, 0, 0, 0}, 0};                                          \
        rki_var_state.pool                                                                          \
-       && (rki_var_state.cap = pool_cap(rki_var_state.pool), rki_var_state.idx = BITSET_NPOS, 1);  \
+       && (rki_var_state.bits.bits = rki_var_state.pool->data,                                     \
+          rki_var_state.bits.count = pool_cap(rki_var_state.pool), 1);                             \
        rki_var_state.pool = rk_null)                                                               \
     for (RKI_POOL_T(rki_var_state.pool)* it = rk_null;                                             \
-         (rki_var_state.idx                                                                        \
-          = bitset_find_next_set(rki_var_state.pool->data, rki_var_state.cap, rki_var_state.idx))  \
-             != BITSET_NPOS                                                                        \
-         && (it = RKI_POOL_ELS(rki_var_state.pool) + rki_var_state.idx, 1);)
+         (rki_var_state.idx = rki_bitset_iter_next(&rki_var_state.bits)) != BITSET_NPOS            \
+         && (it = RKI_POOL_ELS(rki_var_state.pool) + rki_var_state.idx, (void)it, 1);)
 
 #define RKI_POOL_ERASE_IF(self, it, pred)                                                          \
   do {                                                                                             \
     typeof(self) const rki_var_pool = (self);                                                      \
-    if (!rki_var_pool) { break; }                                                                  \
-    const size_t rki_var_cap = pool_cap(rki_var_pool);                                             \
-    for (size_t rki_var_idx = BITSET_NPOS;                                                         \
-         (rki_var_idx = bitset_find_next_set(rki_var_pool->data, rki_var_cap, rki_var_idx))        \
-         != BITSET_NPOS;) {                                                                        \
-      RKI_POOL_T(rki_var_pool)* const it = RKI_POOL_ELS(rki_var_pool) + rki_var_idx;               \
+    RKI_POOL_FOREACH(rki_var_pool, rki_var_cursor) {                                               \
+      RKI_POOL_T(rki_var_pool)* const it = rki_var_cursor;                                         \
+      (void)it;                                                                                    \
       if (pred) { pool_delete(rki_var_pool, it); }                                                 \
     }                                                                                              \
   } while (0)
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_POOL_H
 

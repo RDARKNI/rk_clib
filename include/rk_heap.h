@@ -43,7 +43,7 @@
 #ifndef RK_HEAP_H
 #define RK_HEAP_H
 #include "rk_vec.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Define a heap type and functions for a given element type.
 ///
@@ -76,7 +76,7 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Heap(T)` containing a heap-ordered copy of `arr`'s first `n` values
-#define heap_from(T, arr, n, ...)        rk_overload(RKI_HEAP_FROM, T, arr, n, ##__VA_ARGS__)
+#define heap_from(T, arr, n, ...)        RKI_OVERLOAD(RKI_HEAP_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `Heap(T) heap_adopt(T, Vec(T) vec)` - Constructs a new Heap by taking ownership of `vec`
 /// and heapifying it in place, with no copy.
@@ -199,7 +199,7 @@ RK_HEADER_BEGIN
 /// ```c
 /// heap_foreach(&h, it) { printf("%d\n", *it); }
 /// ```
-#define heap_foreach(self, it) vec_foreach((const typeof(*(self)->data)*)(self)->data, it)
+#define heap_foreach(self, it)           vec_foreach((const typeof(*(self)->data)*)(self)->data, it)
 
 /// @brief Erases every element satisfying `pred`, then restores the heap invariant.
 /// @param T    Element type.
@@ -323,13 +323,14 @@ RK_HEADER_BEGIN
   do {                                                                                             \
     Heap(T)* const rki_var_heap = (self);                                                          \
     if (!rki_var_heap) { break; }                                                                  \
+    const size_t rki_var_count = heap_count(rki_var_heap);                                         \
     vec_erase_if(rki_var_heap->data, it, pred);                                                    \
-    RKI_HEAP_PRI(T, heapify)(rki_var_heap);                                                        \
+    if (heap_count(rki_var_heap) != rki_var_count) { RKI_HEAP_PRI(T, heapify)(rki_var_heap); }     \
   } while (0)
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_HEAP_H
 

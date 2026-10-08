@@ -45,7 +45,7 @@
 #ifndef RK_VEC_H
 #define RK_VEC_H
 #include "rk_alloc.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Macro to indicate that an object is a Vec.
 /// @param T The type of elements stored in the Vec
@@ -77,7 +77,7 @@ RK_HEADER_BEGIN
 #define vec_init(T, init_cap, ...)                                                                 \
   ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
                                      "Over-aligned Types not supported."),                         \
-            rk_overload(RKI_VEC_INIT, T, init_cap, ##__VA_ARGS__)))
+            RKI_OVERLOAD(RKI_VEC_INIT, T, init_cap, ##__VA_ARGS__)))
 
 /// @brief `Vec(T) vec_init_list(T, Allocator alloc = alloc_ctx, T... values)` - Initialises a Vec
 /// from a list of values.
@@ -119,7 +119,7 @@ RK_HEADER_BEGIN
 /// Vec(int) v2 = vec_from(arr, 3, my_alloc);  // uses my_alloc
 /// ```
 #define vec_from(arr, count, ...)                                                                  \
-  ((typeof(*(arr))*)rk_overload(RKI_VEC_FROM, arr, count, ##__VA_ARGS__))
+  ((typeof(*(arr))*)RKI_OVERLOAD(RKI_VEC_FROM, arr, count, ##__VA_ARGS__))
 
 /// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
 /// NULL.
@@ -224,7 +224,7 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// @attention `arr[0..count)` must not overlap the Vec's own backing allocation, for the same
 /// reasons documented on `vec_assign()`.
 /// @note Reassigns `self`, if necessary
-#define vec_push_n(self, arr, count)  ((void)RKI_VEC_PUSH_ARR(self, arr, count))
+#define vec_push_n(self, arr, count)  ((void)RKI_VEC_PUSH_N(self, arr, count))
 
 /// @brief `void vec_push_unchecked(Vec(T)& self, T obj)` - Pushes a value onto the Vec, not
 /// checking for capacity.
@@ -314,7 +314,7 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// ```c
 /// vec_foreach(vec, it) { printf("%d\n", *it); }
 /// ```
-#define vec_foreach(vec, it) RKI_VEC_FOREACH(vec, it)
+#define vec_foreach(vec, it)          RKI_VEC_FOREACH(vec, it)
 
 /// @brief Like `vec_foreach()`, but iterates in reverse index order. Same parameters and contract.
 #define vec_foreach_reversed(vec, it) RKI_VEC_FOREACH_REVERSED(vec, it)
@@ -331,7 +331,7 @@ rklib_fun rk_pure bool   vec_index_in_range(const Vec(void) self, size_t idx);
 /// vec_push(vec, 1), vec_push(vec, 2);
 /// vec_erase_if(vec, it, *it % 2); // remove odd numbers
 /// ```
-#define vec_erase_if(vec, it, pred) RKI_VEC_ERASE_IF(vec, it, pred)
+#define vec_erase_if(vec, it, pred)   RKI_VEC_ERASE_IF(vec, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -448,15 +448,14 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
   ((cap) ? RKI_VEC_NEW_NONZERO(T, cap, count, alloc) : rk_null)
 
 // initialises a Vec with positive cap (no cap 0 check) and assigns it to V
-#define RKI_VEC_INIT_ASSIGN(V, C, A) ((V) = RKI_VEC_NEW_NONZERO(*(V), (C), 0, (A)))
+#define RKI_VEC_INIT_ASSIGN_NONZERO(V, C, A) ((V) = RKI_VEC_NEW_NONZERO(*(V), (C), 0, (A)))
 
-#define RKI_VEC_INIT(T, C, A)        RKI_VEC_NEW(T, (C), 0, (A))
-#define RKI_VEC_INIT3(T, C, A)       RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_INIT(T, C, A))
-#define RKI_VEC_INIT2(T, C)          RKI_VEC_INIT(T, C, alloc_ctx)
+#define RKI_VEC_INIT(T, C, A)                RKI_VEC_NEW(T, C, 0, A)
+#define RKI_VEC_INIT3(T, C, A)               RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_INIT(T, C, A))
+#define RKI_VEC_INIT2(T, C)                  RKI_VEC_INIT(T, C, alloc_ctx)
 
 #define RKI_VEC_FROM(arr, count, alloc)                                                            \
   ((count) ? rk_copy(RKI_VEC_NEW(*(arr), (count), (count), (alloc)), (arr), (count)) : rk_null)
-
 #define RKI_VEC_FROM3(arr, count, alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_VEC_FROM(arr, count, alloc))
 #define RKI_VEC_FROM2(arr, count) RKI_VEC_FROM(arr, count, alloc_ctx)
@@ -479,11 +478,11 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
 #define RKI_VEC_RESERVE_1(V)                                                                       \
   ((V) ? (RKI_VEC_COUNT(V) == RKI_VEC_CAP(V) ? RKI_VEC_CHANGE_CAP(V, rk_mult(RKI_VEC_CAP(V), 2))   \
                                              : (V))                                                \
-       : RKI_VEC_INIT_ASSIGN(V, 1, alloc_ctx))
+       : RKI_VEC_INIT_ASSIGN_NONZERO(V, 1, alloc_ctx))
 
 #define RKI_VEC_RESERVE(V, C)                                                                      \
   ((V) ? ((C) > RKI_VEC_CAP(V) ? RKI_VEC_CHANGE_CAP(V, C) : (V))                                   \
-       : ((C) ? RKI_VEC_INIT_ASSIGN(V, C, alloc_ctx) : rk_null))
+       : ((C) ? RKI_VEC_INIT_ASSIGN_NONZERO(V, C, alloc_ctx) : rk_null))
 
 #define RKI_VEC_RESIZE(V, C) (RKI_VEC_RESERVE(V, C), (V) && (RKI_VEC_COUNT(V) = (C)))
 
@@ -497,12 +496,12 @@ rklib_fun rk_forceinline RKI_VecHdr* rk_alloc_size(2)
    && (RKI_VEC_COUNT(V) ? RKI_VEC_CHANGE_CAP(V, stdc_bit_ceil(RKI_VEC_COUNT(V)))                   \
                         : (vec_release(V), (V) = rk_null)))
 
-#define RKI_VEC_PUSH_U(V, O)        ((V)[RKI_VEC_COUNT(rki_check_vec_push_u(V))++] = (O))
-#define RKI_VEC_PUSH(V, O)          (RKI_VEC_RESERVE_1(V), RKI_VEC_PUSH_U(V, O))
+#define RKI_VEC_PUSH_U(V, O)      ((V)[RKI_VEC_COUNT(rki_check_vec_push_u(V))++] = (O))
+#define RKI_VEC_PUSH(V, O)        (RKI_VEC_RESERVE_1(V), RKI_VEC_PUSH_U(V, O))
 
-#define RKI_VEC_PUSH_ARR_U(V, O, N) (rk_copy((V) + RKI_VEC_COUNT(V), O, N), RKI_VEC_COUNT(V) += (N))
-#define RKI_VEC_PUSH_ARR(V, O, N)                                                                  \
-  ((void)((N) && (RKI_VEC_RESERVE(V, vec_count(V) + (N)), RKI_VEC_PUSH_ARR_U(V, O, N), 1)))
+#define RKI_VEC_PUSH_N_U(V, O, N) (rk_copy((V) + RKI_VEC_COUNT(V), O, N), RKI_VEC_COUNT(V) += (N))
+#define RKI_VEC_PUSH_N(V, O, N)                                                                    \
+  ((void)((N) && (RKI_VEC_RESERVE(V, vec_count(V) + (N)), RKI_VEC_PUSH_N_U(V, O, N), 1)))
 
 rklib_fun rk_forceinline void rki_vec_insert_arr_at(size_t elsize, void* restrict v, size_t i,
                                                     const void* restrict arr, size_t n) {
@@ -552,6 +551,9 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
   rki_vec_erase_at_n(sizeof(*(V)), (V), rki_vec_assert_erasebounds_n(V, I, N), (N))
 #define RKI_VEC_ERASE_AT(V, I) RKI_VEC_ERASE_AT_N(V, I, 1)
 
+#define RKI_VEC_ASSIGN(V, O, N)                                                                    \
+  (RKI_VEC_RESERVE(V, N), (V) && (RKI_VEC_COUNT(V) = (N), rk_copy(V, O, N)))
+
 #define RKI_VEC_FOREACH(vec, it)                                                                   \
   for (typeof(*(vec))*it = (vec), *const rki_var_end = vec_end(it); it != rki_var_end; ++it)
 
@@ -559,7 +561,7 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
   for (typeof(*(vec))*const rki_var_begin = (vec), *it = vec_end(rki_var_begin);                   \
        it != rki_var_begin && (--it, 1);)
 
-#define RKI_VEC_ERASE_IF(vec, it, pred)                                                           \
+#define RKI_VEC_ERASE_IF(vec, it, pred)                                                            \
   do {                                                                                             \
     RKI_IGNWARN_MSC_BEG(4114)                                                                      \
     typeof(vec) rki_var_vec = (vec);                                                               \
@@ -576,15 +578,10 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
     RKI_IGNWARN_MSC_END()                                                                          \
   } while (0)
 
-#define RKI_VEC_ASSIGN(V, O, N)                                                                    \
-  (RKI_VEC_RESERVE(V, N), (V) && (RKI_VEC_COUNT(V) = (N), rk_copy(V, O, N)))
-
 // msvc sizeof returns 0
 #define RKI_VEC_INIT_LIST_(T, arr, alloc)                                                          \
   memcpy(RKI_VEC_NEW_NONZERO(T, rk_COUNTOF(arr), rk_COUNTOF(arr), alloc), arr, sizeof(arr))
-
-#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RK_ZINIT})
-
+#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RKI_ZINIT})
 #if RK_CUSTOM_ALLOCATORS
 # define RKI_VEC_INIT_LIST(T, ...)                                                                 \
    _Generic(VA_FIRST(__VA_ARGS__),                                                                 \
@@ -601,7 +598,7 @@ rklib_fun rk_forceinline void rki_vec_erase_at_n(size_t elsize, void* v, size_t 
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_VEC_H
 

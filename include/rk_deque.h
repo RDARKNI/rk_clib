@@ -28,7 +28,7 @@
 #ifndef RK_DEQUE_H
 #define RK_DEQUE_H
 #include "rk_alloc.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Generates a deque type and its operations for T. Invoke once per T at file scope.
 /// @param T Name of the element type. Must be a plain type identifier; use a typedef for a pointer
@@ -49,7 +49,7 @@ RK_HEADER_BEGIN
 /// @return An initialised, empty `Deque(T)`
 /// @note A zero-initialized `Deque(T)` is also a valid, empty deque; it allocates using `alloc_ctx`
 /// on first insertion.
-#define deque_init(T, cap, ...)       rk_overload(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
+#define deque_init(T, cap, ...)       RKI_OVERLOAD(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
 
 /// @brief `Deque(T) deque_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` -
 /// Constructs a new Deque by copying `n` values from `arr`, in front-to-back order.
@@ -58,7 +58,7 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Deque(T)` containing a copy of `arr`'s first `n` values
-#define deque_from(T, arr, n, ...)    rk_overload(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
+#define deque_from(T, arr, n, ...)    RKI_OVERLOAD(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `void deque_release(T, Deque(T)* self)` - Frees the backing buffer and resets the Deque
 /// to an empty state.
@@ -249,11 +249,11 @@ RK_HEADER_BEGIN
 /// ```c
 /// deque_foreach(&q, it) { printf("%d\n", *it); }
 /// ```
-#define deque_foreach(self, it) RKI_DEQUE_FOREACH(self, it)
+#define deque_foreach(self, it)                 RKI_DEQUE_FOREACH(self, it)
 
 /// @brief Like `deque_foreach()`, but iterates in back-to-front order. Same parameters and
 /// contract.
-#define deque_foreach_reversed(self, it) RKI_DEQUE_FOREACH_REVERSED(self, it)
+#define deque_foreach_reversed(self, it)        RKI_DEQUE_FOREACH_REVERSED(self, it)
 
 /// @brief Erases every element satisfying `pred`, preserving the retained elements' relative
 /// order.
@@ -267,7 +267,7 @@ RK_HEADER_BEGIN
 /// ```c
 /// deque_erase_if(&q, it, *it % 2 == 0); // remove even numbers
 /// ```
-#define deque_erase_if(self, it, pred) RKI_DEQUE_ERASE_IF(self, it, pred)
+#define deque_erase_if(self, it, pred)          RKI_DEQUE_ERASE_IF(self, it, pred)
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -447,14 +447,13 @@ RK_HEADER_BEGIN
   }                                                                                                \
   RK_EXTERNC_END
 
-#define RKI_DEQUE_INIT(T, cap, alloc)  RKI_DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc))
-#define RKI_DEQUE_INIT3(T, cap, alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_INIT(T, cap, alloc))
-#define RKI_DEQUE_INIT2(T, cap)        RKI_DEQUE_INIT(T, cap, alloc_ctx)
+#define RKI_DEQUE_INIT3(T, cap, alloc)                                                             \
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_PUB(T, init)(cap, alloc))
+#define RKI_DEQUE_INIT2(T, cap) RKI_DEQUE_PUB(T, init)(cap RK_IFALLOC(, alloc_ctx))
 
-#define RKI_DEQUE_FROM(T, arr, n, alloc) RKI_DEQUE_PUB(T, from)((arr), (n)RK_IFALLOC(, (alloc)))
 #define RKI_DEQUE_FROM4(T, arr, n, alloc)                                                          \
-  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_FROM(T, arr, n, alloc))
-#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_FROM(T, arr, n, alloc_ctx)
+  RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DEQUE_PUB(T, from)(arr, n, alloc))
+#define RKI_DEQUE_FROM3(T, arr, n) RKI_DEQUE_PUB(T, from)(arr, n RK_IFALLOC(, alloc_ctx))
 
 #define RKI_DEQUE_FOREACH(self, it)                                                                \
   for (struct {                                                                                    \
@@ -489,8 +488,7 @@ RK_HEADER_BEGIN
   do {                                                                                             \
     typeof(self) const rki_var_deque = (self);                                                     \
     if (!rki_var_deque || !rki_var_deque->count) { break; }                                        \
-    const size_t rki_var_count = rki_var_deque->count;                                             \
-    const size_t rki_var_mask  = rki_var_deque->cap - 1;                                           \
+    const size_t rki_var_count = rki_var_deque->count, rki_var_mask = rki_var_deque->cap - 1;      \
     size_t       rki_var_write = 0;                                                                \
     for (size_t rki_var_idx = 0; rki_var_idx < rki_var_count; ++rki_var_idx) {                     \
       typeof(*rki_var_deque->data)* const it                                                       \
@@ -508,7 +506,7 @@ RK_HEADER_BEGIN
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_DEQUE_H
 

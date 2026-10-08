@@ -2,7 +2,7 @@
 #define TEST_STRING_H
 #include "conf.h"
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 triax_test(string, str_len) {
@@ -59,7 +59,7 @@ triax_test(string, str_init_and_from_literal) {
   triax_expect_true(str_is_null_terminated(&s3));
   triax_expect_streq(s3.str, "");
 
-  Str s4 = {RK_ZINIT};
+  Str s4 = {RKI_ZINIT};
   triax_expect_nonnull(str_null_terminate(&s4));
 
   triax_expect_true(str_is_null_terminated(str_null_terminate(&s4)));
@@ -221,7 +221,7 @@ static Str* rki_mark_eval_str(Str* s, int* count) {
 }
 
 triax_test(string, foreach_visits_all_chars) {
-  Str  s   = str_from_literal("abcde");
+  Str  s      = str_from_literal("abcde");
   char buf[6] = {0};
   int  i      = 0;
   str_foreach(&s, it) { buf[i++] = *it; }
@@ -231,7 +231,7 @@ triax_test(string, foreach_visits_all_chars) {
 }
 
 triax_test(string, foreach_reversed_visits_all_chars) {
-  Str  s   = str_from_literal("abcde");
+  Str  s      = str_from_literal("abcde");
   char buf[6] = {0};
   int  i      = 0;
   str_foreach_reversed(&s, it) { buf[i++] = *it; }
@@ -241,7 +241,7 @@ triax_test(string, foreach_reversed_visits_all_chars) {
 }
 
 triax_test(string, foreach_break_stops_iteration) {
-  Str s = str_from_literal("abcde");
+  Str s      = str_from_literal("abcde");
   int visits = 0;
   str_foreach(&s, it) {
     if (*it == 'c') { break; }
@@ -252,7 +252,7 @@ triax_test(string, foreach_break_stops_iteration) {
 }
 
 triax_test(string, foreach_continue_skips_char) {
-  Str s = str_from_literal("abcde");
+  Str s      = str_from_literal("abcde");
   int visits = 0;
   str_foreach(&s, it) {
     if (*it == 'c') { continue; }
@@ -263,7 +263,7 @@ triax_test(string, foreach_continue_skips_char) {
 }
 
 triax_test(string, foreach_reversed_break_stops_iteration) {
-  Str s = str_from_literal("abcde");
+  Str s      = str_from_literal("abcde");
   int visits = 0;
   str_foreach_reversed(&s, it) {
     if (*it == 'c') { break; }
@@ -274,7 +274,7 @@ triax_test(string, foreach_reversed_break_stops_iteration) {
 }
 
 triax_test(string, foreach_reversed_continue_skips_char) {
-  Str s = str_from_literal("abcde");
+  Str s      = str_from_literal("abcde");
   int visits = 0;
   str_foreach_reversed(&s, it) {
     if (*it == 'c') { continue; }
@@ -349,7 +349,7 @@ triax_test(string, foreach_reversed_empty_is_noop) {
 }
 
 triax_test(string, foreach_on_zero_initialized_str_is_noop) {
-  Str s     = {RK_ZINIT};
+  Str s     = {RKI_ZINIT};
   int count = 0;
   str_foreach(&s, it) {
     (void)it;
@@ -371,7 +371,7 @@ triax_test(string, erase_if_empty_is_noop) {
 }
 
 triax_test(string, erase_if_on_zero_initialized_str_is_noop) {
-  Str s          = {RK_ZINIT};
+  Str s          = {RKI_ZINIT};
   int pred_calls = 0;
   str_erase_if(&s, it, (++pred_calls, (void)it, true));
   triax_expect_eq(pred_calls, 0);
@@ -755,11 +755,11 @@ triax_test(string, str_tok_all_3) {
 // Section: String Lifetime/Ownership
 // ----------------------------------------
 
-# define str_init(init_cap, ...) rk_overload(RKI_str_init, init_cap, ##__VA_ARGS__)
+# define str_init(init_cap, ...) RKI_OVERLOAD(RKI_str_init, init_cap, ##__VA_ARGS__)
 
-# define str_from(strlike, ...)  rk_overload(RKI_str_from, strlike, ##__VA_ARGS__)
+# define str_from(strlike, ...)  RKI_OVERLOAD(RKI_str_from, strlike, ##__VA_ARGS__)
 
-# define str_from_literal(strlit, ...)     rk_overload(RKI_str_fromlit, strlit, ##__VA_ARGS__)
+# define str_from_literal(strlit, ...)     RKI_OVERLOAD(RKI_str_fromlit, strlit, ##__VA_ARGS__)
 
 static_fun void str_release(Str* restrict self) {
   alloc_delete(self->str, self->cap, self->alloc);
@@ -837,7 +837,7 @@ extern_fun Str* str_reverse(Str* restrict self);
 # define str_trimmed_right(strlike) str_trimmed_right_strv(strv_from(strlike))
 
 # define str_split_alloc(strlike, delims, out_count, ...)                                          \
-   rk_overload(RKI_str_tok_alloc, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
+   RKI_OVERLOAD(RKI_str_tok_alloc, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
 
 // ----------------------------------------
 // Section: Strlike Query/Search Functions
@@ -876,7 +876,7 @@ triax_test(string, string_test_split_example) {
   triax_expect_true(buf[1].len == 2u && !memcmp(buf[1].str, "is", 2));
   triax_expect_true(buf[2].len == 1u && !memcmp(buf[2].str, "a", 1));
   triax_expect_true(buf[3].len == 4u && !memcmp(buf[3].str, "test", 4));
-  Str    s2 = {RK_ZINIT};
+  Str    s2 = {RKI_ZINIT};
   Strv   v2 = s2.v;
   Strv   buf2[64];
   size_t i2 = 0;
@@ -885,7 +885,7 @@ triax_test(string, string_test_split_example) {
   triax_expect_eq(buf2[0].len, 0u);
 }
 triax_test(string, string_test_empty) {
-  Str s = {RK_ZINIT};
+  Str s = {RKI_ZINIT};
   triax_expect_eq(str_dat(s), rk_null);
   triax_expect_eq(str_len(s), 0u);
   triax_expect_true(str_is_empty(s));
@@ -898,16 +898,16 @@ triax_test(string, string_test_empty) {
   str_resize(&s, 0);           // should initialise the string
   triax_expect_true(str_is_null_terminated(&s));
   str_release(&s); // shall not crash
-  s = (Str){RK_ZINIT};
+  s = (Str){RKI_ZINIT};
   str_push(&s, 'c');
   triax_expect_streq(s.str, "c");
   str_release(&s); // shall not crash
-  s = (Str){RK_ZINIT};
+  s = (Str){RKI_ZINIT};
 
   str_cat(&s, "5");
   triax_expect_streq(s.str, "5");
   str_release(&s); // shall not crash
-  s = (Str){RK_ZINIT};
+  s = (Str){RKI_ZINIT};
   str_cat_fmt(&s, "%d", 5);
   triax_expect_streq(s.str, "5");
   triax_expect_eq(s.len, 1u);
@@ -918,5 +918,5 @@ triax_test(string, string_test_empty) {
 }
 
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 #endif

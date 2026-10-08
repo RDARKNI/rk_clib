@@ -2,7 +2,7 @@
 #define TEST_POOL_H
 #include "conf.h"
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 typedef struct PoolIntPair { int a, b; } PoolIntPair;
 
@@ -437,9 +437,23 @@ triax_test(pool, foreach_empty_pool_is_noop_static) {
   triax_expect_eq(0, count);
 }
 
+// The loop state must not inherit top-level const from the argument (as pool_erase_if's own
+// once-evaluated local has), or ending the loop fails to compile.
+triax_test(pool, foreach_through_const_pointer_variable) {
+  POOL_DEFINE(int);
+  Pool(int) p = pool_init(int, 8);
+  pool_put(&p, 1);
+  pool_put(&p, 2);
+  Pool(int)* const pp  = &p;
+  int              sum = 0;
+  pool_foreach(pp, it) { sum += *it; }
+  triax_expect_eq(sum, 3);
+  pool_release(&p);
+}
+
 triax_test(pool, foreach_on_zero_initialized_pool_is_noop_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p = (Pool(int)){RK_ZINIT};
+  Pool(int) p = (Pool(int)){RKI_ZINIT};
   int count   = 0;
   pool_foreach(&p, it) { (void)it, ++count; }
   triax_expect_eq(0, count);
@@ -447,8 +461,8 @@ triax_test(pool, foreach_on_zero_initialized_pool_is_noop_dynamic) {
 
 triax_test(pool, erase_if_empty_pool_is_noop_dynamic) {
   POOL_DEFINE(int);
-  Pool(int) p          = pool_init(int, 4);
-  int       pred_calls = 0;
+  Pool(int) p    = pool_init(int, 4);
+  int pred_calls = 0;
   pool_erase_if(&p, it, (++pred_calls, (void)it, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(pool_used(&p), 0u);
@@ -457,8 +471,8 @@ triax_test(pool, erase_if_empty_pool_is_noop_dynamic) {
 
 triax_test(pool, erase_if_empty_pool_is_noop_static) {
   POOL_DEFINE(int, 4);
-  Pool(int, 4) p          = staticpool_init;
-  int          pred_calls = 0;
+  Pool(int, 4) p = staticpool_init;
+  int pred_calls = 0;
   pool_erase_if(&p, it, (++pred_calls, (void)it, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(pool_used(&p), 0u);
@@ -628,5 +642,5 @@ triax_test(pool, try_put_copies_value_dynamic) {
 }
 
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 #endif

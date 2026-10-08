@@ -495,10 +495,10 @@
 # define rklib_fun RK_HIDDEN extern_fun
 #endif
 
-#define RK_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
-#define RK_HEADER_END   RK_EXTERNC_END RKI_SILENCE_WARNINGS_END
+#define RKI_HEADER_BEGIN RKI_SILENCE_WARNINGS_BEG RK_EXTERNC_BEG
+#define RKI_HEADER_END   RK_EXTERNC_END RKI_SILENCE_WARNINGS_END
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @name Attribute Wrappers
 /// @brief Portable wrappers for common attributes and compiler-specific extensions. These macros
@@ -800,7 +800,7 @@ rklib_fun rk_forceinline size_t rk_mult_safe(size_t x, size_t y) {
                  to_type t;                                                                        \
                 }){(expr)}                                                                         \
                     .t,                                                                            \
-                *(to_type*)rk_memcpy(&(to_type){RK_ZINIT},                                         \
+                *(to_type*)rk_memcpy(&(to_type){RKI_ZINIT},                                         \
                                      (union {                                                      \
                                       typeof_decayed(expr) _v2;                                    \
                                       void* _v;                                                    \
@@ -1031,18 +1031,18 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
 #endif
 
 #ifndef __cplusplus
-# define RK_ZINIT 0
+# define RKI_ZINIT 0
 #else
-# define RK_ZINIT
+# define RKI_ZINIT
 #endif
 
 #define RKI_GENCASE(T, N, fun_name) , T : fun_name##N
 
-#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RK_ZINIT})
+#define RKI_contrav(T, x)           _Generic(x, T: x, default: (T){RKI_ZINIT})
 #define RKI_contrav_p(T, x)         _Generic(x, T: x, default: (T)1)
 
 #ifndef __cplusplus
-# define rk_dummyof(v)     ((typeof(v)){RK_ZINIT})
+# define rk_dummyof(v)     ((typeof(v)){RKI_ZINIT})
 # define rk_dummyofp(v)    ((typeof(v)*)0)
 # define typeof_decayed(v) typeof((void)0, rk_dummyof(v))
 #else
@@ -1116,9 +1116,9 @@ rk_noreturn rklib_fun void RK_assertfail(const char* expr, const char* file, int
                      "Backing storage must be an unsigned char array")
 
 /// Function overloading by argument count
-#define rk_overload(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
-#define rk_overload_(m, ...)  rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
-#define rk_overload__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_OVERLOAD(m, ...)   rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_OVERLOAD_(m, ...)  rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
+#define RKI_OVERLOAD__(m, ...) rk_CONC(m, rk_ARGCOUNT(__VA_ARGS__))(__VA_ARGS__)
 
 rklib_fun rk_const bool rk_ptrs_overlap(const void* beg1, const void* end1, const void* beg2,
                                         const void* end2) {
@@ -1553,7 +1553,7 @@ rklib_fun rk_const size_t rk_align_pad(const void* ptr, size_t align) {
   return (-(uintptr_t)ptr) & (size_t)(align - 1);
 }
 
-RK_HEADER_END
+RKI_HEADER_END
 
 #ifdef __cplusplus
 template <class T, size_t N>
@@ -1709,7 +1709,7 @@ constexpr inline size_t RKI_countof(T (&)[N]) noexcept {
 #endif
 /* inlined from include/rk_alloc.h:47: #include "rk_defs.h" */
 /* skipped already-included: "include/rk_defs.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Allocation logging macros. Emit a tagged source location to `stderr` when `RKLIB_DEBUG
 /// defined`; expand to nothing otherwise. Can be used by custom allocators to get the same logging
@@ -1835,7 +1835,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return pointer to the allocated memory. `NULL` iff `bytes` is zero.
 #define alloc_allocate(bytes, align, ...)                                                          \
-  ((void*)rk_overload(RKI_ALLOC_ALLOCATE, bytes, align, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_ALLOC_ALLOCATE, bytes, align, ##__VA_ARGS__))
 
 /// @brief `void* alloc_reallocate(void* ptr, size_t old_bytes, size_t new_bytes, size_t align,
 /// Allocator alloc = alloc_ctx)` - Raw reallocation. If `ptr` is `NULL`, behaves like
@@ -1848,7 +1848,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param alloc     Optional allocator; defaults to `alloc_ctx`
 /// @return pointer to the allocated memory. `NULL` iff `new_bytes` is zero.
 #define alloc_reallocate(ptr, old_bytes, new_bytes, align, ...)                                    \
-  ((void*)rk_overload(RKI_ALLOC_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_ALLOC_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
 
 /// @brief `void alloc_deallocate(void* ptr, size_t bytes, size_t align, Allocator alloc =
 /// alloc_ctx)` - Raw deallocation. If `ptr` is `NULL`, this is a no-op. Prefer `alloc_delete` for
@@ -1858,7 +1858,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param align Alignment; must match the original allocation
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 #define alloc_deallocate(ptr, bytes, align, ...)                                                   \
-  ((void)rk_overload(RKI_ALLOC_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
+  ((void)RKI_OVERLOAD(RKI_ALLOC_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
 
 /// @brief `T* alloc_new(T, size_t count, Allocator alloc = alloc_ctx)` - Allocates memory for an
 /// array of `count` elements of type `T` using the specified allocator.
@@ -1866,7 +1866,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param count     Count of elements to allocate
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return Pointer to allocated and aligned memory block, cast to `T*`.
-#define alloc_new(T, count, ...) ((T*)rk_overload(RKI_ALLOC_NEW, T, count, ##__VA_ARGS__))
+#define alloc_new(T, count, ...) ((T*)RKI_OVERLOAD(RKI_ALLOC_NEW, T, count, ##__VA_ARGS__))
 
 /// @brief `T* alloc_renew(T* ptr, size_t old_count, size_t new_count, Allocator alloc = alloc_ctx)`
 /// - Resizes (reallocates) memory block to hold `new_count` elements of the same type, for standard
@@ -1878,7 +1878,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @return Pointer to the reallocated and aligned memory block, cast to the same pointer type.
 /// @warning Must not be used on pointers from over-aligned allocations
 #define alloc_renew(ptr, old_count, new_count, ...)                                                \
-  ((typeof(ptr))rk_overload(RKI_ALLOC_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
+  ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
 
 /// @brief `void alloc_delete(T* ptr, size_t old_count, Allocator alloc = alloc_ctx)` - Deallocates
 /// memory.
@@ -1886,7 +1886,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param old_count Number of elements of type T originally allocated
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 #define alloc_delete(ptr, old_count, ...)                                                          \
-  ((void)rk_overload(RKI_ALLOC_DELETE, ptr, old_count, ##__VA_ARGS__))
+  ((void)RKI_OVERLOAD(RKI_ALLOC_DELETE, ptr, old_count, ##__VA_ARGS__))
 
 /// @brief `T* alloc_new_aligned(T, size_t count, size_t align, Allocator alloc = alloc_ctx)` -
 /// Allocates memory for an array of `count` elements of type T with specified alignment.
@@ -1896,7 +1896,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return Pointer to allocated and aligned memory block, cast to `T*`.
 #define alloc_new_aligned(T, count, align, ...)                                                    \
-  ((T*)rk_overload(RKI_ALLOC_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
+  ((T*)RKI_OVERLOAD(RKI_ALLOC_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
 
 /// @brief `T* alloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align,
 /// Allocator alloc = alloc_ctx)` - Resizes (reallocates) memory block to hold `new_count` elements
@@ -1908,7 +1908,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return Pointer to reallocated and aligned memory block, cast to the same pointer type.
 #define alloc_renew_aligned(ptr, old_count, new_count, align, ...)                                 \
-  ((typeof(ptr))rk_overload(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                    \
+  ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                    \
                             align, ##__VA_ARGS__))
 
 /// @brief `void alloc_delete_aligned(T* ptr, size_t old_count, size_t align, Allocator alloc =
@@ -1918,7 +1918,7 @@ RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc
 /// @param align     Alignment of the memory; must match the original allocation
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 #define alloc_delete_aligned(ptr, old_count, align, ...)                                           \
-  ((void)rk_overload(RKI_ALLOC_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
+  ((void)RKI_OVERLOAD(RKI_ALLOC_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
 
 /// @brief `void* malloc_allocate(size_t nbytes, size_t align)` - Allocates `nbytes` bytes of memory
 /// with the specified alignment.
@@ -2044,13 +2044,13 @@ rklib_fun void  page_free(void* ptr, size_t size);
 /// @param allocator The Allocator to use (defaults to `alloc_ctx`)
 /// @return A pointer to the allocated array
 #define rk_arrdup(src, count, ...)                                                                 \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_ARRDUP, src, count, ##__VA_ARGS__))
+  ((typeof(((void)0, (src)[0]))*)RKI_OVERLOAD(RKI_ARRDUP, src, count, ##__VA_ARGS__))
 
 #define rk_memdup(src, nbytes, ...)                                                                \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_MEMDUP, src, nbytes, ##__VA_ARGS__))
+  ((typeof(((void)0, (src)[0]))*)RKI_OVERLOAD(RKI_MEMDUP, src, nbytes, ##__VA_ARGS__))
 
 #define rk_memdup_aligned(src, nbytes, align, ...)                                                 \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_MEMDUP_ALIGNED, src, nbytes, align, ##__VA_ARGS__))
+  ((typeof(((void)0, (src)[0]))*)RKI_OVERLOAD(RKI_MEMDUP_ALIGNED, src, nbytes, align, ##__VA_ARGS__))
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2468,7 +2468,7 @@ rklib_fun
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_ALLOC_H
 
@@ -2497,7 +2497,7 @@ RK_HEADER_END
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
 /* END INLINE: include/rk_alloc.h */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Type-erased node header shared by every tree type's concrete node (`RKI_BstNode`,
 /// `RKI_AvlNode`, `RKI_RbtNode` all start with the same `l`/`r` layout). This is the type a caller
@@ -2597,7 +2597,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Bst(K, V)`
-#define bst_init(K, V, ...)             rk_overload(RKI_BST_INIT, K, V, ##__VA_ARGS__)
+#define bst_init(K, V, ...)             RKI_OVERLOAD(RKI_BST_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void bst_release(K, V, Bst(K, V)* self)` - Frees all nodes in the BST and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -2710,7 +2710,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Avl(K, V)`
-#define avl_init(K, V, ...)             rk_overload(RKI_AVL_INIT, K, V, ##__VA_ARGS__)
+#define avl_init(K, V, ...)             RKI_OVERLOAD(RKI_AVL_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void avl_release(K, V, Avl(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -2789,7 +2789,7 @@ typedef struct tree_iter {
 
 /// @brief `Rbt(K, V) rbt_init(K, V, Allocator alloc = alloc_ctx)` - Initialises and returns an
 /// empty Rbt tree.
-#define rbt_init(K, V, ...)             rk_overload(RKI_RBT_INIT, K, V, ##__VA_ARGS__)
+#define rbt_init(K, V, ...)             RKI_OVERLOAD(RKI_RBT_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void rbt_release(K, V, Rbt(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -3491,7 +3491,7 @@ rklib_fun bool rki_tree_iter_next(tree_iter* restrict it, tree_node** node_out) 
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_TREES_H
 
@@ -3568,7 +3568,7 @@ RK_HEADER_END
 #define RK_BITSET_H
 /* inlined from include/rk_bitset.h:45: #include "rk_defs.h" */
 /* skipped already-included: "include/rk_defs.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Storage word used by all bitset operations.
 typedef unsigned long long bitset_word;
@@ -4257,7 +4257,7 @@ rklib_fun rk_forceinline bitset rki_bitset_range_op(bitset bs, size_t nbits, siz
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_BITSET_H
 
@@ -4312,7 +4312,7 @@ RK_HEADER_END
 #define RK_ARENA_H
 /* inlined from include/rk_arena.h:21: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wreturn-type-c-linkage")
 
 /// @brief Linear / stack allocator for fast, temporary memory management.
@@ -4617,7 +4617,7 @@ RKI_IGNWARN_CLANG_END()
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_ARENA_H
 
@@ -4696,7 +4696,7 @@ RK_HEADER_END
 #define RK_VEC_H
 /* inlined from include/rk_vec.h:47: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Macro to indicate that an object is a Vec.
 /// @param T The type of elements stored in the Vec
@@ -4728,7 +4728,7 @@ RK_HEADER_BEGIN
 #define vec_init(T, init_cap, ...)                                                                 \
   ((Vec(T))((void)static_assert_expr(alignof(T) <= align_max,                                      \
                                      "Over-aligned Types not supported."),                         \
-            rk_overload(RKI_VEC_INIT, T, init_cap, ##__VA_ARGS__)))
+            RKI_OVERLOAD(RKI_VEC_INIT, T, init_cap, ##__VA_ARGS__)))
 
 /// @brief `Vec(T) vec_init_list(T, Allocator alloc = alloc_ctx, T... values)` - Initialises a Vec
 /// from a list of values.
@@ -4770,7 +4770,7 @@ RK_HEADER_BEGIN
 /// Vec(int) v2 = vec_from(arr, 3, my_alloc);  // uses my_alloc
 /// ```
 #define vec_from(arr, count, ...)                                                                  \
-  ((typeof(*(arr))*)rk_overload(RKI_VEC_FROM, arr, count, ##__VA_ARGS__))
+  ((typeof(*(arr))*)RKI_OVERLOAD(RKI_VEC_FROM, arr, count, ##__VA_ARGS__))
 
 /// @brief `void vec_release(Vec(T)& self)` - Frees the underlying allocation and sets the Vec to
 /// NULL.
@@ -5227,7 +5227,7 @@ rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t 
 #define RKI_VEC_INIT_LIST_(T, arr, alloc)                                                          \
   memcpy(RKI_VEC_NEW_NONZERO(T, rk_COUNTOF(arr), rk_COUNTOF(arr), alloc), arr, sizeof(arr))
 
-#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RK_ZINIT})
+#define RKI_VEC_CONTRAV(T, x) _Generic(x, T: x, Allocator: (T){RKI_ZINIT})
 
 #if RK_CUSTOM_ALLOCATORS
 # define RKI_VEC_INIT_LIST(T, ...)                                                                 \
@@ -5245,7 +5245,7 @@ rklib_fun rk_forceinline void RKI_vec_erase_at_n(size_t elsize, void* v, size_t 
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_VEC_H
 
@@ -5322,7 +5322,7 @@ RK_HEADER_END
 #define RK_HEAP_H
 /* inlined from include/rk_heap.h:45: #include "rk_vec.h" */
 /* skipped already-included: "include/rk_vec.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Define a heap type and functions for a given element type.
 ///
@@ -5355,7 +5355,7 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Heap(T)` containing a heap-ordered copy of `arr`'s first `n` values
-#define heap_from(T, arr, n, ...)        rk_overload(RKI_HEAP_FROM, T, arr, n, ##__VA_ARGS__)
+#define heap_from(T, arr, n, ...)        RKI_OVERLOAD(RKI_HEAP_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `Heap(T) heap_adopt(T, Vec(T) vec)` - Constructs a new Heap by taking ownership of `vec`
 /// and heapifying it in place, with no copy.
@@ -5567,7 +5567,7 @@ RK_HEADER_BEGIN
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_HEAP_H
 
@@ -5629,7 +5629,7 @@ RK_HEADER_END
 #define RK_DEQUE_H
 /* inlined from include/rk_deque.h:30: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Generates a deque type and its operations for T. Invoke once per T at file scope.
 /// @param T Name of the element type. Must be a plain type identifier; use a typedef for a pointer
@@ -5650,7 +5650,7 @@ RK_HEADER_BEGIN
 /// @return An initialised, empty `Deque(T)`
 /// @note A zero-initialized `Deque(T)` is also a valid, empty deque; it allocates using `alloc_ctx`
 /// on first insertion.
-#define deque_init(T, cap, ...)       rk_overload(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
+#define deque_init(T, cap, ...)       RKI_OVERLOAD(RKI_DEQUE_INIT, T, cap, ##__VA_ARGS__)
 
 /// @brief `Deque(T) deque_from(T, const T* arr, size_t n, Allocator alloc = alloc_ctx)` -
 /// Constructs a new Deque by copying `n` values from `arr`, in front-to-back order.
@@ -5659,7 +5659,7 @@ RK_HEADER_BEGIN
 /// @param n     Number of values to copy
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return A new `Deque(T)` containing a copy of `arr`'s first `n` values
-#define deque_from(T, arr, n, ...)    rk_overload(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
+#define deque_from(T, arr, n, ...)    RKI_OVERLOAD(RKI_DEQUE_FROM, T, arr, n, ##__VA_ARGS__)
 
 /// @brief `void deque_release(T, Deque(T)* self)` - Frees the backing buffer and resets the Deque
 /// to an empty state.
@@ -6057,7 +6057,7 @@ RK_HEADER_BEGIN
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_DEQUE_H
 
@@ -6128,7 +6128,7 @@ RK_HEADER_END
 /* skipped already-included: "include/rk_arena.h" */
 /* inlined from include/rk_arenastack.h:38: #include "rk_vec.h" */
 /* skipped already-included: "include/rk_vec.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief A dynamic stack of arenas used for memory allocation. Each arena is a fixed-size memory
 /// block managed by the Arena allocator. The ArenaStack tracks a vec of arenas and the current
@@ -6144,7 +6144,7 @@ typedef struct ArenaStack {
 /// @param arena_size  The desired size of each arena
 /// @param alloc       Optional allocator; defaults to `alloc_ctx`
 /// @return A new ArenaStack
-#define arenastack_init(arena_size, ...) rk_overload(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
+#define arenastack_init(arena_size, ...) RKI_OVERLOAD(RKI_ARENASTACK_INIT, arena_size, ##__VA_ARGS__)
 
 /// @brief Releases all arenas within the ArenaStack.
 rklib_fun void              arenastack_release(ArenaStack* self);
@@ -6330,7 +6330,7 @@ rklib_fun rk_alloc_alignsize(2, 1) void* arenastack_allocate(size_t nbytes, size
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_ARENASTACK_H
 
@@ -6394,7 +6394,7 @@ RK_HEADER_END
 /* skipped already-included: "include/rk_alloc.h" */
 #include <stdarg.h>
 #include <string.h>
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Represents a non-owning, non-mutable view of a string.
 /// @note `(Strv){NULL, 0}` is a valid `Strv` and will be treated accordingly by all functions
@@ -6470,7 +6470,7 @@ typedef struct Str {
 /// @param init_cap size_t The initial capacity of the string (in elements)
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx`
 /// @return A `Str` object with the given capacity
-#define str_init(init_cap, ...) rk_overload(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
+#define str_init(init_cap, ...) RKI_OVERLOAD(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
 
 /// @brief `Str str_from(Strlike strlike, Allocator alloc = alloc_ctx)` - Constructs a Str from a
 /// Stringlike object, copying the data.
@@ -6479,7 +6479,7 @@ typedef struct Str {
 /// this defaults to the Allocator of the cloned Strlike if it is a Str object, or alloc_ctx
 /// otherwise.
 /// @return A `Str` object with the copied string data
-#define str_from(strlike, ...)  rk_overload(RKI_STR_FROM, strlike, ##__VA_ARGS__)
+#define str_from(strlike, ...)  RKI_OVERLOAD(RKI_STR_FROM, strlike, ##__VA_ARGS__)
 
 /// @brief `Str str_from_literal(STRING_LITERAL, Allocator alloc = alloc_ctx)`
 /// - Construct a Str from a string literal.
@@ -6487,7 +6487,7 @@ typedef struct Str {
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx` if not
 /// provided
 /// @return A `Str` object initialised with the literal's contents
-#define str_from_literal(strlit, ...) rk_overload(RKI_STR_FROMLIT, strlit, ##__VA_ARGS__)
+#define str_from_literal(strlit, ...) RKI_OVERLOAD(RKI_STR_FROMLIT, strlit, ##__VA_ARGS__)
 
 /// @brief Frees the underlying memory of `self`.
 rklib_fun void str_release(Str* restrict self) {
@@ -6505,7 +6505,7 @@ rklib_fun void str_release(Str* restrict self) {
 /// provided.
 /// @return A `Str` object containing the joined string
 #define str_join_strv_n(svs, count, sep, ...)                                                      \
-  rk_overload(RKI_STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
+  RKI_OVERLOAD(RKI_STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Accessors
@@ -6772,7 +6772,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// `alloc_ctx` (or malloc_allocator, if `RK_CUSTOM_ALLOCATORS` == `0`)
 /// @return A Strv* to the array of tokens.
 #define str_split_alloc(strlike, delims, out_count, ...)                                           \
-  rk_overload(RKI_STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
+  RKI_OVERLOAD(RKI_STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
 
 /// @brief Trims a Stringlike by adjusting both its starting and ending position past any leading
 /// and trailing space characters.
@@ -7309,7 +7309,7 @@ rklib_fun Strv*(str_split_alloc)(Strv str, Strv dels,
                                  size_t* restrict out_count RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);
   typedef unsigned char uchar;
-  uchar                 dbits[256] = {RK_ZINIT};
+  uchar                 dbits[256] = {RKI_ZINIT};
   for (size_t i = 0; i < dels.len; ++i) { dbits[(uchar)dels.str[i]] = 1; }
   size_t count = 1;
   for (size_t i = 0; i < str.len; ++i) { count += dbits[(uchar)str.str[i]]; }
@@ -7371,7 +7371,7 @@ rklib_fun Strv str_split_strv(Strv* self, Strv dels) {
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_STRING_H
 
@@ -7426,7 +7426,7 @@ RK_HEADER_END
 /* skipped already-included: "include/rk_alloc.h" */
 /* inlined from include/rk_pool.h:22: #include "rk_bitset.h" */
 /* skipped already-included: "include/rk_bitset.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Defines a pool type and associated functions for type `T` Depending on the arguments,
 /// this macro defines either a dynamic pool (`Pool(T)`) or a static/fixed pool (`Pool(T, C)`).
@@ -7448,13 +7448,13 @@ RK_HEADER_BEGIN
 /// @param cap Desired capacity
 /// @param alloc Optional allocator
 /// @return Initialized pool struct
-#define pool_init(T, _cap, ...) rk_overload(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
+#define pool_init(T, _cap, ...) RKI_OVERLOAD(RKI_DPOOL_INIT, T, _cap, ##__VA_ARGS__)
 
 /// @brief Compile-time zero-initializer for a `Pool(T, C)` (`StaticPool`). Suitable for global and
 /// static variables. No memory is allocated.
 /// @note Named after `StaticPool`, the type it initializes — not to be confused with the (removed)
 /// `_init_static` convention other containers used for static-storage-duration-safe initializers.
-#define staticpool_init         {RK_ZINIT}
+#define staticpool_init         {RKI_ZINIT}
 
 /// @brief `void pool_release(Pool(T, ...)* self)` - Releases the associated resources of the pool
 /// (if the pool is dynamic) and resets its members. For static pools, this resets the allocation
@@ -7585,7 +7585,7 @@ rklib_fun rk_forceinline void* rki_dpool_init(size_t elsize, size_t elalign, RKI
   return self;
 }
 #define RKI_DPOOL_INIT(T, _cap, _alloc)                                                            \
-  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RK_ZINIT}),       \
+  (*((Pool(T)*)rki_dpool_init(sizeof(T), alignof(T), (RKI_DynPool*)((Pool(T)[1]){RKI_ZINIT}),       \
                               _cap RK_IFALLOC(, _alloc))))
 #define RKI_DPOOL_INIT3(T, _cap, _alloc)                                                           \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_DPOOL_INIT(T, _cap, _alloc))
@@ -7751,7 +7751,7 @@ rklib_fun rk_forceinline void rki_dpool_release(size_t elsize, size_t align, RKI
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_POOL_H
 
@@ -7880,7 +7880,7 @@ RK_HEADER_END
 #define RK_DICT_H
 /* inlined from include/rk_dict.h:97: #include "rk_alloc.h" */
 /* skipped already-included: "include/rk_alloc.h" */
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Define a dict type and functions for a given key/value pair.
 ///
@@ -7911,7 +7911,7 @@ RK_HEADER_BEGIN
 /// Dict(int, cstr) tab =  dict_init(int, cstr, 10, alloc);
 /// ```
 /// @return An initialised Dict
-#define dict_init(K, V, cap, ...)              rk_overload(RKI_DICT_INIT, K, V, cap, ##__VA_ARGS__)
+#define dict_init(K, V, cap, ...)              RKI_OVERLOAD(RKI_DICT_INIT, K, V, cap, ##__VA_ARGS__)
 
 /// @brief `void dict_release(K, V, Dict(K, V)* self)` - Frees the underlying memory of the Dict.
 #define dict_release(K, V, self)               RKI_DICT_PUB(K, V, release)(self)
@@ -8102,7 +8102,7 @@ RK_HEADER_BEGIN
 /// Set(int) tab = set_init(int, 10, alloc);
 /// ```
 /// @return An initialised Set
-#define set_init(K, cap, ...)            rk_overload(RKI_SET_INIT, K, cap, ##__VA_ARGS__)
+#define set_init(K, cap, ...)            RKI_OVERLOAD(RKI_SET_INIT, K, cap, ##__VA_ARGS__)
 
 /// @brief `void set_release(K, Set(K)* self)` - Frees the underlying memory of the Set.
 #define set_release(K, self)             RKI_SET_PUB(K, release)(self)
@@ -8482,7 +8482,7 @@ rklib_fun rk_pure bool rki_ds_needs_rehash(const RKI_ds_header* hdr) {
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_DICT_H
 

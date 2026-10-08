@@ -429,7 +429,7 @@ static Vec(int) rki_mark_eval_vec(Vec(int) v, int* count) {
 }
 
 triax_test(vec, foreach_break_stops_iteration) {
-  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  Vec(int) v   = vec_init_list(int, 0, 1, 2, 3, 4);
   int      sum = 0, visits = 0;
   vec_foreach(v, it) {
     if (*it == 3) { break; }
@@ -442,7 +442,7 @@ triax_test(vec, foreach_break_stops_iteration) {
 }
 
 triax_test(vec, foreach_continue_skips_element) {
-  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  Vec(int) v   = vec_init_list(int, 0, 1, 2, 3, 4);
   int      sum = 0, visits = 0;
   vec_foreach(v, it) {
     if (*it == 2) { continue; }
@@ -455,7 +455,7 @@ triax_test(vec, foreach_continue_skips_element) {
 }
 
 triax_test(vec, foreach_reversed_break_stops_iteration) {
-  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  Vec(int) v   = vec_init_list(int, 0, 1, 2, 3, 4);
   int      sum = 0, visits = 0;
   vec_foreach_reversed(v, it) {
     if (*it == 1) { break; }
@@ -468,7 +468,7 @@ triax_test(vec, foreach_reversed_break_stops_iteration) {
 }
 
 triax_test(vec, foreach_reversed_continue_skips_element) {
-  Vec(int) v = vec_init_list(int, 0, 1, 2, 3, 4);
+  Vec(int) v   = vec_init_list(int, 0, 1, 2, 3, 4);
   int      sum = 0, visits = 0;
   vec_foreach_reversed(v, it) {
     if (*it == 2) { continue; }

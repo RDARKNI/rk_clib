@@ -5,7 +5,7 @@
 #define RK_IMPL
 #include "../include/rklib.h"
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 DEQUE_DEFINE(int)
@@ -299,7 +299,7 @@ triax_test(deque, foreach_and_reversed) {
   deque_release(int, &q);
 }
 
-static Deque(int)* rki_mark_eval_deque(Deque(int)* q, int* count) {
+static Deque(int) * rki_mark_eval_deque(Deque(int) * q, int* count) {
   ++*count;
   return q;
 }
@@ -401,8 +401,8 @@ triax_test(deque, erase_if_evaluates_predicate_once_per_element) {
 }
 
 triax_test(deque, foreach_reversed_empty_is_noop) {
-  Deque(int) q     = deque_init(int, 0);
-  int        count = 0;
+  Deque(int) q = deque_init(int, 0);
+  int count    = 0;
   deque_foreach_reversed(&q, it) {
     (void)it;
     ++count;
@@ -412,8 +412,8 @@ triax_test(deque, foreach_reversed_empty_is_noop) {
 }
 
 triax_test(deque, foreach_on_null_deque_is_noop) {
-  Deque(int)* q     = rk_null;
-  int         count = 0;
+  Deque(int)* q = rk_null;
+  int count     = 0;
   deque_foreach(q, it) {
     (void)it;
     ++count;
@@ -426,8 +426,8 @@ triax_test(deque, foreach_on_null_deque_is_noop) {
 }
 
 triax_test(deque, erase_if_empty_is_noop) {
-  Deque(int) q          = deque_init(int, 0);
-  int        pred_calls = 0;
+  Deque(int) q   = deque_init(int, 0);
+  int pred_calls = 0;
   deque_erase_if(&q, it, (++pred_calls, (void)it, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(deque_count(&q), 0u);
@@ -435,8 +435,8 @@ triax_test(deque, erase_if_empty_is_noop) {
 }
 
 triax_test(deque, erase_if_on_null_deque_is_noop) {
-  Deque(int)* q          = rk_null;
-  int         pred_calls = 0;
+  Deque(int)* q  = rk_null;
+  int pred_calls = 0;
   deque_erase_if(q, it, (++pred_calls, (void)it, true));
   triax_expect_eq(pred_calls, 0);
 }
@@ -640,5 +640,5 @@ triax_test(deque, large_randomized_stress) {
 }
 
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 #endif

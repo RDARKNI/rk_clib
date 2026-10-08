@@ -63,7 +63,7 @@
 #ifndef RK_TREES_H
 #define RK_TREES_H
 #include "rk_alloc.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Type-erased node header shared by every tree type's concrete node (`RKI_BstNode`,
 /// `RKI_AvlNode`, `RKI_RbtNode` all start with the same `l`/`r` layout). This is the type a caller
@@ -126,6 +126,51 @@ typedef struct tree_iter {
   ((typeof((self)->root->entry)*)rki_tree_max_off((self)->_tree.root,                              \
                                                   offsetof(typeof(*(self)->root), entry)))
 
+/// @brief Iterates over all entries in ascending key order.
+///
+/// Works with Bst, Avl, and Rbt. Performs an in-order traversal using a caller-supplied stack,
+/// without allocating memory.
+///
+/// The loop variable is a pointer to the tree's corresponding entry type: `BstEntry(K, V)*`,
+/// `AvlEntry(K, V)*`, or `RbtEntry(K, V)*`.
+///
+/// @param self      Pointer to the tree. If NULL, the loop body is not executed.
+/// @param stack_buf Writable array of `tree_node*` used as traversal workspace.
+/// @param stack_cap Number of pointer slots available in `stack_buf`. Must be at least the tree
+///                  height, measured in nodes.
+/// @param entry     Name of the entry-pointer variable declared by the macro.
+///
+/// @note `self` is evaluated once. `stack_buf` and `stack_cap` are evaluated once if `self` is
+///       non-NULL, and are not evaluated otherwise.
+/// @note `break` stops traversal; `continue` advances to the next entry.
+/// @note Do not insert, remove, release, or otherwise restructure the tree
+///       during traversal. Entry keys are read-only; values may be modified
+///       where their type permits it.
+/// @note Each concurrent or nested traversal requires its own stack buffer.
+/// @note A complete traversal takes O(n) time and uses O(h) stack slots,
+///       where n is the entry count and h is the tree height.
+///
+/// @warning Insufficient stack capacity is checked by `rk_assert` only.
+///          If assertions are disabled, exceeding the buffer capacity causes
+///          undefined behaviour.
+///
+/// Example:
+/// ```c
+/// // Assumes the tree height is at most 64 nodes.
+/// tree_node* stack[64];
+/// tree_foreach(&tree, stack, 64, entry) {
+///     printf("%d -> %s\n", entry->key, entry->val);
+/// }
+/// ```
+///
+/// @see tree_foreach_reversed
+#define tree_foreach(self, stack_buf, stack_cap, entry_)                                           \
+  RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_)
+
+/// @brief Like `tree_foreach()`, but iterates in descending key order.
+#define tree_foreach_reversed(self, stack_buf, stack_cap, entry_)                                  \
+  RKI_TREE_FOREACH_REVERSED(self, stack_buf, stack_cap, entry_)
+
 //////////////////////////////////// Bst: unbalanced BST //////////////////////////////////////////
 
 /// @brief `BST_DEFINE(K, V, CMP_FUN)` - Generates a complete type-specific BST API for the given
@@ -163,7 +208,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Bst(K, V)`
-#define bst_init(K, V, ...)             rk_overload(RKI_BST_INIT, K, V, ##__VA_ARGS__)
+#define bst_init(K, V, ...)             RKI_OVERLOAD(RKI_BST_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void bst_release(K, V, Bst(K, V)* self)` - Frees all nodes in the BST and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -257,7 +302,7 @@ typedef struct tree_iter {
   tree_foreach(self, stack_buf, stack_cap, entry)
 
 /// @brief Like `bst_foreach()`, but iterates in descending key order. Same parameters and contract.
-#define bst_foreach_reversed(self, stack_buf, stack_cap, entry)                                   \
+#define bst_foreach_reversed(self, stack_buf, stack_cap, entry)                                    \
   tree_foreach_reversed(self, stack_buf, stack_cap, entry)
 
 /// @brief Erases every entry satisfying `pred`.
@@ -278,7 +323,7 @@ typedef struct tree_iter {
 /// tree_node* stack[64];
 /// bst_erase_if(int, cstr, &tree, stack, 64, e, e->val[0] == 'x');
 /// ```
-#define bst_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                               \
+#define bst_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
   RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_BST_PUB(K, V, remove))
 
 /////////////////////////////////////// Avl: AVL-balanced BST /////////////////////////////////////
@@ -302,7 +347,7 @@ typedef struct tree_iter {
 /// @param V     Value type name
 /// @param alloc Optional allocator; defaults to `alloc_ctx`
 /// @return An initialised, empty `Avl(K, V)`
-#define avl_init(K, V, ...)             rk_overload(RKI_AVL_INIT, K, V, ##__VA_ARGS__)
+#define avl_init(K, V, ...)             RKI_OVERLOAD(RKI_AVL_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void avl_release(K, V, Avl(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -365,11 +410,11 @@ typedef struct tree_iter {
   tree_foreach(self, stack_buf, stack_cap, entry)
 
 /// @brief Like `avl_foreach()`, but iterates in descending key order. Same parameters and contract.
-#define avl_foreach_reversed(self, stack_buf, stack_cap, entry)                                   \
+#define avl_foreach_reversed(self, stack_buf, stack_cap, entry)                                    \
   tree_foreach_reversed(self, stack_buf, stack_cap, entry)
 
 /// @brief Erases every entry satisfying `pred`, rebalancing as needed. See `bst_erase_if()`.
-#define avl_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                               \
+#define avl_erase_if(K, V, self, stack_buf, stack_cap, entry, pred)                                \
   RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry, pred, RKI_AVL_PUB(K, V, remove))
 
 ////////////////////////////////// Rbt: left-leaning red-black tree ///////////////////////////////
@@ -389,7 +434,7 @@ typedef struct tree_iter {
 
 /// @brief `Rbt(K, V) rbt_init(K, V, Allocator alloc = alloc_ctx)` - Initialises and returns an
 /// empty Rbt tree.
-#define rbt_init(K, V, ...)             rk_overload(RKI_RBT_INIT, K, V, ##__VA_ARGS__)
+#define rbt_init(K, V, ...)             RKI_OVERLOAD(RKI_RBT_INIT, K, V, ##__VA_ARGS__)
 
 /// @brief `void rbt_release(K, V, Rbt(K, V)* self)` - Frees all nodes in the tree and resets it to
 /// an empty state. Alias for `tree_release()`.
@@ -452,7 +497,7 @@ typedef struct tree_iter {
   tree_foreach(self, stack_buf, stack_cap, entry)
 
 /// @brief Like `rbt_foreach()`, but iterates in descending key order. Same parameters and contract.
-#define rbt_foreach_reversed(self, stack_buf, stack_cap, entry)                                   \
+#define rbt_foreach_reversed(self, stack_buf, stack_cap, entry)                                    \
   tree_foreach_reversed(self, stack_buf, stack_cap, entry)
 
 /// @brief Erases every entry satisfying `pred`, rebalancing as needed. See `bst_erase_if()`.
@@ -537,7 +582,8 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
   return node;
 }
 
-/// @brief Shared in-order-traversal loop backing `bst_foreach`/`avl_foreach`/`rbt_foreach` and their
+/// @brief Shared in-order-traversal loop backing `bst_foreach`/`avl_foreach`/`rbt_foreach` and
+/// their
 /// `_reversed` counterparts. Not normally used directly -- prefer the tree-specific macro, which
 /// documents its own parameters; the shape is identical across all three.
 ///
@@ -549,31 +595,39 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 /// regardless of the body, so a user's `break` only ever exited it and fell through to the real
 /// loop's own re-check -- which unconditionally advances -- making `break` silently behave like
 /// `continue`.)
-#define RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_, reversed)                            \
-  for (struct {                                                                                   \
-         typeof(*(self))* tree;                                                                   \
-         tree_iter         it;                                                                    \
-         tree_node*        node;                                                                  \
-       } RKI_state                                                                                \
-       = {(self), {0}, rk_null};                                                                  \
-       RKI_state.tree                                                                             \
-       && (RKI_state.it = (tree_iter){.stack = (stack_buf),                                       \
-                                       .curr  = (tree_node*)RKI_state.tree->root,                 \
-                                       .cap   = (stack_cap),                                      \
-                                       .top   = 0},                                               \
+#define RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_)                                       \
+  for (struct {                                                                                    \
+         typeof(*(self))* tree;                                                                    \
+         tree_iter        it;                                                                      \
+         tree_node*       node;                                                                    \
+       } RKI_state = {(self), {0}, rk_null};                                                       \
+       RKI_state.tree                                                                              \
+       && (RKI_state.it = (tree_iter){.stack = (stack_buf),                                        \
+                                      .curr  = (tree_node*)RKI_state.tree->root,                   \
+                                      .cap   = (stack_cap),                                        \
+                                      .top   = 0},                                                 \
           1);                                                                                      \
-       RKI_state.tree = rk_null)                                                                  \
-    for (typeof(RKI_state.tree->root->entry)* entry_ = rk_null;                                   \
-         (RKI_state.node = (reversed) ? rki_tree_iter_next_reversed(&RKI_state.it)                \
-                                       : rki_tree_iter_next(&RKI_state.it))                        \
+       RKI_state.tree = rk_null)                                                                   \
+    for (typeof(RKI_state.tree->root->entry)* entry_ = rk_null;                                    \
+         (RKI_state.node = rki_tree_iter_next(&RKI_state.it))                                      \
          && (entry_ = &((typeof(RKI_state.tree->root))RKI_state.node)->entry, 1);)
 
-#define tree_foreach(self, stack_buf, stack_cap, entry_)                                          \
-  RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_, 0)
-
-/// @brief Like `tree_foreach()`, but iterates in descending key order.
-#define tree_foreach_reversed(self, stack_buf, stack_cap, entry_)                                 \
-  RKI_TREE_FOREACH(self, stack_buf, stack_cap, entry_, 1)
+#define RKI_TREE_FOREACH_REVERSED(self, stack_buf, stack_cap, entry_)                              \
+  for (struct {                                                                                    \
+         typeof(*(self))* tree;                                                                    \
+         tree_iter        it;                                                                      \
+         tree_node*       node;                                                                    \
+       } RKI_state = {(self), {0}, rk_null};                                                       \
+       RKI_state.tree                                                                              \
+       && (RKI_state.it = (tree_iter){.stack = (stack_buf),                                        \
+                                      .curr  = (tree_node*)RKI_state.tree->root,                   \
+                                      .cap   = (stack_cap),                                        \
+                                      .top   = 0},                                                 \
+          1);                                                                                      \
+       RKI_state.tree = rk_null)                                                                   \
+    for (typeof(RKI_state.tree->root->entry)* entry_ = rk_null;                                    \
+         (RKI_state.node = rki_tree_iter_next_reversed(&RKI_state.it))                             \
+         && (entry_ = &((typeof(RKI_state.tree->root))RKI_state.node)->entry, 1);)
 
 /// @brief Shared erase_if implementation backing `bst_erase_if`/`avl_erase_if`/`rbt_erase_if`. Not
 /// normally used directly.
@@ -584,34 +638,34 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 /// `pred` into a scratch buffer, then it removes each collected key through `remove_fn` -- the
 /// variant's own, already-correct `remove` function, which rebalances exactly as it would for a
 /// standalone `_remove()` call.
-#define RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry_, pred, remove_fn)                    \
+#define RKI_TREE_ERASE_IF(self, stack_buf, stack_cap, entry_, pred, remove_fn)                     \
   do {                                                                                             \
-    typeof(*(self))* const RKI_eif_self = (self);                                                 \
-    if (!RKI_eif_self->count) { break; }                                                          \
-    typeof(RKI_eif_self->root->entry_mod.key)* const RKI_eif_keys                                 \
-        = alloc_new(typeof(RKI_eif_self->root->entry_mod.key),                                    \
-                    RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));                       \
-    size_t RKI_eif_n = 0;                                                                         \
-    tree_foreach(RKI_eif_self, stack_buf, stack_cap, entry_) {                                    \
-      if (pred) { RKI_eif_keys[RKI_eif_n++] = entry_->key; }                                      \
+    typeof(*(self))* const RKI_eif_self = (self);                                                  \
+    if (!RKI_eif_self->count) { break; }                                                           \
+    typeof(RKI_eif_self->root->entry_mod.key)* const RKI_eif_keys                                  \
+        = alloc_new(typeof(RKI_eif_self->root->entry_mod.key),                                     \
+                    RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));                        \
+    size_t RKI_eif_n = 0;                                                                          \
+    tree_foreach(RKI_eif_self, stack_buf, stack_cap, entry_) {                                     \
+      if (pred) { RKI_eif_keys[RKI_eif_n++] = entry_->key; }                                       \
     }                                                                                              \
     for (size_t RKI_eif_i = 0; RKI_eif_i < RKI_eif_n; ++RKI_eif_i) {                               \
-      remove_fn(RKI_eif_self, RKI_eif_keys[RKI_eif_i]);                                           \
-    }                                                                                               \
-    alloc_delete(RKI_eif_keys, RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));            \
+      remove_fn(RKI_eif_self, RKI_eif_keys[RKI_eif_i]);                                            \
+    }                                                                                              \
+    alloc_delete(RKI_eif_keys, RKI_eif_self->count RK_IFALLOC(, RKI_eif_self->alloc));             \
   } while (0)
 
 //////////////////////////////////////////// Bst internals /////////////////////////////////////////
 
-#define RKI_BstEntryPriv(K, V)      RKI_bst_entry_##K##_##V
+#define RKI_BstEntryPriv(K, V)   RKI_bst_entry_##K##_##V
 
-#define RKI_BST_INIT(K, V, _Alloc)  ((Bst(K, V)){.count = 0, RK_IFALLOC(.alloc = _Alloc)})
-#define RKI_BST_INIT3(K, V, _Alloc) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, _Alloc))
-#define RKI_BST_INIT2(K, V)         RKI_BST_INIT(K, V, alloc_ctx)
+#define RKI_BST_INIT(K, V, A)    ((Bst(K, V)){RK_IFALLOC(.alloc = A)})
+#define RKI_BST_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_BST_INIT(K, V, A))
+#define RKI_BST_INIT2(K, V)      RKI_BST_INIT(K, V, alloc_ctx)
 
-#define RKI_BstNode(K, V)           RKI_bst_node_##K##_##V
-#define RKI_BST_PUB(K, V, FNAME)    bst_##K##_##V##_##FNAME
-#define RKI_BST_PRI(K, V, FNAME)    rki_bst_##K##_##V##_##FNAME
+#define RKI_BstNode(K, V)        RKI_bst_node_##K##_##V
+#define RKI_BST_PUB(K, V, FNAME) bst_##K##_##V##_##FNAME
+#define RKI_BST_PRI(K, V, FNAME) rki_bst_##K##_##V##_##FNAME
 
 #define RKI_BST_DEFINE(K, V, CMP_FUN)                                                              \
   RK_EXTERNC_BEG                                                                                   \
@@ -739,7 +793,7 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 //////////////////////////////////////////// Avl internal /////////////////////////////////////////
 
-#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_AVL_INIT(K, V, A)    ((Avl(K, V)){RK_IFALLOC(.alloc = A)})
 #define RKI_AVL_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_AVL_INIT(K, V, A))
 #define RKI_AVL_INIT2(K, V)      RKI_AVL_INIT(K, V, alloc_ctx)
 
@@ -934,7 +988,7 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 //////////////////////////////////////////// Rbt internals /////////////////////////////////////////
 
-#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){.count = 0, .root = rk_null, RK_IFALLOC(.alloc = A)})
+#define RKI_RBT_INIT(K, V, A)    ((Rbt(K, V)){RK_IFALLOC(.alloc = A)})
 #define RKI_RBT_INIT3(K, V, A)   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_RBT_INIT(K, V, A))
 #define RKI_RBT_INIT2(K, V)      RKI_RBT_INIT(K, V, alloc_ctx)
 
@@ -1160,7 +1214,7 @@ rklib_fun tree_node* rki_tree_iter_next_reversed(tree_iter* restrict it) {
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_TREES_H
 

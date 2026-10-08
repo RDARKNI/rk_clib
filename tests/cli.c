@@ -1,10 +1,11 @@
 #define RK_IMPL
 #define TRIAX_IMPL
 
-#include "conf.h"
+// conf.h must be the first include: it defines RKLIB_DEBUG before rk_defs.h is seen. Including any
+// rk header earlier silently compiles rk_assert out for the whole suite.
+#include "conf.h" // IWYU pragma: keep
 
 int main(int argc, char* argv[]) {
-
   int64_t         t0       = triaxi_now_ms();
   Triax_RunConfig defaults = {TRIAXI_ZINIT};
   Triax_RunConfig conf     = triax_parse_argv(argc, argv, defaults);

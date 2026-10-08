@@ -18,7 +18,7 @@
 // cross-TU linkage for library-generated container code, not just the library's own hand-written
 // foundational functions.
 extern_fun unsigned mtu_hash(int key) { return (unsigned)key; }
-extern_fun int       mtu_cmp(int a, int b) { return a != b; }
+extern_fun int      mtu_cmp(int a, int b) { return a != b; }
 DICT_DEFINE(int, int, mtu_hash, mtu_cmp)
 
 // A plain extern_var/extern_def global, exercised the same way rk_alloc.h's own alloc_ctx is: one
@@ -27,17 +27,17 @@ DICT_DEFINE(int, int, mtu_hash, mtu_cmp)
 // and not an accidental per-TU copy.
 extern_var int mtu_shared_counter extern_def(0);
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 // Defined in mtu_impl.{c,cpp}. Populates *d and *v, using the generated dict_int_int_* functions
 // and Vec's own rklib_fun accessors from within the RK_IMPL TU.
-int mtu_impl_populate(Dict(int, int) * d, Vec(int) * v);
+int mtu_impl_populate(Dict(int, int)* d, Vec(int)* v);
 
 // Defined in mtu_use.{c,cpp}. Reads *d and *v back via the exact same generated/library functions,
 // called from a TU that does NOT define RK_IMPL -- these calls only succeed if the linker correctly
 // resolves them to mtu_impl_populate's TU.
-int mtu_use_verify(Dict(int, int) * d, Vec(int) * v);
+int mtu_use_verify(Dict(int, int)* d, Vec(int)* v);
 
-RK_HEADER_END
+RKI_HEADER_END
 
 #endif // MTU_SHARED_H

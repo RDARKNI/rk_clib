@@ -2,7 +2,7 @@
 #define TESTARENA_H
 #include "conf.h"
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 #define ARENA_SIZE 1024
 
@@ -79,6 +79,8 @@ triax_test(arena, cap_used_remaining_empty) {
   triax_expect_eq(arena_remaining(&glob_a), ARENA_SIZE);
 }
 
+int arr[5];
+int test() { try_static_assert_expr(countof(arr) == 5, "oh dear"); }
 // ---- alloc ----
 
 triax_test(arena, alloc_basic) {
@@ -287,16 +289,54 @@ triax_test(arena, extend_in_place_grow_and_shrink) {
   arena_clear(&glob_a);
 }
 
-triax_test(arena, extend_not_top_asserts, .isolation = TRIAX_ISOLATION_ON) {
+// A non-top pointer is an ordinary extend failure, so arena_extend() reports it through
+// RK_ARENA_FAIL (aborts by default, in release builds too).
+triax_test(arena, extend_not_top_invokes_failure_handler, .isolation = TRIAX_ISOLATION_ON) {
   arena_clear(&glob_a);
   int* arr = arena_new(int, 5, &glob_a);
   fill_ints(arr, 5, 0);
   arena_new(int, 10, &glob_a); // displace top
-  // non-top pointer is a programming error — asserts
-#ifdef RKLIB_DEBUG
-  triax_assert_fault(TRIAX_FAULT_ANY, (void)arena_extend(arr, 5, 10, &glob_a););
-#endif
+  triax_assert_fault(TRIAX_FAULT_ABORT, (void)arena_extend(arr, 5, 10, &glob_a););
+}
+
+// arena_try_extend() on a non-top allocation fails without touching the arena or the data, for
+// growth, shrinking, and resizing to zero.
+triax_test(arena, try_extend_not_top_returns_null_and_leaves_arena) {
   arena_clear(&glob_a);
+  int* arr = arena_new(int, 5, &glob_a);
+  fill_ints(arr, 5, 0);
+  int*           top  = arena_new(int, 10, &glob_a); // displace top
+  unsigned char* cur0 = glob_a.cur;
+  triax_expect_null(arena_try_extend(arr, 5, 10, &glob_a));
+  triax_expect_null(arena_try_extend(arr, 5, 2, &glob_a));
+  triax_expect_null(arena_try_extend(arr, 5, 0, &glob_a));
+  triax_expect_eq(glob_a.cur, cur0);
+  expect_ints(arr, 5, 0);
+  triax_expect_eq(arena_try_extend(top, 10, 12, &glob_a), top); // the real top still resizes
+  arena_clear(&glob_a);
+}
+
+// Byte-sized arena_try_resize(): resizes the given pointer if it is on top (growing or shrinking),
+// otherwise fails without touching the arena.
+triax_test(arena, try_resize_bytes_top_and_non_top) {
+  unsigned char  buf[64];
+  Arena          x    = arena_init(buf, sizeof buf);
+  unsigned char* a    = (unsigned char*)arena_allocate(8, 1, &x);
+  unsigned char* b    = (unsigned char*)arena_allocate(8, 1, &x);
+  unsigned char* cur0 = x.cur;
+
+  triax_expect_null(arena_try_resize(a, 8, 16, &x)); // not top
+  triax_expect_null(arena_try_resize(a, 8, 0, &x));
+  triax_expect_eq(x.cur, cur0);
+
+  triax_expect_eq(arena_try_resize(b, 8, 20, &x), b); // grow
+  triax_expect_eq(x.cur, b + 20);
+  triax_expect_eq(arena_try_resize(b, 20, 4, &x), b); // shrink
+  triax_expect_eq(x.cur, b + 4);
+  triax_expect_null(arena_try_resize(b, 4, 1000, &x)); // does not fit
+  triax_expect_eq(x.cur, b + 4);
+  triax_expect_eq(arena_try_resize(b, 4, 0, &x), b); // to zero: a is top again
+  triax_expect_eq(arena_try_resize(a, 8, 12, &x), a);
 }
 
 triax_test(arena, try_extend_oom_returns_null) {
@@ -414,7 +454,7 @@ triax_test(arena, try_allocate_zero_size) {
 // ---- zero-initialised arena ----
 
 triax_test(arena, null_arena) {
-  Arena la = {RK_ZINIT};
+  Arena la = {RKI_ZINIT};
 
   // Accessors are all well-defined: pure pointer arithmetic on rk_null ptrs
   triax_expect_eq(arena_cap(&la), 0u);
@@ -435,6 +475,17 @@ triax_test(arena, null_arena) {
   // clear is a no-op
   triax_expect_eq(arena_clear(&la), &la);
   triax_expect_true(arena_is_empty(&la));
+}
+
+// Resizing on a null-backed arena fails without touching it, including a zero-to-zero resize.
+triax_test(arena, null_arena_resize_and_extend_fail) {
+  Arena la = {RKI_ZINIT};
+  int   x  = 0;
+  triax_expect_null(arena_try_resize_top(0, 0, &la));
+  triax_expect_null(arena_try_resize_top(0, 8, &la));
+  triax_expect_null(arena_try_extend(&x, 1, 2, &la));
+  triax_expect_null(arena_try_extend(&x, 1, 0, &la));
+  triax_expect_null(la.cur);
 }
 
 // ---- allocator interface ----
@@ -540,7 +591,90 @@ triax_test(arena, arr_allocator_as_allocator_interface) {
 
 #endif
 
+// A null-backed arena rewinds to its own null-position mark.
+triax_test(arena, rewind_null_backed_to_null_mark) {
+  Arena     a = {0};
+  ArenaMark m = arena_mark(&a);
+  arena_rewind_to(&a, m);
+  triax_expect_null(a.cur);
+  triax_expect_true(arena_is_empty(&a));
+}
+
+// A null-position mark used after the arena was given backing storage is stale.
+triax_test(arena, rewind_to_null_mark_on_backed_arena_asserts, .isolation = TRIAX_ISOLATION_ON) {
+  Arena         a         = {0};
+  ArenaMark     null_mark = arena_mark(&a);
+  unsigned char buf[64];
+  a = arena_init(buf, sizeof buf);
+  (void)arena_allocate(8, 1, &a);
+#ifdef RKLIB_DEBUG
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)arena_rewind_to(&a, null_mark); });
+#endif
+}
+
+// The raw realloc functions dispatch on a null pointer, for every alignment.
+triax_test(alloc, malloc_reallocate_null_ptr_allocates) {
+  for (size_t align = 1; align <= 256; align *= 2) {
+    unsigned char* p = (unsigned char*)malloc_reallocate(rk_null, 0, 128, align);
+    triax_assert_nonnull(p);
+    triax_expect_eq((uptr)p % align, 0u);
+    p[127] = 1;
+    malloc_deallocate(p, align);
+  }
+}
+
+triax_test(alloc, page_realloc_null_ptr_allocates) {
+  unsigned char* p = (unsigned char*)page_realloc(rk_null, 0, 200);
+  triax_assert_nonnull(p);
+  p[199] = 1;
+  page_free(p, 200);
+}
+
+triax_test(alloc, page_free_null_is_noop) {
+  page_free(rk_null, 0);
+  page_free(rk_null, 4096);
+  triax_expect_null(page_realloc(rk_null, 0, 0));
+}
+
+// Pointer/old-size mismatches are contract violations at every layer, including when the new
+// size is zero (which previously skipped the check in page_realloc and leaked the mapping).
+// An expected fault ends the test process, so each case needs its own test.
+#ifdef RKLIB_DEBUG
+triax_test(alloc, page_realloc_ptr_zero_old_size_zero_new_asserts,
+           .isolation = TRIAX_ISOLATION_ON) {
+  void* p = page_alloc(100);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)page_realloc(p, 0, 0); });
+}
+
+triax_test(alloc, page_realloc_null_nonzero_old_size_zero_new_asserts,
+           .isolation = TRIAX_ISOLATION_ON) {
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)page_realloc(rk_null, 100, 0); });
+}
+
+triax_test(alloc, malloc_reallocate_ptr_zero_old_size_zero_new_asserts,
+           .isolation = TRIAX_ISOLATION_ON) {
+  void* p = malloc_allocate(64, 8);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)malloc_reallocate(p, 0, 0, 8); });
+}
+
+triax_test(alloc, malloc_reallocate_overaligned_ptr_zero_old_size_zero_new_asserts,
+           .isolation = TRIAX_ISOLATION_ON) {
+  void* p = malloc_allocate(64, 64);
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)malloc_reallocate(p, 0, 0, 64); });
+}
+
+triax_test(alloc, malloc_reallocate_null_nonzero_old_size_zero_new_asserts,
+           .isolation = TRIAX_ISOLATION_ON) {
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)malloc_reallocate(rk_null, 64, 0, 8); });
+}
+
+triax_test(alloc, malloc_reallocate_null_nonzero_old_size_asserts,
+           .isolation = TRIAX_ISOLATION_ON) {
+  triax_assert_fault(TRIAX_FAULT_ABORT, { (void)malloc_reallocate(rk_null, 64, 128, 64); });
+}
+#endif
+
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 
 #endif

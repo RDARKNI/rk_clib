@@ -1,32 +1,29 @@
 // SPDX-License-Identifier: MIT
+
 /// @file rk_alloc.h
 /// @version 1.0.0
 /// @defgroup rk_alloc Allocator Interface
-/// @brief Customizable memory allocator abstraction for C.
-///
-/// Provides an allocator interface built around `Allocator` — a vtable pointer plus an optional
-/// context pointer. Two predefined allocators are provided: `alloc_malloc_allocator` and
-/// `alloc_page_allocator`. Custom allocators can be created by filling an `AllocatorVTable` and
-/// constructing an `Allocator`.
-///
-/// Allocation failures are handled inside the allocator, not at call sites. The provided allocators
-/// invoke the overridable failure macros from `rk_config.h` (`RK_MALLOC_FAIL`, `RK_MMAP_FAIL`,
-/// etc.), which by default assert and abort. Callers never need to NULL-check allocation results.
-///
-/// `RK_CUSTOM_ALLOCATORS` controls whether allocators are threaded through objects — see
-/// `rk_config.h`. When disabled, per-object `Allocator` fields, custom-allocator arguments, and
-/// function-pointer dispatch are compiled out.
-///
-/// When `RK_ALLOC_CTX_THREAD_LOCAL == 1`, `alloc_ctx` has thread-local storage duration, giving
-/// each thread its own construction-time default allocator.
+
+/// @brief Customizable allocator abstraction for C and C++.
+/// @details Allocator consists of a shared vtable and an optional context pointer. Built-in malloc
+/// and page allocators are provided; custom allocators implement the callback contracts below.
+/// Positive-size allocation and reallocation must return valid non-null storage or handle failure
+/// locally. Built-in allocators invoke failure macros from rk_config.h, which abort by default.
+/// Overrides that resume execution must preserve the operation's storage, alignment, and lifetime
+/// contracts; returning NULL is not a supported allocation-failure result for positive sizes.
+/// Public allocation wrappers return NULL for zero-size requests. Reallocation to zero deallocates
+/// and returns NULL. Null deallocation is a no-op, subject to the documented size preconditions.
+/// @note Optional allocator arguments are passed by value and default to alloc_ctx. When custom
+/// allocators are disabled, per-object allocator fields and explicit allocator arguments are
+/// disabled.
+/// @note Calls that use an unset container allocator fall back to the current alloc_ctx; containers
+/// that capture an allocator during initialization retain that handle.
 /// @{
 #ifndef RK_ALLOC_H
 #define RK_ALLOC_H
-
 #ifndef _MSC_VER
 # include <sys/mman.h>
 # include <unistd.h>
-
 # ifndef MAP_ANONYMOUS
 #  ifdef MAP_ANON
 #   define MAP_ANONYMOUS MAP_ANON
@@ -45,74 +42,66 @@
 # endif
 #endif
 #include "rk_defs.h"
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
-/// @brief Allocation logging macros. Emit a tagged source location to `stderr` when `RKLIB_DEBUG
-/// defined`; expand to nothing otherwise. Can be used by custom allocators to get the same logging
-/// behaviour as the built-in ones.
+/// @brief Allocation logging hooks using rk_log(), subject to its configured logging policy.
 #define alloc_log_new()    rk_log("[alloc]  %s:%d ", __FILE__, __LINE__)
 #define alloc_log_renew()  rk_log("[renew]  %s:%d ", __FILE__, __LINE__)
 #define alloc_log_delete() rk_log("[delete] %s:%d ", __FILE__, __LINE__)
 
-/// @struct Allocator
-/// @brief General-purpose allocator handle: a vtable pointer plus an optional context pointer. Pass
-/// by value to init functions; pass by pointer to allocator-generic macros.
-///
-/// When custom allocators are enabled, rklib macros that accept an optional allocator argument
-/// default to `alloc_ctx`. Objects capture that allocator when initialised, so changing `alloc_ctx`
-/// affects only subsequently created objects.
-///
-/// Two predefined `Allocator` instances are provided:
-///   - `alloc_malloc_allocator` — thin wrappers over `malloc`/`free` (or `_aligned_malloc` on MSVC
-///     for over-aligned types). This is the default `alloc_ctx`.
-///   - `alloc_page_allocator` — OS page allocation (`mmap` / `VirtualAlloc`). All allocations are
-///     page-aligned; alignments larger than the page size are not supported.
-///
-/// @note Custom allocators must handle failures locally (via the failure macros in `rk_config.h`).
-/// Returning `NULL` from an allocator leads to immediate undefined behaviour at the call site.
-
-/// @brief Allocation Function.
-/// @param size  Desired size of the allocation in bytes.
-/// @param align Desired Alignment of the allocation. Must be a power of two.
-/// @param ctx   Allocator context. May be `NULL` depending on the allocator.
-/// @return A **valid** pointer to the allocated memory. May only be `NULL` if `size` is zero.
-/// @note Allocation failure is expected to be handled locally by the function via the respective
-/// failure macros defined in `rk_config.h`.
+/// @brief Allocation callback; called with a positive size by generic wrappers.
+/// @param size Requested size in bytes; must be nonzero.
+/// @param align Required alignment; must be a supported nonzero power of two.
+/// @param ctx Allocator context; may be NULL if the implementation permits it.
+/// @return Non-null storage of at least size bytes, aligned to align.
+/// @note Failure must be handled locally; the callback must not return NULL. Failure macros from
+/// rk_config.h may be used. Generic wrappers handle zero sizes before dispatch.
 typedef void*(alloc_allocation_f)(size_t size, size_t align, void* ctx);
 
-/// @brief Reallocation Function.
-/// @param old_ptr The pointer to the allocation to be deallocated. If `NULL`, this function shall
-/// act like the corresponding `alloc_allocation_f` of the same allocator.
-/// @param old_size The size of the allocation to be deallocated. In some allocators such as
-/// `alloc_malloc_allocator`, this parameter is discarded.
-/// @param new_size The desired new size of the allocation. If this is zero, this function shall act
-/// like the corresponding `alloc_deallocation_f` of the same allocator.
-/// @param align Desired Alignment of the allocation. Must match the alignment of the corresponding
-/// allocation function call.
+/// @brief Reallocation function. May move the allocation.
+/// @param old_ptr  Non-null pointer to a valid allocation owned by this allocator.
+/// @param old_size Current requested size of the allocation in bytes; must be nonzero.
+/// @param new_size Requested new size in bytes; must be nonzero.
+/// @param align    Alignment used for the original allocation.
 /// @param ctx      Allocator context. May be `NULL` depending on the allocator.
-/// @return A **valid** pointer to the allocated memory. May only be `NULL` if `new_size` is zero.
+/// @return A non-null pointer to at least `new_size` bytes of storage aligned to `align`.
+/// @note Preserves the first `min(old_size, new_size)` bytes. On success, the old allocation
+/// is replaced by the returned allocation.
+/// @note Allocation failure must be handled locally; the function must not return `NULL`.
+/// The failure macros in `rk_config.h` may be used for this purpose.
 typedef void*(alloc_reallocation_f)(void* old_ptr, size_t old_size, size_t new_size, size_t align,
                                     void* ctx);
 
-/// @brief Deallocation Function.
-/// @param ptr The pointer to the allocation to be freed. If `NULL`, this function shall be a no-op.
-/// @param old_size The size of the allocation to be deallocated. In some allocators such as
-/// `alloc_malloc_allocator`, this parameter is discarded.
-/// @param align Desired Alignment of the allocation. Must match the alignment of the corresponding
-/// allocation function call.
+/// @brief Deallocation function.
+/// @param ptr      Non-null pointer to a valid allocation owned by this allocator.
+/// @param old_size Current requested size of the allocation in bytes; must be nonzero.
+/// @param align    Alignment used for the original allocation.
 /// @param ctx      Allocator context. May be `NULL` depending on the allocator.
+/// @note Releases the allocation according to the allocator's strategy.
+/// Individual deallocations need not reclaim storage immediately.
 typedef void(alloc_deallocation_f)(void* ptr, size_t old_size, size_t align, void* ctx);
 
-/// @brief Vtable for an allocator. Holds function pointers for allocation, deallocation, and
-/// reallocation. Shared across all `Allocator` instances that use the same strategy (e.g. all arena
-/// allocators share one vtable). Implementations of each slot must follow the contracts described
-/// on the `alloc_allocation_f`, `alloc_reallocation_f` and `alloc_deallocation_f` typedefs below.
+/// @brief Shared allocation, reallocation, and deallocation callbacks.
+/// @note Every callback must be non-null and obey its corresponding function typedef's contract.
+/// Generic wrappers normalize zero-size and null-pointer cases before dispatch.
+/// @see alloc_allocation_f
+/// @see alloc_reallocation_f
+/// @see alloc_deallocation_f
 typedef struct AllocatorVTable {
   alloc_allocation_f*   rk_alloc_alignsize(2, 1) alloc_f;
   alloc_reallocation_f* rk_alloc_alignsize(4, 3) realloc_f;
   alloc_deallocation_f* dealloc_f;
 } AllocatorVTable;
 
+/// @brief Allocator handle containing a shared vtable pointer and an optional context pointer.
+/// @note Pass handles by value. The vtable and context must remain valid while the handle is used;
+/// copying a handle does not copy or take ownership of its context. A NULL context is permitted by
+/// some allocators, including the built-in malloc and page allocators.
+/// @note Explicit handles passed to alloc_* must have a valid vtable with all callbacks populated,
+/// even for zero-size requests or null deallocation. An unset stored container handle may instead
+/// use the library's internal fallback to alloc_ctx.
+/// @note Custom callbacks must return non-null storage for positive allocation/reallocation sizes
+/// or handle failure locally. Zero-size requests are handled by the public wrappers.
 typedef struct Allocator {
   const AllocatorVTable* vtab; ///< Vtable pointer
   void*                  ctx;  ///< Optional Context Pointer
@@ -139,7 +128,8 @@ rk_unused static const AllocatorVTable alloc_page_allocator_vtable
        .dealloc_f = rki_page_deallocate};
 
 /// @brief Allocator backed by OS page mapping (`mmap` / `VirtualAlloc`). All allocations are
-/// page-aligned and zero-initialized. Alignments greater than the system page size are not
+/// page-aligned; fresh allocations are zero-initialized, but bytes added by reallocation are not
+/// guaranteed to be zero (see page_realloc()). Alignments greater than the system page size are not
 /// supported.
 rk_unused static const Allocator alloc_page_allocator
     = {.vtab = &alloc_page_allocator_vtable, .ctx = rk_null};
@@ -156,251 +146,321 @@ rk_unused static const Allocator alloc_page_allocator
 # define RKI_ALLOCCTX_INIT(...) = {__VA_ARGS__}
 #endif
 
-/// @brief Default allocator used by all rklib macros when no explicit allocator argument is
-/// provided. Defaults to `alloc_malloc_allocator`. Objects capture its value when initialised, so
-/// replacing it affects only subsequently created objects. When `RK_ALLOC_CTX_THREAD_LOCAL == 1`,
-/// it is thread-local. Must always contain a valid, fully initialised `Allocator`.
+/// @brief Default handle used when an optional allocator argument is omitted.
+/// @note Initially uses alloc_malloc_allocator. Must always contain a valid Allocator. Objects that
+/// capture this handle retain it; later replacements affect subsequent captures and calls that
+/// consult the default. Unset stored container handles fall back to its current value.
+/// @note With custom allocators enabled, RK_ALLOC_CTX_THREAD_LOCAL selects thread-local storage.
+/// With custom allocators disabled, this is a fixed static const malloc allocator handle.
 RKI_ALLOCCTX_STORAGE Allocator alloc_ctx RKI_ALLOCCTX_INIT(.vtab = &alloc_malloc_allocator_vtable,
                                                            .ctx  = rk_null);
 
-/// @brief `void* alloc_allocate(size_t bytes, size_t align, Allocator alloc = alloc_ctx)` - Raw
-/// allocation: allocates `bytes` bytes with the given alignment. Prefer `alloc_new` for typed
-/// allocations.
-/// @param bytes Number of bytes to allocate
-/// @param align Alignment; must be a power of two
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
-/// @return pointer to the allocated memory. `NULL` iff `bytes` is zero.
+/// @brief `void* alloc_allocate(size_t bytes, size_t align, Allocator alloc = alloc_ctx)` -
+/// Allocates raw storage through the selected allocator.
+/// @param bytes Requested payload size; may be zero.
+/// @param align Supported nonzero power-of-two alignment.
+/// @param alloc Valid allocator handle; defaults to alloc_ctx. Explicit selection requires custom
+/// allocators.
+/// @return NULL if bytes is zero; otherwise non-null aligned storage or locally handled failure.
+/// @note Zero size does not invoke the allocation callback. Does not initialize storage or
+/// construct C++ objects. All size and alignment calculations must be representable.
+/// @see alloc_new
 #define alloc_allocate(bytes, align, ...)                                                          \
-  ((void*)rk_overload(RKI_ALLOC_ALLOCATE, bytes, align, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_ALLOC_ALLOCATE, bytes, align, ##__VA_ARGS__))
 
 /// @brief `void* alloc_reallocate(void* ptr, size_t old_bytes, size_t new_bytes, size_t align,
-/// Allocator alloc = alloc_ctx)` - Raw reallocation. If `ptr` is `NULL`, behaves like
-/// `alloc_allocate`. If `new_bytes` is zero, behaves like `alloc_deallocate`. Prefer `alloc_renew`
-/// for typed use.
-/// @param ptr       Existing allocation (or `NULL`)
-/// @param old_bytes Size of the existing allocation in bytes
-/// @param new_bytes Desired new size in bytes
-/// @param align     Alignment; must match the original allocation
-/// @param alloc     Optional allocator; defaults to `alloc_ctx`
-/// @return pointer to the allocated memory. `NULL` iff `new_bytes` is zero.
+/// Allocator alloc = alloc_ctx)` - Resizes storage, possibly moving it.
+/// @param ptr Valid allocation owned by alloc, or NULL with old_bytes equal to zero.
+/// @param old_bytes Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param new_bytes Desired payload size; may be zero.
+/// @param align Original allocation alignment; for NULL input, supported alignment for the new
+/// allocation.
+/// @param alloc Valid owning allocator; defaults to alloc_ctx.
+/// @return NULL if new_bytes is zero; otherwise non-null storage aligned to align.
+/// @note NULL input routes to allocation. Zero new size deallocates a non-null input and returns
+/// NULL. Otherwise preserves min(old_bytes, new_bytes) bytes; added bytes are uninitialized. The
+/// old allocation is replaced by the result, which becomes the allocation to use and subsequently
+/// deallocate.
+/// @note Pointer/old-size mismatches are contract violations, including for zero new size. Failure
+/// must be handled locally. Does not construct or destroy C++ objects.
+/// @see alloc_renew
 #define alloc_reallocate(ptr, old_bytes, new_bytes, align, ...)                                    \
-  ((void*)rk_overload(RKI_ALLOC_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_ALLOC_REALLOCATE, ptr, old_bytes, new_bytes, align, ##__VA_ARGS__))
 
 /// @brief `void alloc_deallocate(void* ptr, size_t bytes, size_t align, Allocator alloc =
-/// alloc_ctx)` - Raw deallocation. If `ptr` is `NULL`, this is a no-op. Prefer `alloc_delete` for
-/// typed use.
-/// @param ptr   Pointer to the memory to free (or `NULL`)
-/// @param bytes Size of the allocation in bytes
-/// @param align Alignment; must match the original allocation
-/// @param alloc Optional allocator; defaults to `alloc_ctx`
+/// alloc_ctx)` - Releases an allocation according to the allocator's strategy.
+/// @param ptr Valid allocation owned by alloc, or NULL with bytes equal to zero.
+/// @param bytes Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param align Original allocation alignment; must be a supported nonzero power of two.
+/// @param alloc Valid owning allocator; defaults to alloc_ctx.
+/// @note NULL input with zero size is a no-op and does not invoke the deallocation callback.
+/// Pointer/size mismatches are contract violations. Individual deallocation may reclaim no storage,
+/// as with arena allocators. Does not invoke C++ destructors.
+/// @see alloc_delete
 #define alloc_deallocate(ptr, bytes, align, ...)                                                   \
-  ((void)rk_overload(RKI_ALLOC_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
+  ((void)RKI_OVERLOAD(RKI_ALLOC_DEALLOCATE, ptr, bytes, align, ##__VA_ARGS__))
 
-/// @brief `T* alloc_new(T, size_t count, Allocator alloc = alloc_ctx)` - Allocates memory for an
-/// array of `count` elements of type `T` using the specified allocator.
-/// @param T         The type of elements to allocate
-/// @param count     Count of elements to allocate
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to allocated and aligned memory block, cast to `T*`.
-#define alloc_new(T, count, ...) ((T*)rk_overload(RKI_ALLOC_NEW, T, count, ##__VA_ARGS__))
+/// @brief Allocates raw storage for count elements of T with alignof(T).
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return A T* to allocated storage, or NULL if count is zero.
+/// @note Uses alloc_allocate() failure and zero-size semantics. Does not invoke C++ constructors.
+/// @see alloc_allocate
+#define alloc_new(T, count, ...) ((T*)RKI_OVERLOAD(RKI_ALLOC_NEW, T, count, ##__VA_ARGS__))
 
-/// @brief `T* alloc_renew(T* ptr, size_t old_count, size_t new_count, Allocator alloc = alloc_ctx)`
-/// - Resizes (reallocates) memory block to hold `new_count` elements of the same type, for standard
-/// alignment according to the Allocator.
-/// @param ptr       Pointer to the existing allocated memory
-/// @param old_count Number of elements of type T previously allocated
-/// @param new_count Number of elements of type T to allocate after resizing
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to the reallocated and aligned memory block, cast to the same pointer type.
-/// @warning Must not be used on pointers from over-aligned allocations
+/// @brief Resizes typed storage to new_count elements, possibly moving the allocation.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @return The resulting pointer, cast to the input pointer type; NULL if new_count is zero.
+/// @note NULL input allocates; zero new count deallocates and returns NULL. Preserves retained
+/// bytes; does not construct or destroy C++ objects. Inherits alloc_reallocate() contracts.
+/// @note Uses the element type's alignment, which must match the original allocation request.
+/// Use alloc_renew_aligned() when the original requested alignment differs.
+/// @see alloc_reallocate
 #define alloc_renew(ptr, old_count, new_count, ...)                                                \
-  ((typeof(ptr))rk_overload(RKI_ALLOC_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
+  ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_RENEW, ptr, old_count, new_count, ##__VA_ARGS__))
 
-/// @brief `void alloc_delete(T* ptr, size_t old_count, Allocator alloc = alloc_ctx)` - Deallocates
-/// memory.
-/// @param ptr       Pointer to the memory to deallocate
-/// @param old_count Number of elements of type T originally allocated
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
+/// @brief Deallocates typed storage without invoking C++ destructors.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL. The byte-size calculation must be representable.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @note NULL input with zero old count is a no-op. Inherits alloc_deallocate() contracts.
+/// Uses the element type's alignment, which must match the original request. Use
+/// alloc_delete_aligned() when the original requested alignment differs.
+/// @see alloc_deallocate
 #define alloc_delete(ptr, old_count, ...)                                                          \
-  ((void)rk_overload(RKI_ALLOC_DELETE, ptr, old_count, ##__VA_ARGS__))
+  ((void)RKI_OVERLOAD(RKI_ALLOC_DELETE, ptr, old_count, ##__VA_ARGS__))
 
-/// @brief `T* alloc_new_aligned(T, size_t count, size_t align, Allocator alloc = alloc_ctx)` -
-/// Allocates memory for an array of `count` elements of type T with specified alignment.
-/// @param T         The type of elements to allocate
-/// @param count     Number of elements to allocate
-/// @param align     Desired alignment of the memory, must be a power of two
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to allocated and aligned memory block, cast to `T*`.
+/// @brief Allocates raw storage for count elements of T with explicit alignment.
+/// @param T Element type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param align Supported nonzero power of two, at least alignof(T).
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return A T* to allocated storage, or NULL if count is zero.
+/// @note Uses alloc_allocate() failure and zero-size semantics. Does not invoke C++ constructors.
+/// @see alloc_allocate
 #define alloc_new_aligned(T, count, align, ...)                                                    \
-  ((T*)rk_overload(RKI_ALLOC_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
+  ((T*)RKI_OVERLOAD(RKI_ALLOC_ALIGNED_NEW, T, count, align, ##__VA_ARGS__))
 
-/// @brief `T* alloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align,
-/// Allocator alloc = alloc_ctx)` - Resizes (reallocates) memory block to hold `new_count` elements
-/// of the same type.
-/// @param ptr       Pointer to the existing allocated memory
-/// @param old_count Number of elements of type T previously allocated
-/// @param new_count Number of elements of type T to allocate after resizing
-/// @param align     Alignment of the memory; must match the original allocation
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return Pointer to reallocated and aligned memory block, cast to the same pointer type.
+/// @brief Resizes typed storage to new_count elements, possibly moving the allocation.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL.
+/// @param new_count Desired element count; may be zero. Byte-size calculations must be
+/// representable.
+/// @param align Original allocation alignment, at least the element type's alignment. For NULL
+/// input, selects supported alignment for the new allocation.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @return The resulting pointer, cast to the input pointer type; NULL if new_count is zero.
+/// @note NULL input allocates; zero new count deallocates and returns NULL. Preserves retained
+/// bytes; does not construct or destroy C++ objects. Inherits alloc_reallocate() contracts.
+/// @see alloc_reallocate
 #define alloc_renew_aligned(ptr, old_count, new_count, align, ...)                                 \
-  ((typeof(ptr))rk_overload(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                    \
-                            align, ##__VA_ARGS__))
+  ((typeof(ptr))RKI_OVERLOAD(RKI_ALLOC_ALIGNED_RENEW, ptr, old_count, new_count,                   \
+                             align, ##__VA_ARGS__))
 
-/// @brief `void alloc_delete_aligned(T* ptr, size_t old_count, size_t align, Allocator alloc =
-/// alloc_ctx)` - Deallocates aligned memory.
-/// @param ptr       Pointer to the memory to deallocate
-/// @param old_count Number of elements of type T originally allocated
-/// @param align     Alignment of the memory; must match the original allocation
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
+/// @brief Deallocates typed storage without invoking C++ destructors.
+/// @param ptr Valid allocation, or a typed NULL pointer with old_count equal to zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL. The byte-size calculation must be representable.
+/// @param align Original allocation alignment, at least the element type's alignment.
+/// @param allocator Valid owning allocator; defaults to alloc_ctx.
+/// @note NULL input with zero old count is a no-op. Inherits alloc_deallocate() contracts.
+/// @see alloc_deallocate
 #define alloc_delete_aligned(ptr, old_count, align, ...)                                           \
-  ((void)rk_overload(RKI_ALLOC_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
+  ((void)RKI_OVERLOAD(RKI_ALLOC_ALIGNED_DELETE, ptr, old_count, align, ##__VA_ARGS__))
 
-/// @brief `void* malloc_allocate(size_t nbytes, size_t align)` - Allocates `nbytes` bytes of memory
-/// with the specified alignment.
-/// @note Zero-sized allocations are guaranteed to return a null pointer. Adjusts size to be a
-/// multiple of alignment on some platforms.
-/// @param nbytes Number of bytes to allocate
-/// @param align  Desired alignment of the memory; must be a power of two
-/// @return Pointer to allocated and aligned memory block, or `NULL` iff `nbytes` is zero.
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief `void* malloc_allocate(size_t nbytes, size_t align)` - Allocates raw malloc-backed
+/// storage.
+/// @param nbytes Payload size; may be zero. Required alignment rounding must be representable.
+/// @param align Supported nonzero power-of-two alignment.
+/// @return NULL for zero size; otherwise non-null storage aligned to align.
+/// @note Uses malloc for alignments up to RKI_MALLOC_ALIGN; larger alignments use aligned_alloc
+/// on non-MSVC platforms or _aligned_malloc on MSVC, rounding the size as necessary.
+/// Failure invokes RK_MALLOC_FAIL. Overrides must preserve the allocation contract.
+/// @note Use matching malloc_* operations for reallocation/deallocation; on MSVC ordinary and
+/// aligned allocation families must not be mixed.
+/// @see malloc_reallocate
+/// @see malloc_deallocate
 #define malloc_allocate(nbytes, align) ((void*)RKI_MALLOC_ALLOCATE(nbytes, align))
 
 /// @brief `void* malloc_reallocate(void* ptr, size_t obytes, size_t nbytes, size_t align)` -
-/// Resizes an aligned memory block from `obytes` to `nbytes` bytes.
-/// @note On MSVC, calls `_aligned_realloc`. On other platforms, allocates a new block, copies, and
-/// frees the old one (no in-place realloc available). For standard-aligned allocations prefer
-/// `malloc_renew`; for over-aligned allocations this is required.
-/// @param ptr    Pointer to the existing allocated memory
-/// @param obytes Old size of the allocation in bytes
-/// @param nbytes New size of the allocation in bytes
-/// @param align  Alignment of the memory; must match the original allocation
-/// @return Pointer to reallocated and aligned memory block.
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// Resizes malloc-backed storage, possibly moving it.
+/// @param ptr Valid malloc-backed allocation, or NULL with obytes equal to zero.
+/// @param obytes Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param nbytes New payload size; may be zero. Required alignment rounding must be representable.
+/// @param align Original requested alignment; for NULL input, supported alignment for the new
+/// allocation.
+/// @return NULL for zero new size; otherwise non-null aligned storage.
+/// @note NULL input allocates; zero new size frees and returns NULL. Preserves min(obytes, nbytes)
+/// bytes. Size preconditions apply even where the underlying implementation ignores obytes.
+/// @note Alignments up to RKI_MALLOC_ALIGN use realloc. Larger alignments use _aligned_realloc on
+/// MSVC; elsewhere they allocate aligned storage, copy, and free. Failure invokes RK_MALLOC_FAIL.
+/// Use matching malloc_* operations; do not mix ordinary and aligned allocation families on MSVC.
 #define malloc_reallocate(ptr, obytes, nbytes, align)                                              \
   ((void*)RKI_MALLOC_REALLOCATE(ptr, obytes, nbytes, align))
 
-/// @brief `void malloc_deallocate(void* ptr, size_t align)` - Deallocates an aligned memory block
-/// previously allocated with `malloc_allocate` or `malloc_reallocate`.
-/// @param ptr   Pointer to the memory to deallocate
-/// @param align Alignment of the memory; must match the original allocation
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief `void malloc_deallocate(void* ptr, size_t align)` - Frees malloc-backed storage.
+/// @param ptr Valid allocation from the corresponding malloc_allocate()/malloc_reallocate() path,
+/// or NULL for a no-op.
+/// @param align Original requested alignment; must be a supported nonzero power of two.
+/// @note Selects free or, for over-aligned requests on MSVC, _aligned_free. Do not mix ordinary
+/// and aligned allocation families on MSVC.
 #define malloc_deallocate(ptr, align)       ((void)RKI_MALLOC_DEALLOCATE(ptr, align))
 
-/// @brief `T* malloc_new(T, size_t count)` - Allocates memory for an array of `count` elements of
-/// type `T` using `malloc`.
-/// @param T     The type of elements to allocate
-/// @param count Number of elements to allocate
-/// @return Pointer to allocated memory block, cast to `T*`.
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
-/// @note Zero-sized allocations are guaranteed to return a null pointer. Errors are handled via the
-/// `RK_MALLOC_FAIL` macro that may be redefined by the user.
+/// @brief Allocates raw storage for count elements of T using ordinary malloc.
+/// @param T Element type; its alignment must not exceed RKI_MALLOC_ALIGN.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @return A T* to uninitialized storage, or NULL if count is zero.
+/// @note Failure invokes RK_MALLOC_FAIL. Does not construct C++ objects.
+/// Use malloc_renew()/malloc_delete() for subsequent operations.
+/// @see malloc_new_aligned
 #define malloc_new(T, count)                ((T*)RKI_MALLOC_NEW(T, count))
 
-/// @brief `T* malloc_renew(T* ptr, size_t count)` - Resizes (reallocates) memory block to hold
-/// `count` elements of the same type.
-/// @note Passing `count == 0` frees the memory. Passing `ptr == NULL` is equivalent to calling
-/// `malloc_new`.
-/// @param ptr   Pointer to the existing allocated memory
-/// @param count Number of elements of type T to allocate after resizing
-/// @return Pointer to reallocated memory block, cast to the same pointer type
-/// @warning Must not be used on pointers from over-aligned allocations
+/// @brief Resizes ordinary malloc-backed storage to count elements, possibly moving it.
+/// @param ptr Valid ordinary malloc-backed allocation, or a typed NULL pointer.
+/// @param count New element count; may be zero. The byte-size calculation must be representable.
+/// @return The result cast to the input pointer type, or NULL if count is zero.
+/// @note NULL input allocates; zero count frees and returns NULL. Preserves the retained bytes.
+/// The element alignment must not exceed RKI_MALLOC_ALIGN. Does not construct or destroy C++
+/// objects.
+/// @warning On MSVC, must not be used for storage obtained through the aligned allocation family,
+/// even if the element type itself has ordinary alignment.
+/// @see malloc_renew_aligned
 #define malloc_renew(ptr, count)            ((typeof(ptr))RKI_MALLOC_RENEW(ptr, count))
 
-/// @brief `void malloc_delete(T* ptr)` - Deallocates memory previously allocated with one of the
-/// macros defined in this interface.
-/// @param ptr Pointer to the memory to deallocate
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief Frees ordinary malloc-backed typed storage; a typed NULL pointer is a no-op.
+/// @param ptr Valid ordinary malloc-backed allocation, or a typed NULL pointer.
+/// @note The element alignment must not exceed RKI_MALLOC_ALIGN. Does not invoke C++ destructors.
+/// @warning On MSVC, do not use for aligned-family storage; use malloc_delete_aligned() instead.
 #define malloc_delete(ptr)                  ((void)RKI_MALLOC_DELETE(ptr))
 
-/// @brief `T* malloc_new_aligned(T, size_t count, size_t align)` - Allocates memory for an array of
-/// `count` elements of type `T` with specified alignment using malloc (or _aligned_malloc with
-/// standard alignment on Msvc).
-/// @note Zero-sized allocations are guaranteed to return a null pointer. Adjusts size to be a
-/// multiple of alignment on some platforms.
-/// @param T     The type of elements to allocate
-/// @param count Number of elements to allocate
-/// @param align Desired alignment of the memory, must be a power of two
-/// @return Pointer to allocated memory block, cast to `T*`, or `NULL` iff `count` is zero.
+/// @brief Allocates raw storage for count elements using the aligned allocation family.
+/// @param T Element type.
+/// @param count Element count; may be zero. Byte-size and alignment rounding must be representable.
+/// @param align Supported nonzero power of two, at least alignof(T).
+/// @return A T* to uninitialized aligned storage, or NULL if count is zero.
+/// @note Always uses aligned_alloc on non-MSVC platforms or _aligned_malloc on MSVC, including
+/// for ordinary alignment. Raises alignment to at least RKI_MALLOC_ALIGN and rounds size
+/// accordingly. Failure invokes RK_MALLOC_FAIL. Does not invoke C++ constructors. Use
+/// malloc_renew_aligned()/malloc_delete_aligned() for subsequent operations.
 #define malloc_new_aligned(T, count, align) ((T*)RKI_MALLOC_ALIGNED_NEW(T, count, align))
 
-/// @brief `T* malloc_renew_aligned(T* ptr, size_t old_count, size_t new_count, size_t align)` -
-/// Resizes (reallocates) an aligned memory block to hold `new_count` elements of the same type.
-/// @note On MSVC, calls `_aligned_realloc`. On other platforms, allocates a new block, copies, and
-/// frees the old one (no in-place realloc available). For standard-aligned types prefer
-/// `malloc_renew`; for over-aligned types this is required.
-/// @param ptr       Pointer to the existing allocated memory
-/// @param old_count Old number of elements of type T
-/// @param new_count New number of elements of type T
-/// @param align     Alignment of the memory; must be a power of two
-/// @return Pointer to reallocated memory block. `NULL` iff `new_count` is zero.
+/// @brief Resizes aligned-family typed storage to new_count elements, possibly moving it.
+/// @param ptr Valid aligned-family allocation, or a typed NULL pointer with old_count equal to
+/// zero.
+/// @param old_count Current requested element count; positive for a non-null pointer, zero for
+/// NULL.
+/// @param new_count Desired element count; may be zero. Byte-size and rounding must be
+/// representable.
+/// @param align Original requested alignment, at least the element type's alignment. For NULL
+/// input, selects supported alignment for the new allocation.
+/// @return The result cast to the input pointer type, or NULL if new_count is zero.
+/// @note NULL input allocates; zero new count frees and returns NULL. Preserves retained bytes.
+/// Uses _aligned_realloc on MSVC; elsewhere allocates aligned storage, copies, and frees.
+/// Failure invokes RK_MALLOC_FAIL. Does not construct or destroy C++ objects.
+/// @see malloc_new_aligned
+/// @see malloc_delete_aligned
 #define malloc_renew_aligned(ptr, old_count, new_count, align)                                     \
   ((typeof(ptr))RKI_MALLOC_ALIGNED_RENEW(ptr, old_count, new_count, align))
 
-/// @brief `void malloc_delete_aligned(T* ptr)` - Deallocates memory previously allocated with
-/// malloc_new_aligned or with malloc_new for an over-aligned type. On non-MSVC it's always
-/// identical to malloc_delete; on MSVC it uses _aligned_free instead of free
-/// @param ptr Pointer to the memory to deallocate
-/// @attention Do **not** mix these macros defined here with regular `malloc`/`free` for the same
-/// pointers.
+/// @brief Frees aligned-family storage; a typed NULL pointer is a no-op.
+/// @param ptr Valid allocation from malloc_new_aligned()/malloc_renew_aligned(), or a typed NULL
+/// pointer. Also accepts over-aligned storage from malloc_allocate()/malloc_reallocate().
+/// @note Uses free on non-MSVC platforms and _aligned_free on MSVC. Does not invoke C++
+/// destructors. On MSVC, ordinary malloc-family storage must not be passed to this operation.
 #define malloc_delete_aligned(ptr) ((void)RKI_MALLOC_ALIGNED_DELETE(ptr))
 
-/// @brief Allocate memory using OS-backed page mapping (`mmap` / `VirtualAlloc`). The returned
-/// memory is zero-initialized and page-aligned. Allocation failures invoke `RK_MMAP_FAIL`, which
-/// aborts by default.
-/// @param size Size in bytes. Rounded up to the next page boundary internally.
-/// @note Passing 0 returns `NULL` without invoking the failure handler.
-/// @return Pointer to the allocated memory.
+/// @brief Allocates zero-initialized, page-aligned storage using mmap or VirtualAlloc.
+/// @param size Requested payload size; may be zero. Rounding up to a page boundary must be
+/// representable.
+/// @return NULL for zero size; otherwise non-null page-aligned storage.
+/// @note Zero size invokes no failure handler. Positive-size failures invoke RK_MMAP_FAIL, which
+/// aborts by default. Use page_realloc()/page_free() for subsequent operations.
+
 rklib_fun void* page_alloc(size_t size);
 
-/// @brief Reallocate memory previously allocated with `page_alloc()`. On Linux, uses `mremap`
-/// (in-place when possible). On other POSIX platforms, allocates a new region, copies, and unmaps
-/// the old one. On Windows, uses `VirtualAlloc` + copy + `VirtualFree`.
-/// @param ptr Pointer to the existing block (or `NULL` to act like `page_alloc`)
-/// @param old_size Current size in bytes
-/// @param new_size New size in bytes (or 0 to act like `page_free`)
-/// @return Pointer to the reallocated memory block.
+/// @brief Resizes page-backed storage, possibly moving it.
+/// @param ptr Valid page_alloc()/page_realloc() allocation, or NULL with old_size equal to zero.
+/// @param old_size Current requested payload size; positive for a non-null pointer, zero for NULL.
+/// @param new_size Desired payload size; may be zero. Page-size rounding must be representable.
+/// @return NULL if new_size is zero; otherwise non-null page-aligned storage.
+/// @note NULL input allocates. Zero new size frees and returns NULL. Preserves min(old_size,
+/// new_size) bytes. Added bytes are not guaranteed to be zero, including when growth stays within
+/// existing pages.
+/// @note Reuses the address when both sizes round to the same page count, and shrinks by releasing
+/// trailing pages. Growth uses mremap where enabled on Linux; otherwise allocates, copies, and
+/// frees. Failures invoke RK_MMAP_FAIL. Pointer/old-size mismatches are contract violations even
+/// for zero new size.
+
 rklib_fun void* page_realloc(void* ptr, size_t old_size, size_t new_size);
 
-/// @brief Free memory allocated via `page_alloc()`.
-/// @param ptr  Pointer to the memory block to free
-/// @param size Size of the block being freed, in bytes (must match allocation)
-/// @note Calling this with `size == 0` is a no-op.
+/// @brief Frees page-backed storage according to its current requested size.
+/// @param ptr Valid page allocation, or NULL.
+/// @param size Current requested payload size, or zero. Page-size rounding must be representable.
+/// @note Either NULL input or zero size is a no-op. In particular, passing zero with a non-null
+/// pointer does not free the allocation. For actual deallocation, ptr must be a valid page
+/// allocation and size must match its current requested size. Failures invoke RK_MMAP_FAIL.
+
 rklib_fun void  page_free(void* ptr, size_t size);
 
-/// @brief `T* rk_arrdup(T* src, size_t count, Allocator alloc = alloc_ctx)` - Copies an array of
-/// objects from `src` onto allocated storage
-/// @param src       The address of the array (must be typed correctly)
-/// @param count     The count of objects to copy
-/// @param allocator The Allocator to use (defaults to `alloc_ctx`)
-/// @return A pointer to the allocated array
-#define rk_arrdup(src, count, ...)                                                                 \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_ARRDUP, src, count, ##__VA_ARGS__))
-
+/// @brief Copies nbytes bytes into newly allocated storage aligned to align_max.
+/// @param src Source readable for nbytes bytes; may be NULL when nbytes is zero.
+/// @param nbytes Byte count; may be zero.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return The allocated copy, or NULL if nbytes is zero.
+/// @note Performs a bytewise copy, not a deep copy; does not invoke C++ constructors.
+/// Zero-size requests do not access src. Failure follows alloc_allocate() semantics.
+/// @see rk_memdup_aligned
 #define rk_memdup(src, nbytes, ...)                                                                \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_MEMDUP, src, nbytes, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_MEMDUP, src, nbytes, align_max, ##__VA_ARGS__))
 
+/// @brief Copies nbytes bytes into newly allocated storage with explicit alignment.
+/// @param src Source readable for nbytes bytes; may be NULL when nbytes is zero.
+/// @param nbytes Byte count; may be zero.
+/// @param align Supported nonzero power-of-two alignment.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return The allocated copy, or NULL if nbytes is zero.
+/// @note Performs a bytewise copy, not a deep copy; does not invoke C++ constructors.
+/// Zero-size requests do not access src. Failure follows alloc_allocate() semantics.
+/// @see rk_memdup
 #define rk_memdup_aligned(src, nbytes, align, ...)                                                 \
-  ((typeof(((void)0, (src)[0]))*)rk_overload(RKI_MEMDUP_ALIGNED, src, nbytes, align, ##__VA_ARGS__))
+  ((void*)RKI_OVERLOAD(RKI_MEMDUP, src, nbytes, align, ##__VA_ARGS__))
+
+/// @brief Copies count non-array elements into raw storage with their type's required alignment.
+/// @param src Typed source pointer or array, readable for count elements; may be a typed NULL
+/// pointer when count is zero. Array-valued elements are not supported by this macro's return type.
+/// @param count Element count; may be zero. The byte-size calculation must be representable.
+/// @param allocator Valid allocator handle; defaults to alloc_ctx.
+/// @return A pointer to the copied elements, or NULL if count is zero. Element type is obtained
+/// through typeof_decayed(*(src)); its qualification behavior follows that helper.
+/// @note Uses bytewise copy semantics; does not construct C++ objects or perform a deep copy.
+/// For array-valued elements, use rk_memdup_aligned() and an appropriate pointer-to-array type.
+/// @see rk_memdup_aligned
+#define rk_arrdup(src, count, ...)                                                                 \
+  ((typeof_decayed(*(src))*)RKI_OVERLOAD(RKI_MEMDUP, src, sizeof_n(typeof(*(src)), count),         \
+                                         alignof(typeof(*(src))), ##__VA_ARGS__))
 
 #pragma region implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////Implementation Details///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// @cond INTERNAL
 
 /// @brief Returns a container's effective allocator.
 /// If the stored allocator is unset (its `vtab` is NULL), returns `alloc_ctx`.
 /// `self` must point to an object containing an `Allocator alloc` member.
 /// The result is an rvalue and cannot be used to modify the stored allocator.
-
 #if RK_CUSTOM_ALLOCATORS
 # define RKI_REQUIRE_CUSTOM_ALLOCATORS(...) __VA_ARGS__
+
 rklib_fun rk_pure rk_forceinline Allocator rki_allocator_of(Allocator alloc) {
   return alloc.vtab ? alloc : alloc_ctx;
 }
@@ -413,13 +473,18 @@ rklib_fun rk_pure rk_forceinline Allocator rki_allocator_of(Allocator alloc) {
                : (RKI_assert_allocator_valid(alloc_ctx), (_alloc) = alloc_ctx)))
 #else
 # define RKI_allocator_disabled_assert()    static_assert_expr(0, "Allocators Disabled")
-
 # define RKI_REQUIRE_CUSTOM_ALLOCATORS(...) ((void*)RKI_allocator_disabled_assert())
 # define RKI_allocatorof(self)              ((void)(self), alloc_ctx)
 # define RKI_assert_allocator_valid(_alloc) ((void)0)
 # define RK_IFALLOC(...)
 # define RKI_set_alloc_fallback(_alloc) ((void)0)
 #endif
+
+// Allocation pointer/size pairing shared by every layer: a null pointer has size zero, and a
+// non-null allocation has a positive size.
+#define RKI_ASSERT_ALLOC_PAIR(ptr, size)                                                           \
+  ((ptr) ? rk_assert((size) && "Non-NULL allocation has zero size")                                \
+         : rk_assert(!(size) && "NULL allocation has nonzero size"))
 
 ///////////////////////// Page Allocator /////////////////////////////////
 #if defined(_MSC_VER) && !defined(_WINDOWS_)
@@ -455,7 +520,7 @@ rklib_fun rk_malloc_fun rk_alloc_size(1) void* page_alloc(size_t size) {
 }
 
 rklib_fun void page_free(void* ptr, size_t size) {
-  if rk_unlikely (!size) { return; }
+  if rk_unlikely (!ptr || !size) { return; }
   size_t ps = rki_mmap_page_size();
   size      = rk_align_up(size, ps);
 #ifndef _MSC_VER
@@ -468,8 +533,9 @@ rklib_fun void page_free(void* ptr, size_t size) {
 }
 
 rklib_fun rk_alloc_size(3) void* page_realloc(void* ptr, size_t old_size, size_t new_size) {
-  if (!old_size) { return page_alloc(new_size); }
+  RKI_ASSERT_ALLOC_PAIR(ptr, old_size);
   if (!new_size) { return page_free(ptr, old_size), rk_null; }
+  if (!ptr) { return page_alloc(new_size); }
   size_t ps      = rki_mmap_page_size();
   size_t al_size = rk_align_up(new_size, ps), al_oldsize = rk_align_up(old_size, ps);
   if (al_size == al_oldsize) {
@@ -524,25 +590,23 @@ rklib_fun void rki_page_deallocate(void* ptr, size_t old_size, size_t align rk_u
   rk_assert(align <= rki_mmap_page_size() && "Wrong alignment");
   page_free(ptr, old_size);
 }
-
 ///////////////////////////////////    Malloc wrappers   ///////////////////////////////////////////
+// Zero/null normalization is retained here for direct public malloc_* entry points.
+
 rklib_fun rk_forceinline rk_malloc_fun rk_alloc_size(1) void* rki_malloc_f(size_t size) {
   if rk_unlikely (!size) { return rk_null; }
   void* res = malloc(size);
-  RK_MALLOC_FAIL(res, rk_null, rk_null, RK_malloc_align, size);
+  RK_MALLOC_FAIL(res, rk_null, rk_null, RKI_MALLOC_ALIGN, size);
   return res;
 }
 
-rklib_fun rk_forceinline void rki_free_f(void* ptr) {
-  if (ptr == rk_null) { return; }
-  free(ptr);
-}
+rklib_fun rk_forceinline void rki_free_f(void* ptr) { free(ptr); }
 
-rklib_fun rk_forceinline rk_alloc_size(2) void* rki_realloc_f(void* ptr, size_t size) {
+rklib_fun rk_forceinline      rk_alloc_size(2) void* rki_realloc_f(void* ptr, size_t size) {
   if (!size) { return rki_free_f(ptr), rk_null; }
   if (ptr == rk_null) { return rki_malloc_f(size); }
   void* res = realloc(ptr, size);
-  RK_MALLOC_FAIL(res, rk_null, ptr, RK_malloc_align, size);
+  RK_MALLOC_FAIL(res, rk_null, ptr, RKI_MALLOC_ALIGN, size);
   return res;
 }
 
@@ -550,7 +614,7 @@ rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_aligned_alloc_f(size_
                                                                            size_t align) {
   rk_assert_align_pow2(align);
   if rk_unlikely (!size) { return rk_null; }
-  align = rk_max(align, RK_malloc_align);
+  align = rk_max(align, RKI_MALLOC_ALIGN);
   size  = rk_align_up(size, align);
 #ifndef _MSC_VER
   void* res = aligned_alloc(align, size);
@@ -560,10 +624,10 @@ rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_aligned_alloc_f(size_
   RK_MALLOC_FAIL(res, rk_null, rk_null, align, size);
   return res;
 }
-
 #ifndef _MSC_VER
 # define rki_aligned_free_f rki_free_f
 #else
+
 rklib_fun rk_forceinline void rki_aligned_free_f(void* ptr) {
   if (ptr != rk_null) { _aligned_free(ptr); }
 }
@@ -573,10 +637,12 @@ rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_aligned_realloc_f(vo
                                                                               size_t old_size,
                                                                               size_t new_size,
                                                                               size_t align) {
-  if (!old_size) { return rki_aligned_alloc_f(new_size, align); }
+  // Same dispatch as rki_realloc_f: keyed on the pointer, not on old_size.
+  RKI_ASSERT_ALLOC_PAIR(ptr, old_size);
   if (!new_size) { return rki_aligned_free_f(ptr), rk_null; }
+  if (!ptr) { return rki_aligned_alloc_f(new_size, align); }
   rk_assert_align_pow2(align);
-  align    = rk_max(align, RK_malloc_align);
+  align    = rk_max(align, RKI_MALLOC_ALIGN);
   new_size = rk_align_up(new_size, align);
 #ifndef _MSC_VER
   void* res = aligned_alloc(align, new_size);
@@ -594,21 +660,21 @@ rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_aligned_realloc_f(vo
 rklib_fun rk_malloc_fun rk_alloc_alignsize(2, 1) void* rki_malloc_allocate(size_t    size,
                                                                            size_t    align,
                                                                            void* ctx rk_unused) {
-  return align <= RK_malloc_align ? rki_malloc_f(size) : rki_aligned_alloc_f(size, align);
+  return align <= RKI_MALLOC_ALIGN ? rki_malloc_f(size) : rki_aligned_alloc_f(size, align);
 }
 
 rklib_fun rk_alloc_alignsize(4, 3) void* rki_malloc_reallocate(void* ptr, size_t old_size,
                                                                size_t new_size, size_t align,
                                                                void* ctx rk_unused) {
-  return align <= RK_malloc_align ? rki_realloc_f(ptr, new_size)
-                                  : rki_aligned_realloc_f(ptr, old_size, new_size, align);
+  RKI_ASSERT_ALLOC_PAIR(ptr, old_size); // the ordinary realloc path ignores old_size
+  return align <= RKI_MALLOC_ALIGN ? rki_realloc_f(ptr, new_size)
+                                   : rki_aligned_realloc_f(ptr, old_size, new_size, align);
 }
 
 rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_t align rk_unused,
                                      void* ctx rk_unused) {
-  align <= RK_malloc_align ? rki_free_f(ptr) : rki_aligned_free_f(ptr);
+  align <= RKI_MALLOC_ALIGN ? rki_free_f(ptr) : rki_aligned_free_f(ptr);
 }
-
 // dynamically chose whether malloc or aligned_alloc
 #define RKI_MALLOC_ALLOCATE(bytes, align)                                                          \
   (alloc_log_new(), rki_malloc_allocate(bytes, align, rk_null))
@@ -616,7 +682,6 @@ rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_
   (alloc_log_renew(), rki_malloc_reallocate(ptr, obytes, nbytes, align, rk_null))
 #define RKI_MALLOC_DEALLOCATE(ptr, align)                                                          \
   (alloc_log_delete(), rki_malloc_deallocate(ptr, 0, align, rk_null))
-
 // always call malloc, compiler error if over-aligned
 #define RKI_MALLOC_NEW(T, count)                                                                   \
   (alloc_log_new(), rk_ensure_malloc_align(T), rki_malloc_f(sizeof_n(T, count)))
@@ -625,7 +690,6 @@ rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_
    rki_realloc_f(ptr, sizeof_n(*(ptr), count)))
 #define RKI_MALLOC_DELETE(ptr)                                                                     \
   (alloc_log_delete(), rk_ensure_malloc_align(typeof(*(ptr))), rki_free_f(ptr))
-
 // always call aligned_alloc, check if alignment is enough for type
 #define RKI_MALLOC_ALIGNED_NEW(T, count, align)                                                    \
   (alloc_log_new(), rk_assert_valid_align(T, align), rki_aligned_alloc_f(sizeof_n(T, count), align))
@@ -633,16 +697,16 @@ rklib_fun void rki_malloc_deallocate(void* ptr, size_t old_size rk_unused, size_
   (alloc_log_renew(), rk_assert_valid_align(typeof(*(ptr)), align),                                \
    rki_aligned_realloc_f(ptr, sizeof_n(*(ptr), old_count), sizeof_n(*(ptr), new_count), align))
 #define RKI_MALLOC_ALIGNED_DELETE(ptr) (alloc_log_delete(), rki_aligned_free_f(ptr))
-
 ///////////////////////////////////  Alloc Wrappers ////////////////////////////////////////////////
-
 #if RK_CUSTOM_ALLOCATORS
+
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes, size_t align,
                                                                        Allocator alloc) {
   rk_assert(alloc.vtab && "Invalid Allocator");
   if (!nbytes) { return rk_null; }
   return alloc.vtab->alloc_f(nbytes, align, alloc.ctx);
 }
+
 rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_call_realloc(void* ptr, size_t obytes,
                                                                          size_t    nbytes,
                                                                          size_t    align,
@@ -680,13 +744,14 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
    (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align, all))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
    (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align, all))
-
 #else
+
 rklib_fun rk_forceinline rk_alloc_alignsize(2, 1) void* rki_call_alloc(size_t nbytes,
                                                                        size_t align) {
   if (!nbytes) { return rk_null; }
   return alloc_ctx.vtab->alloc_f(nbytes, align, alloc_ctx.ctx);
 }
+
 rklib_fun rk_forceinline rk_alloc_alignsize(4, 3) void* rki_call_realloc(void* ptr, size_t obytes,
                                                                          size_t nbytes,
                                                                          size_t align) {
@@ -720,26 +785,21 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
    (alloc_log_renew(), rki_call_realloc(ptr, obytes, nbytes, align))
 # define RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all)                                             \
    (alloc_log_delete(), rki_call_dealloc(ptr, obytes, align))
-
 #endif
-
 #define RKI_ALLOC_NEW(T, count, all) RKI_ALLOC_ALLOCATE(sizeof_n(T, count), alignof(T), all)
 #define RKI_ALLOC_ALIGNED_NEW(T, count, align, all)                                                \
   (rk_assert_valid_align(T, align), RKI_ALLOC_ALLOCATE(sizeof_n(T, count), align, all))
-
 #define RKI_ALLOC_RENEW(ptr, ocount, ncount, all)                                                  \
   RKI_ALLOC_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount),                    \
                        alignof(typeof(*(ptr))), all)
 #define RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, all)                                   \
   (rk_assert_valid_align(typeof(*(ptr)), align),                                                   \
    RKI_ALLOC_REALLOCATE(ptr, sizeof_n(*(ptr), ocount), sizeof_n(*(ptr), ncount), align, all))
-
 #define RKI_ALLOC_DELETE(ptr, ocount, all)                                                         \
   RKI_ALLOC_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), alignof(typeof(*(ptr))), all)
 #define RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, all)                                          \
   (rk_assert_valid_align(typeof(*(ptr)), align),                                                   \
    RKI_ALLOC_DEALLOCATE(ptr, sizeof_n(*(ptr), ocount), align, all))
-
 // macros with allocator parameter; disabled if no local allocators enabled
 #define RKI_ALLOC_ALLOCATE3(bytes, align, all)                                                     \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALLOCATE(bytes, align, all))
@@ -747,67 +807,47 @@ rklib_fun rk_forceinline void rki_call_dealloc(void* ptr, size_t obytes, size_t 
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, all))
 #define RKI_ALLOC_DEALLOCATE4(ptr, obytes, align, all)                                             \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_DEALLOCATE(ptr, obytes, align, all))
-
 #define RKI_ALLOC_NEW3(T, count, all) RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_NEW(T, count, all))
 #define RKI_ALLOC_ALIGNED_NEW4(T, count, align, all)                                               \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_NEW(T, count, align, all))
-
 #define RKI_ALLOC_RENEW4(ptr, ocount, ncount, all)                                                 \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_RENEW(ptr, ocount, ncount, all))
 #define RKI_ALLOC_ALIGNED_RENEW5(ptr, ocount, ncount, align, all)                                  \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, all))
-
 #define RKI_ALLOC_DELETE3(ptr, ocount, all)                                                        \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_DELETE(ptr, ocount, all))
 #define RKI_ALLOC_ALIGNED_DELETE4(ptr, ocount, align, all)                                         \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, all))
-// get_alloc_ctx
 //  macros with fewer parameters (might default to alloc_ctx)
 #define RKI_ALLOC_ALLOCATE2(bytes, align)       RKI_ALLOC_ALLOCATE(bytes, align, alloc_ctx)
 #define RKI_ALLOC_ALIGNED_NEW3(T, count, align) RKI_ALLOC_ALIGNED_NEW(T, count, align, alloc_ctx)
 #define RKI_ALLOC_NEW2(T, count)                RKI_ALLOC_NEW(T, count, alloc_ctx)
-
 #define RKI_ALLOC_REALLOCATE4(ptr, obytes, nbytes, align)                                          \
   RKI_ALLOC_REALLOCATE(ptr, obytes, nbytes, align, alloc_ctx)
 #define RKI_ALLOC_ALIGNED_RENEW4(ptr, ocount, ncount, align)                                       \
   RKI_ALLOC_ALIGNED_RENEW(ptr, ocount, ncount, align, alloc_ctx)
 #define RKI_ALLOC_RENEW3(ptr, ocount, ncount) RKI_ALLOC_RENEW(ptr, ocount, ncount, alloc_ctx)
-
 #define RKI_ALLOC_DEALLOCATE3(ptr, obytes, align)                                                  \
   RKI_ALLOC_DEALLOCATE(ptr, obytes, align, alloc_ctx)
 #define RKI_ALLOC_ALIGNED_DELETE3(ptr, ocount, align)                                              \
   RKI_ALLOC_ALIGNED_DELETE(ptr, ocount, align, alloc_ctx)
 #define RKI_ALLOC_DELETE2(ptr, ocount) RKI_ALLOC_DELETE(ptr, ocount, alloc_ctx)
-
 rklib_fun
     rk_alloc_alignsize(3, 2) void* rki_memdup_aligned(const void* src, size_t size,
                                                       size_t align RK_IFALLOC(, Allocator alloc)) {
   return rk_memcpy(alloc_allocate(size, align RK_IFALLOC(, alloc)), src, size);
 }
-
-#define RKI_MEMDUP_ALIGNED4(src, nbytes, align, alloc)                                             \
+#define RKI_MEMDUP4(src, nbytes, align, alloc)                                                     \
   RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_memdup_aligned(src, nbytes, align, alloc))
-#define RKI_MEMDUP_ALIGNED3(src, nbytes, align)                                                    \
+#define RKI_MEMDUP3(src, nbytes, align)                                                            \
   rki_memdup_aligned(src, nbytes, align RK_IFALLOC(, alloc_ctx))
-
-#define RKI_ARRDUP3(src, count, alloc)                                                             \
-  RKI_MEMDUP_ALIGNED4(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))), alloc)
-#define RKI_ARRDUP2(src, count)                                                                    \
-  RKI_MEMDUP_ALIGNED3(src, sizeof_n(typeof(*(src)), count), alignof(typeof(*(src))))
-
-#define RKI_MEMDUP3(src, nbytes, alloc)                                                            \
-  RKI_REQUIRE_CUSTOM_ALLOCATORS(rki_memdup_aligned(src, nbytes, align_max, alloc))
-#define RKI_MEMDUP2(src, nbytes) rki_memdup_aligned(src, nbytes, align_max RK_IFALLOC(, alloc_ctx))
-
 #undef RKI_ALLOCCTX_STORAGE
 #undef RKI_ALLOCCTX_INIT
-
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_ALLOC_H
-
 // MIT License
 //
 // Copyright (c) 2026 Dariusch Knigge

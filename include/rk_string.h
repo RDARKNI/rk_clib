@@ -30,7 +30,7 @@
 #include "rk_alloc.h"
 #include <stdarg.h>
 #include <string.h>
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 
 /// @brief Represents a non-owning, non-mutable view of a string.
 /// @note `(Strv){NULL, 0}` is a valid `Strv` and will be treated accordingly by all functions
@@ -115,7 +115,7 @@ typedef struct Str {
 /// @param init_cap size_t The initial capacity of the string (in elements)
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx`
 /// @return A `Str` object with the given capacity
-#define str_init(init_cap, ...) rk_overload(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
+#define str_init(init_cap, ...) RKI_OVERLOAD(RKI_STR_INIT, init_cap, ##__VA_ARGS__)
 
 /// @brief `Str str_from(Strlike strlike, Allocator alloc = alloc_ctx)` - Constructs a Str from a
 /// Stringlike object, copying the data.
@@ -124,7 +124,7 @@ typedef struct Str {
 /// this defaults to the Allocator of the cloned Strlike if it is a Str object, or alloc_ctx
 /// otherwise.
 /// @return A `Str` object with the copied string data
-#define str_from(strlike, ...)  rk_overload(RKI_STR_FROM, strlike, ##__VA_ARGS__)
+#define str_from(strlike, ...)  RKI_OVERLOAD(RKI_STR_FROM, strlike, ##__VA_ARGS__)
 
 /// @brief `Str str_from_literal(STRING_LITERAL, Allocator alloc = alloc_ctx)`
 /// - Construct a Str from a string literal.
@@ -132,7 +132,7 @@ typedef struct Str {
 /// @param alloc Allocator Optional parameter - The allocator; defaults to `alloc_ctx` if not
 /// provided
 /// @return A `Str` object initialised with the literal's contents
-#define str_from_literal(strlit, ...) rk_overload(RKI_STR_FROMLIT, strlit, ##__VA_ARGS__)
+#define str_from_literal(strlit, ...) RKI_OVERLOAD(RKI_STR_FROMLIT, strlit, ##__VA_ARGS__)
 
 /// @brief Frees the underlying memory of `self`.
 rklib_fun void str_release(Str* restrict self) {
@@ -150,7 +150,7 @@ rklib_fun void str_release(Str* restrict self) {
 /// provided.
 /// @return A `Str` object containing the joined string
 #define str_join_strv_n(svs, count, sep, ...)                                                      \
-  rk_overload(RKI_STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
+  RKI_OVERLOAD(RKI_STR_JOIN_STRV_N, svs, count, sep, ##__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name String Accessors
@@ -320,7 +320,7 @@ rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 /// ```c
 /// str_foreach(&str, c) { putchar(*c); }
 /// ```
-#define str_foreach(self, it) RKI_STR_FOREACH(self, it)
+#define str_foreach(self, it)          RKI_STR_FOREACH(self, it)
 
 /// @brief Like `str_foreach()`, but iterates in reverse index order. Same parameters and contract.
 #define str_foreach_reversed(self, it) RKI_STR_FOREACH_REVERSED(self, it)
@@ -337,7 +337,7 @@ rklib_fun Str* str_erase_at_n(Str* restrict self, size_t idx, size_t count);
 /// str_erase_if(&str, c, (*c == 'o'));
 /// printf("%s\n", str.str); // prints "hell"
 /// ```
-#define str_erase_if(self, it, pred) RKI_STR_ERASE_IF(self, it, pred)
+#define str_erase_if(self, it, pred)   RKI_STR_ERASE_IF(self, it, pred)
 
 /// @brief Replaces all instances of `oldc` in `self` with `newc`.
 rklib_fun Str* str_replace(Str* restrict self, char oldc, char newc);
@@ -419,7 +419,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
 /// `alloc_ctx` (or malloc_allocator, if `RK_CUSTOM_ALLOCATORS` == `0`)
 /// @return A Strv* to the array of tokens.
 #define str_split_alloc(strlike, delims, out_count, ...)                                           \
-  rk_overload(RKI_STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
+  RKI_OVERLOAD(RKI_STR_SPLIT_ALLOC, strv_from(strlike), strv_from(delims), out_count, ##__VA_ARGS__)
 
 /// @brief Trims a Stringlike by adjusting both its starting and ending position past any leading
 /// and trailing space characters.
@@ -530,7 +530,7 @@ rklib_fun rk_const Strv strv_from_cstrn(const char* str, size_t len) {
                                                                                 *rki_var_str);     \
          it != rki_var_begin && (--it, 1);)
 
-#define RKI_STR_ERASE_IF(self, it, pred)                                                          \
+#define RKI_STR_ERASE_IF(self, it, pred)                                                           \
   do {                                                                                             \
     Str* const rki_var_str = (self);                                                               \
     if (!rki_var_str->str) { break; }                                                              \
@@ -999,7 +999,7 @@ rklib_fun Strv*(str_split_alloc)(Strv str, Strv dels,
                                  size_t* restrict out_count RK_IFALLOC(, Allocator alloc)) {
   RKI_assert_allocator_valid(alloc);
   typedef unsigned char uchar;
-  uchar                 dbits[256] = {RK_ZINIT};
+  uchar                 dbits[256] = {RKI_ZINIT};
   for (size_t i = 0; i < dels.len; ++i) { dbits[(uchar)dels.str[i]] = 1; }
   size_t count = 1;
   for (size_t i = 0; i < str.len; ++i) { count += dbits[(uchar)str.str[i]]; }
@@ -1061,7 +1061,7 @@ rklib_fun Strv str_split_strv(Strv* self, Strv dels) {
 
 /// @endcond
 #pragma endregion implementation
-RK_HEADER_END
+RKI_HEADER_END
 /// @}
 #endif // RK_STRING_H
 

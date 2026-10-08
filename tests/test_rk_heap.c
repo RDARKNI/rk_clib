@@ -5,7 +5,7 @@
 #define RK_IMPL
 #include "../include/rklib.h"
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 extern_fun int heap_int_cmp(int a, int b) { return (a > b) - (a < b); }
@@ -371,8 +371,8 @@ triax_test(heap, foreach_visits_all_elements) {
 }
 
 triax_test(heap, foreach_empty_is_noop) {
-  Heap(int) h     = heap_init(int, 0);
-  int       count = 0;
+  Heap(int) h = heap_init(int, 0);
+  int count   = 0;
   heap_foreach(&h, it) {
     (void)it;
     ++count;
@@ -401,8 +401,8 @@ triax_test(heap, erase_if_removes_matching_and_preserves_heap_order) {
 }
 
 triax_test(heap, erase_if_empty_is_noop) {
-  Heap(int) h          = heap_init(int, 0);
-  int       pred_calls = 0;
+  Heap(int) h    = heap_init(int, 0);
+  int pred_calls = 0;
   heap_erase_if(int, &h, it, (++pred_calls, (void)it, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(heap_count(&h), 0u);
@@ -425,5 +425,5 @@ triax_test(heap, large_worst_case_order) {
 }
 
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 #endif

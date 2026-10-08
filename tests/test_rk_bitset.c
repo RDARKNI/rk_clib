@@ -2,7 +2,7 @@
 #define TEST_BITSET_H
 #include "conf.h"
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 // #define CAP 239539
@@ -239,6 +239,6 @@ triax_test(bitset, iterations) {
 // }
 
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 
 #endif

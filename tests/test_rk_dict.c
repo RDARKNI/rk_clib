@@ -4,7 +4,7 @@
 #include "rk_dict.h"
 #include <limits.h>
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 // ---- Define concrete key/value dict: int -> const char* ----
@@ -25,20 +25,20 @@ extern_fun int str_cmp(cstr a, cstr b) { return strcmp(a, b) != 0; }
 DICT_DEFINE(cstr, int, str_hash, str_cmp)
 
 triax_test(dict, contains) {
-  Dict(int, cstr) d = {RK_ZINIT};
+  Dict(int, cstr) d = {RKI_ZINIT};
   triax_assert_false(dict_contains(int, cstr, &d, 0));
   dict_add(int, cstr, &d, 0, "hello");
   triax_assert_true(dict_contains(int, cstr, &d, 0));
 }
 
 triax_test(dict, cap) {
-  Dict(int, cstr) d = {RK_ZINIT};
+  Dict(int, cstr) d = {RKI_ZINIT};
   triax_assert_false(dict_contains(int, cstr, &d, 0));
   dict_add(int, cstr, &d, 0, "hello");
   triax_assert_true(dict_contains(int, cstr, &d, 0));
 }
 triax_test(dict, null) {
-  Dict(int, cstr) d = {RK_ZINIT};
+  Dict(int, cstr) d = {RKI_ZINIT};
   triax_expect_eq(dict_cap(&d), 0u);
   triax_expect_false(dict_contains(int, cstr, &d, 0));
   triax_expect_eq(dict_count(&d), 0u);
@@ -52,17 +52,17 @@ triax_test(dict, null) {
   triax_assert_nonnull(dict_add(int, cstr, &d, 0, "ok"));
   triax_assert_true(dict_contains(int, cstr, &d, 0));
   dict_release(int, cstr, &d);
-  d = (Dict(int, cstr)){RK_ZINIT};
+  d = (Dict(int, cstr)){RKI_ZINIT};
   triax_assert_true(dict_set(int, cstr, &d, 0, "ok"));
   triax_assert_true(dict_contains(int, cstr, &d, 0));
   dict_release(int, cstr, &d);
-  d = (Dict(int, cstr)){RK_ZINIT};
+  d = (Dict(int, cstr)){RKI_ZINIT};
   bool inserted;
   triax_assert_true(dict_get_or_add(int, cstr, &d, 0, "ok", &inserted));
 }
 
 triax_test(dict, zero_initialized) {
-  Dict(int, cstr) d = {RK_ZINIT};
+  Dict(int, cstr) d = {RKI_ZINIT};
   triax_expect_true(dict_is_empty(&d));
   triax_expect_eq(dict_count(&d), 0u);
   triax_expect_eq(dict_cap(&d), 0u);
@@ -284,7 +284,7 @@ triax_test(dict, foreach_empty_is_noop) {
 // but empty Dict (nonzero cap, all slots marked empty) -- exercises rki_ds_next_live's documented
 // cap == 0 / data == NULL safety.
 triax_test(dict, foreach_on_zero_initialized_dict_is_noop) {
-  Dict(int, cstr) d     = {RK_ZINIT};
+  Dict(int, cstr) d     = {RKI_ZINIT};
   int             count = 0;
   dict_foreach(&d, k, v) {
     (void)k;
@@ -514,7 +514,7 @@ triax_test(dict, erase_if_empty_is_noop) {
 }
 
 triax_test(dict, erase_if_on_zero_initialized_dict_is_noop) {
-  Dict(int, cstr) d     = {RK_ZINIT};
+  Dict(int, cstr) d     = {RKI_ZINIT};
   int             calls = 0;
   dict_erase_if(&d, k, v, (++calls, (void)k, (void)v, true));
   triax_expect_eq(calls, 0);
@@ -683,6 +683,86 @@ triax_test(dict, extract_rejects_null_out_ptr, .isolation = TRIAX_ISOLATION_ON) 
   dict_release(int, cstr, &d);
 }
 
+triax_test(dict, assign_replaces_contents) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 99, "old");
+  const int  keys[] = {1, 2, 3};
+  const cstr vals[] = {"a", "b", "c"};
+  dict_assign(int, cstr, &d, keys, vals, 3);
+  triax_expect_eq(dict_count(&d), 3u);
+  triax_expect_false(dict_contains(int, cstr, &d, 99));
+  for (int i = 0; i < 3; ++i) { triax_expect_streq(*dict_get(int, cstr, &d, keys[i]), vals[i]); }
+  dict_release(int, cstr, &d);
+}
+
+// Duplicate keys keep the first key representative and the last value.
+triax_test(dict, assign_duplicates_keep_first_key_last_value) {
+  char       k1[] = "dup", k2[] = "dup";
+  const cstr keys[] = {k1, "other", k2};
+  const int  vals[] = {1, 2, 3};
+  Dict(cstr, int) d = {RKI_ZINIT};
+  dict_assign(cstr, int, &d, keys, vals, 3);
+  triax_expect_eq(dict_count(&d), 2u);
+  triax_expect_eq(*dict_get(cstr, int, &d, "dup"), 3);
+  dict_foreach_key(&d, k) {
+    if (!strcmp(*k, "dup")) { triax_expect_true(*k == k1); }
+  }
+  dict_release(cstr, int, &d);
+}
+
+triax_test(dict, assign_empty_on_zero_initialized_does_not_allocate) {
+  Dict(int, cstr) d = {RKI_ZINIT};
+  dict_assign(int, cstr, &d, rk_null, rk_null, 0);
+  triax_expect_eq(dict_cap(&d), 0u);
+  triax_expect_eq(dict_count(&d), 0u);
+}
+
+// Repeated insert/remove of fresh keys leaves tombstones; compaction must keep capacity bounded.
+triax_test(dict, tombstone_churn_does_not_grow_capacity) {
+  Dict(int, cstr) d = dict_init(int, cstr, 16);
+  for (int i = 0; i < 10000; ++i) {
+    dict_set(int, cstr, &d, i, "v");
+    triax_expect_true(dict_remove(int, cstr, &d, i));
+  }
+  triax_expect_eq(dict_cap(&d), 16u);
+  triax_expect_eq(dict_count(&d), 0u);
+  dict_release(int, cstr, &d);
+}
+
+// reserve() must also account for tombstones: after reserving, n fresh inserts must not rehash
+// (which would move the value array).
+triax_test(dict, reserve_compacts_tombstones) {
+  Dict(int, cstr) d = dict_init(int, cstr, 16);
+  for (int i = 0; i < 12; ++i) { dict_set(int, cstr, &d, i, "v"); }
+  for (int i = 0; i < 12; ++i) { dict_remove(int, cstr, &d, i); }
+  dict_reserve(int, cstr, &d, 12);
+  size_t cap  = dict_cap(&d);
+  cstr*  vals = d.vals;
+  for (int i = 100; i < 112; ++i) { dict_set(int, cstr, &d, i, "w"); }
+  triax_expect_eq(dict_cap(&d), cap);
+  triax_expect_true(d.vals == vals);
+  triax_expect_eq(dict_count(&d), 12u);
+  dict_release(int, cstr, &d);
+}
+
+triax_test(dict, const_dict_get_and_foreach) {
+  Dict(int, cstr) d = dict_init(int, cstr, 4);
+  dict_set(int, cstr, &d, 7, "seven");
+  const Dict(int, cstr)* cd = &d;
+  const cstr*            p  = dict_get(int, cstr, cd, 7);
+  triax_assert_nonnull(p);
+  triax_expect_streq(*p, "seven");
+  triax_expect_null(dict_get(int, cstr, cd, 8));
+  int visits = 0;
+  dict_foreach(cd, k, v) {
+    triax_expect_eq(*k, 7);
+    triax_expect_streq(*v, "seven");
+    ++visits;
+  }
+  triax_expect_eq(visits, 1);
+  dict_release(int, cstr, &d);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @name Set Tests
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -698,7 +778,7 @@ static inline int     rk_uchar_hash(uchar x) { return x; }
 SET_DEFINE(uchar, rk_uchar_hash, rk_uchar_cmp)
 
 triax_test(set, zero_initialized) {
-  Set(uchar) s = {RK_ZINIT};
+  Set(uchar) s = {RKI_ZINIT};
   triax_expect_true(set_is_empty(&s));
   triax_expect_eq(set_count(&s), 0u);
   triax_expect_eq(set_cap(&s), 0u);
@@ -810,8 +890,8 @@ triax_test(set, foreach_visits_all_members) {
 }
 
 triax_test(set, foreach_empty_is_noop) {
-  Set(int) s     = set_init(int, 8);
-  int      count = 0;
+  Set(int) s = set_init(int, 8);
+  int count  = 0;
   set_foreach(&s, k) {
     (void)k;
     ++count;
@@ -821,8 +901,8 @@ triax_test(set, foreach_empty_is_noop) {
 }
 
 triax_test(set, foreach_on_zero_initialized_set_is_noop) {
-  Set(int) s     = {RK_ZINIT};
-  int      count = 0;
+  Set(int) s = {RKI_ZINIT};
+  int count  = 0;
   set_foreach(&s, k) {
     (void)k;
     ++count;
@@ -868,7 +948,7 @@ triax_test(set, foreach_continue_skips_member) {
   set_release(int, &s);
 }
 
-static Set(int)* rki_mark_eval_set(Set(int)* s, int* count) {
+static Set(int) * rki_mark_eval_set(Set(int) * s, int* count) {
   ++*count;
   return s;
 }
@@ -906,8 +986,8 @@ triax_test(set, erase_if_removes_matching_members) {
 }
 
 triax_test(set, erase_if_empty_is_noop) {
-  Set(int) s     = set_init(int, 8);
-  int      calls = 0;
+  Set(int) s = set_init(int, 8);
+  int calls  = 0;
   set_erase_if(&s, k, (++calls, (void)k, true));
   triax_expect_eq(calls, 0);
   triax_expect_eq(set_count(&s), 0u);
@@ -915,8 +995,8 @@ triax_test(set, erase_if_empty_is_noop) {
 }
 
 triax_test(set, erase_if_on_zero_initialized_set_is_noop) {
-  Set(int) s     = {RK_ZINIT};
-  int      calls = 0;
+  Set(int) s = {RKI_ZINIT};
+  int calls  = 0;
   set_erase_if(&s, k, (++calls, (void)k, true));
   triax_expect_eq(calls, 0);
 }
@@ -945,6 +1025,40 @@ triax_test(set, erase_if_evaluates_predicate_once_per_member) {
   triax_expect_eq(pred_calls, 3);
   triax_expect_eq(set_count(&s), 3u);
 
+  set_release(int, &s);
+}
+
+triax_test(set, extract) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 5);
+  int out = -1;
+  triax_expect_false(set_extract(int, &s, 6, &out));
+  triax_expect_eq(out, -1); // unchanged on absence
+  triax_expect_true(set_extract(int, &s, 5, &out));
+  triax_expect_eq(out, 5);
+  triax_expect_false(set_contains(int, &s, 5));
+  triax_expect_eq(set_count(&s), 0u);
+  set_release(int, &s);
+}
+
+triax_test(set, get_returns_stored_member) {
+  Set(int) s = set_init(int, 8);
+  triax_expect_null(set_get(int, &s, 3));
+  set_add(int, &s, 3);
+  const int* p = set_get(int, &s, 3);
+  triax_assert_nonnull(p);
+  triax_expect_eq(*p, 3);
+  set_release(int, &s);
+}
+
+triax_test(set, assign_replaces_contents_and_dedups) {
+  Set(int) s = set_init(int, 8);
+  set_add(int, &s, 99);
+  const int keys[] = {1, 2, 2, 3, 1};
+  set_assign(int, &s, keys, 5);
+  triax_expect_eq(set_count(&s), 3u);
+  triax_expect_false(set_contains(int, &s, 99));
+  for (int i = 1; i <= 3; ++i) { triax_expect_true(set_contains(int, &s, i)); }
   set_release(int, &s);
 }
 
@@ -982,5 +1096,5 @@ triax_test(memdup, aligned) {
   alloc_deallocate(dst, sizeof(src), 64);
 }
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 #endif

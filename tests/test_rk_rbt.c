@@ -6,7 +6,7 @@
 #include "../include/rklib.h"
 #include <limits.h>
 
-RK_HEADER_BEGIN
+RKI_HEADER_BEGIN
 RKI_IGNWARN_CLANG_BEG("-Wunused-variable")
 
 extern_fun int rbt_int_cmp(int a, int b) { return a < b ? -1 : (a == b ? 0 : 1); }
@@ -299,9 +299,9 @@ triax_test(rbt, erase_if_removes_matching_entries) {
 }
 
 triax_test(rbt, erase_if_empty_is_noop) {
-  Rbt(int, char) r          = rbt_init(int, char);
-  tree_node*     stack[4];
-  int            pred_calls = 0;
+  Rbt(int, char) r = rbt_init(int, char);
+  tree_node* stack[4];
+  int        pred_calls = 0;
   rbt_erase_if(int, char, &r, stack, 4, e, (++pred_calls, (void)e, true));
   triax_expect_eq(pred_calls, 0);
   triax_expect_eq(rbt_count(&r), 0u);
@@ -535,5 +535,5 @@ rbt_release(int, char, &r);
 }
 
 RKI_IGNWARN_CLANG_END()
-RK_HEADER_END
+RKI_HEADER_END
 #endif
